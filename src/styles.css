@@ -1,0 +1,73 @@
+/* Tank on top, tuning panel under it, both one narrow column. Committed dark look. */
+:root {
+  --soil: #17110c;
+  --frame: #3b2d21;
+  --tan: #a8916f;
+  --dim: #6e5d48;
+  --bright: #e3d3b5;
+  --pixel: 'Silkscreen', ui-monospace, 'Courier New', monospace;
+  --mono: ui-monospace, 'SFMono-Regular', Menlo, monospace;
+  color-scheme: dark;
+  box-sizing: border-box;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+body {
+  margin: 0;
+  background: var(--soil);
+  color: var(--tan);
+  font-family: var(--pixel);
+  padding: 16px;
+}
+#app {
+  width: 100%;
+  max-width: min(440px, calc(60dvh * 3 / 4));
+  margin-inline: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.tank { border: 3px solid var(--frame); background: #000; }
+.tuner { display: flex; flex-direction: column; gap: 4px; }
+.hint { margin: 0; font-size: 11px; line-height: 1.6; letter-spacing: 0.04em; text-align: center; color: var(--tan); }
+.row {
+  display: grid;
+  grid-template-columns: 10.5em minmax(0, 1fr) 3em;
+  align-items: center;
+  gap: 10px;
+  min-height: 36px;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+}
+.row input { width: 100%; min-width: 0; accent-color: var(--tan); }
+output {
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--bright);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+textarea {
+  margin-top: 6px;
+  width: 100%;
+  box-sizing: border-box;
+  resize: none;
+  background: #000;
+  color: var(--bright);
+  border: 1px solid var(--frame);
+  padding: 8px;
+  font: 12px/1.4 var(--mono);
+}
+.actions { display: flex; gap: 8px; }
+button {
+  flex: 1;
+  min-height: 40px;
+  background: var(--frame);
+  color: var(--bright);
+  border: 0;
+  font: 11px var(--pixel);
+  letter-spacing: 0.06em;
+  cursor: pointer;
+}
+button:active { background: var(--dim); }
+:focus-visible { outline: 2px solid var(--bright); outline-offset: 2px; }
