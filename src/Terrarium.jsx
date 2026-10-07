@@ -5,7 +5,7 @@ import { drawWorld } from './render.js';
 const PIXEL_SCALE = 1.5; // screen pixels per world pixel (before devicePixelRatio)
 const TICK_MS = 1000 / 60;
 
-export default function Terrarium({ className, style }) {
+export default function Terrarium({ className, style, worldRef }) {
   const canvasRef = useRef(null);
 
   useEffect(() => {
@@ -22,6 +22,7 @@ export default function Terrarium({ className, style }) {
     };
 
     const world = createWorld(...fit());
+    if (worldRef) worldRef.current = world;
     const ro = new ResizeObserver(() => resizeWorld(world, ...fit()));
     ro.observe(canvas);
 
@@ -59,6 +60,7 @@ export default function Terrarium({ className, style }) {
       cancelAnimationFrame(raf);
       ro.disconnect();
       abort.abort();
+      if (worldRef?.current === world) worldRef.current = null;
     };
   }, []);
 
