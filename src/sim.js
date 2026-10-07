@@ -74,7 +74,10 @@ const QUIRKS = [
 ];
 const START_COINS = 40;
 const MAX_TUFTS = 400; // per grass patch
+const GRASS_CLIMB = 12; // px: grass spreads up or down the face of a pile this tall in one go
+const GRASS_STUB = 0.25; // grass cut down to less than this share of its full height dies
 const VINE_REACH = 14; // px: a vine hangs from anything this close to where you tap
+const PLACE_REACH = 50; // px: plants and sticks land on the first thing at most this far below where you tap
 const CLIPPING_LEN = 6; // px of pruned plant stem per coin; clippings are the only income
 export const PRICES = { fountain: 15 }; // fixed prices for anything not showcased; showcased kinds are priced per offer
 export const SHOP_KINDS = ['bug', 'plant', 'stick', 'wallpaper']; // showcased in the shop, OFFERS of each
@@ -181,10 +184,11 @@ const removeSegments = (world, segs) => {
   rebuildJunctions(world);
   for (const bug of world.bugs) if (gone.has(bug.surf) || gone.has(bug.transfer?.from)) detach(bug, 'fall');
   replan(world);
-  // Whatever stood on a surface that's gone, or that was cut back from under it, comes down too.
+  // Whatever stood on a surface that's gone, or that was cut back from under it, comes down too. (The terrain's
+  // outline is never cut: rebuildSkyline looks after what stands on it.)
   for (const obj of [...world.objects]) {
     const on = obj.on;
-    if (!on || on === world.ground || !world.objects.includes(obj)) continue;
+    if (!on || on === world.ground || on.kind === 'terrain' || !world.objects.includes(obj)) continue;
     if (gone.has(on) || distToSeg(on, obj.base.x, obj.base.y) > 2) removeObject(world, obj, true);
   }
 };
@@ -475,6 +479,7 @@ export const createWorld = (W, H, { seed = Date.now(), scene = true } = {}) => {
     placing: null, // the shop item waiting to be put down: {kind, seed}
     tool: 'hand', // or 'paint', 'prune' or 'move'
     moving: null, // the plant being dragged somewhere else, and where it was grabbed: {obj, x, y}
+    pruneDemo: null, // when the prune tool was last picked, for its little how-to animation
     selected: null,
     wallpaper: null, // the back of the tank: null for plain black
     terrain: makeTerrain(W, H - 6),
@@ -642,10 +647,12 @@ const build = (world, kind, seed, x, y, genes) => {
     return { kind, box, base: { x: box.x + box.size / 2, y: box.y + box.size } };
   }
   if (kind === 'vine') return { kind, ...vineAnchor(world, x, y), genome: makeVine(rand) };
-  const { base, on } = standAt(world, x, y);
-  if (kind === 'grass') return { kind, base, on: null, genome: makeGrass(rand) }; // tufts mind their own soil
-  if (kind === 'stick') return { kind, base, on, ...makeStick(rand, base, world.W, world.H) };
-  return { kind, base, on, species: makeSpecies(rand) };
+  // Plants and sticks need something to stand on not far below; null if there's nothing.
+  const at = kind === 'grass' ? sowAt(world, x, y) : standAt(world, x, y);
+  if (!at) return null;
+  if (kind === 'grass') return { kind, ...at, genome: makeGrass(rand) };
+  if (kind === 'stick') return { kind, ...at, ...makeStick(rand, at.base, world.W, world.H) };
+  return { kind, ...at, species: makeSpecies(rand) };
 };
 
 // Where a vine hung near (x, y) hangs from: the nearest branch or stick, or underside or face of the terrain,
@@ -665,11 +672,22 @@ const vineAnchor = (world, x, y) => {
   return { base, on: best?.g ?? null };
 };
 
-// Where something put down at (x, y) stands: on the floor below, or on top of the terrain if (x, y) is inside
-// it rather than under it.
+// Where something put down at (x, y) stands: straight down from there, the first of the top of a stick, the
+// terrain (to the cell, so caves and ledges count; from inside it, its top) or the tank floor, if that's within
+// PLACE_REACH. On the terrain it remembers the cell holding it up (hold) and comes down if that goes. Null if
+// there's nothing near enough.
 const standAt = (world, x, y) => {
-  const floor = floorBelow(world, x, surfaceAbove(world, x, y));
-  return { base: { x: clamp(x, 3, world.W - 4), y: floor.y }, on: floor.g };
+  const gx = clamp(x, 3, world.W - 4);
+  const top = groundTop(world, gx, y);
+  let best = { y: top, on: top >= world.ground.y0 ? world.ground : null };
+  for (const g of world.branches) {
+    if (g.kind === 'terrain' || !isFloorLike(g) || gx < g.x0 || gx > g.x1) continue;
+    const gy = yAt(g, gx);
+    if (gy >= y && gy < best.y) best = { y: gy, on: g };
+  }
+  if (best.y - y > PLACE_REACH) return null;
+  const base = { x: gx, y: best.y };
+  return best.on ? { base, on: best.on } : { base, on: null, hold: { x: gx, y: best.y + CELL / 2 } };
 };
 
 // The item being placed, following the pointer.
@@ -679,7 +697,7 @@ export const previewAt = (world) => {
 };
 
 const addDecor = (world, spec) => {
-  const obj = { kind: spec.kind, base: spec.base, on: spec.on };
+  const obj = { kind: spec.kind, base: spec.base, on: spec.on, hold: spec.hold };
   if (spec.kind === 'stick') {
     Object.assign(obj, { wood: spec.wood, foliage: spec.foliage });
     const segs = [];
@@ -734,11 +752,13 @@ export const startPlacing = (world, kind, offer = null) => {
   if (world.placing) world.tool = 'hand';
 };
 
+// Esc: put down whatever is waiting to go somewhere, a shop item or a plant picked to propagate.
 export const cancelPlacing = (world) => {
-  world.placing = null;
+  Object.assign(world, { placing: null, moving: null });
 };
 
 export const setTool = (world, tool) => {
+  if (tool === 'prune' && world.tool !== 'prune') world.pruneDemo = world.time;
   Object.assign(world, { tool, placing: null, painting: false, moving: null });
 };
 
@@ -753,6 +773,8 @@ export const buyWallpaper = (world, offer) => {
 
 const placeItem = (world, x, y) => {
   const { kind, seed, offer, price } = world.placing;
+  const decor = kind !== 'bug' && kind !== 'fountain' && build(world, kind, seed, x, y);
+  if (decor === null) return; // nothing to stand on near there: keep holding it
   world.placing = null;
   if (world.coins < price || offer?.sold) return;
   if (kind === 'bug') {
@@ -760,7 +782,7 @@ const placeItem = (world, x, y) => {
   } else if (kind === 'fountain') {
     placeFountain(world.terrain, x, y, world.rand);
   } else {
-    addDecor(world, build(world, kind, seed, x, y));
+    addDecor(world, decor);
   }
   world.coins -= price;
   if (offer) offer.sold = true;
@@ -987,6 +1009,39 @@ const isSoil = (world, x, y) => {
   return Math.abs(y - world.ground.y0) < 1;
 };
 
+// The top of the ground at x, at or below y, to the cell: the first solid cell going down, or the tank floor.
+// From inside the terrain or the floor strip under it, the top of that solid stretch instead. Grass needs this
+// rather than the walkable outline, which smooths over bumps and can float a cell above the dirt.
+const groundTop = (world, x, y) => {
+  const ter = world.terrain;
+  const c = clamp(Math.floor(x / CELL), 0, ter.cols - 1);
+  const solid = (r) => ter.cells[r * ter.cols + c] !== EMPTY && ter.cells[r * ter.cols + c] !== WATER;
+  let r = clamp(Math.floor((y - ter.top) / CELL), 0, ter.rows - 1);
+  if (solid(r)) {
+    while (r > 0 && solid(r - 1)) r--;
+  } else {
+    while (r < ter.rows && !solid(r)) r++;
+  }
+  return ter.top + r * CELL; // ter.rows down is the floor
+};
+
+// Is the column at x solid (terrain or the floor) all the way down from y0 to y1? Then grass at one end can
+// spread to the other: it's the face of a pile, not a ledge with a gap under it.
+const faceAt = (world, x, y0, y1) => {
+  for (let y = y0 + CELL / 2; y < Math.min(y1, world.ground.y0); y += CELL) {
+    if (!solidAt(world.terrain, x, y)) return false;
+  }
+  return true;
+};
+
+// Where grass sown near (x, y) takes root: whatever ground is below, within PLACE_REACH, whether or not it's
+// dirt. Null if there's none.
+const sowAt = (world, x, y) => {
+  const gx = clamp(x, 3, world.W - 4);
+  const gy = groundTop(world, gx, y);
+  return gy - y > PLACE_REACH ? null : { base: { x: gx, y: gy }, on: null }; // tufts mind their own soil
+};
+
 const solidAt = (ter, x, y) => {
   const i = cellAt(ter, x, y);
   return i >= 0 && ter.cells[i] !== EMPTY && ter.cells[i] !== WATER;
@@ -1022,16 +1077,9 @@ const terrainHook = (world, x, y) => {
   return best;
 };
 
-// If (x, y) is inside the terrain, the top of that solid stretch; otherwise y.
-const surfaceAbove = (world, x, y) => {
-  const ter = world.terrain;
-  let top = y;
-  while (top > ter.top && solidAt(ter, x, top)) top = ter.top + Math.floor((top - ter.top) / CELL) * CELL - 0.5;
-  return top;
-};
-
-// Grass grows tuft by tuft. Grown tufts seed neighbours a few px along the same dirt (never up or down a
-// cliff); tufts that get buried, flooded or lose their dirt wither away.
+// Grass grows tuft by tuft. Grown tufts seed neighbours a few px along the same dirt, over bumps and up and
+// down the faces of piles (but not cliffs, or onto a ledge with a gap under it); tufts that get buried, flooded
+// or lose their dirt wither away.
 const growGrass = (world, patch, rate) => {
   const g = patch.genome;
   const ter = world.terrain;
@@ -1039,7 +1087,7 @@ const growGrass = (world, patch, rate) => {
   for (const tuft of [...patch.tufts]) {
     if (check) {
       const above = cellAt(ter, tuft.x, tuft.y - 1);
-      const y = floorBelow(world, tuft.x, tuft.y - 3).y;
+      const y = groundTop(world, tuft.x, tuft.y - 1);
       if ((above >= 0 && ter.cells[above] !== EMPTY) || Math.abs(y - tuft.y) > 3 || !isSoil(world, tuft.x, y)) {
         tuft.dying = true;
       } else {
@@ -1055,9 +1103,10 @@ const growGrass = (world, patch, rate) => {
     if (tuft.size < 0.7 || patch.tufts.length >= MAX_TUFTS || world.rand() > g.spread * rate) continue;
     const x = tuft.x + (world.rand() < 0.5 ? -1 : 1) * g.spacing * (0.7 + world.rand() * 0.6);
     if (x < 1 || x > world.W - 2) continue;
-    const y = floorBelow(world, x, tuft.y - 6).y;
+    const y = groundTop(world, x, tuft.y - 1); // level with this tuft, then up the face or down to the ground
     const crowded = patch.tufts.some((o) => Math.abs(o.x - x) < g.spacing * 0.6 && Math.abs(o.y - y) < 4);
-    if (Math.abs(y - tuft.y) > 6 || crowded || !isSoil(world, x, y)) continue;
+    const face = y < tuft.y ? faceAt(world, x, y, tuft.y) : faceAt(world, tuft.x, tuft.y, y);
+    if (Math.abs(y - tuft.y) > GRASS_CLIMB || !face || crowded || !isSoil(world, x, y)) continue;
     patch.tufts.push({ x, y, size: 0.05, seed: world.rand() * 1000, dying: false });
   }
   if (!patch.tufts.length) world.objects = world.objects.filter((o) => o !== patch);
@@ -1121,13 +1170,18 @@ const sellClippings = (world, px, x, y) => {
   earn(world, coins, x, y);
 };
 
-// Mow grass around (x, y): tufts there are cut short, and grow back.
+// Mow grass around (x, y): tufts there are cut down to that height and grow back, unless that leaves only a
+// stub, which dies.
 const mow = (world, patch, x, y, r = 6) => {
   let cut = 0;
   for (const tuft of patch.tufts) {
     if (Math.abs(tuft.x - x) > r || tuft.y < y - 2 || tuft.y - patch.genome.height > y + r) continue;
-    cut += Math.max(0, tuft.size - 0.15) * patch.genome.height;
-    tuft.size = Math.min(tuft.size, 0.15);
+    // It keeps what's below the cut; cut down to a stub, it dies.
+    const kept = clamp((tuft.y - y) / patch.genome.height, 0, tuft.size);
+    if (kept >= tuft.size) continue;
+    cut += (tuft.size - kept) * patch.genome.height;
+    tuft.size = kept;
+    if (kept < GRASS_STUB) tuft.dying = true;
   }
   sellClippings(world, cut, x, y);
 };
@@ -1265,8 +1319,26 @@ export const pointerDown = (world, x, y) => {
     if (hit) world.moving = { obj: hit.plant ?? hit.grass ?? hit.vine, x, y };
     return;
   }
+  if (world.tool === 'propagate') {
+    // Two taps: one on a grown plant to take a cutting from, one where its seedling goes. Tapping the plant
+    // again puts it back.
+    const plant = prunableAt(world, x, y, true)?.plant;
+    const picked = world.moving?.obj;
+    if (!picked) {
+      if (plant && propagatable(plant)) world.moving = { obj: plant, x, y };
+    } else if (plant === picked) {
+      world.moving = null;
+    } else {
+      const to = standAt(world, x, y);
+      if (!to) return; // nowhere to plant it there: keep it picked
+      world.moving = null;
+      if (world.objects.includes(picked) && propagatable(picked)) propagate(world, picked, to);
+    }
+    return;
+  }
   if (world.tool === 'prune') {
     world.cut = { x0: x, y0: y, x1: x, y1: y };
+    world.pruneDemo = null; // they've got the idea
     return;
   }
   const hit = bugAt(world, x, y);
@@ -1299,12 +1371,11 @@ export const pointerUp = (world, x, y) => {
     return;
   }
   const moving = world.moving;
-  if (moving) {
+  if (moving && world.tool === 'move') {
     world.moving = null;
     const [dx, dy] = [x - moving.x, y - moving.y];
-    if (world.objects.includes(moving.obj) && Math.hypot(dx, dy) >= TAP_SLOP) {
-      relocate(world, moving.obj, destination(world, moving.obj, dx, dy));
-    }
+    const to = Math.hypot(dx, dy) >= TAP_SLOP && destination(world, moving.obj, dx, dy);
+    if (to && world.objects.includes(moving.obj)) relocate(world, moving.obj, to);
     return;
   }
   if (world.press) {
@@ -1348,15 +1419,16 @@ const tap = (world, x, y) => {
 const destination = (world, obj, dx, dy) => {
   const [x, y] = [obj.base.x + dx, obj.base.y + dy];
   if (obj.kind === 'vine') return vineAnchor(world, x, y);
-  const to = standAt(world, x, y);
-  return obj.kind === 'grass' ? { ...to, on: null } : to;
+  return obj.kind === 'grass' ? sowAt(world, x, y) : standAt(world, x, y);
 };
 
-// The plant being dragged and where it would land, for drawing.
+// The plant being dragged and where it would land (or, propagating, where its seedling would go), for drawing.
 export const relocationAt = (world) => {
   const m = world.moving;
   if (!m || !world.objects.includes(m.obj)) return null;
-  const to = destination(world, m.obj, world.pointer.x - m.x, world.pointer.y - m.y);
+  const { x, y } = world.pointer;
+  const to = world.tool === 'propagate' ? standAt(world, x, y) : destination(world, m.obj, x - m.x, y - m.y);
+  if (!to) return null;
   return { obj: m.obj, base: to.base, dx: to.base.x - m.obj.base.x, dy: to.base.y - m.obj.base.y };
 };
 
@@ -1373,15 +1445,28 @@ const relocate = (world, obj, to) => {
     for (const stem of obj.stems) Object.assign(stem, { root: at(stem.root), tip: at(stem.tip) });
   } else if (obj.kind === 'vine') {
     obj.nodes = obj.nodes.map((p) => ({ x: p.x + dx, y: p.y + dy, px: p.px + dx, py: p.py + dy }));
-    obj.hold = to.hold;
   } else {
     // Each tuft settles onto whatever is below it; any that land off dirt wither.
     for (const tuft of obj.tufts) {
       tuft.x = clamp(tuft.x + dx, 1, world.W - 2);
-      tuft.y = floorBelow(world, tuft.x, tuft.y + dy - 3).y;
+      tuft.y = groundTop(world, tuft.x, tuft.y + dy - 3);
     }
   }
-  Object.assign(obj, { base: to.base, on: to.on });
+  Object.assign(obj, { base: to.base, on: to.on, hold: to.hold });
+};
+
+// A flowering plant that has finished growing: nothing still growing or about to sprout, and its flowers open.
+export const propagatable = (obj) =>
+  obj.kind === 'plant' &&
+  obj.stems.some((st) => st.flower >= 1) &&
+  obj.stems.every((st) => !st.growing && st.sprout <= 0 && (st.flower === 0 || st.flower >= 1));
+
+// Take a cutting: a seedling of the same species goes in at to, and the parent is cut right back to a seedling
+// too, so both start again.
+const propagate = (world, plant, to) => {
+  for (const st of plant.stems) fling(world, st.root, st.tip, { kind: 'stem', plant });
+  plant.stems = [newStem(world, plant, null, plant.base, -Math.PI / 2 + plant.species.lean)];
+  addDecor(world, { kind: 'plant', base: to.base, on: to.on, species: structuredClone(plant.species) });
 };
 
 // ---------- simulation step ----------
@@ -1393,6 +1478,15 @@ export const step = (world) => {
   stepTerrain(ter, world.rand, world.time);
   if (ter.skyDirty && (world.time % 8 === 0 || !ter.active)) rebuildSkyline(world);
   growLeaves(world);
+  // Plants and sticks standing on the terrain come down if the cell holding them goes, or they're buried.
+  if (world.time % 10 === 0) {
+    for (const obj of [...world.objects]) {
+      if (!obj.hold || obj.kind === 'vine' || !world.objects.includes(obj)) continue;
+      const ter = world.terrain;
+      const buried = solidAt(ter, obj.base.x, obj.base.y - 3);
+      if (buried || !solidAt(ter, obj.hold.x, obj.hold.y)) removeObject(world, obj, true);
+    }
+  }
   for (const obj of [...world.objects]) {
     if (obj.kind === 'plant') growPlant(world, obj, params.plantGrowth);
     else if (obj.kind === 'grass') growGrass(world, obj, params.plantGrowth);
@@ -1901,3 +1995,149 @@ export const snapshot = (world) => {
     },
   };
 };
+
+// ---------- saving ----------
+
+const SAVE_VERSION = 1;
+
+// Run-length encoding for the terrain grid: [value, count, value, count, ...].
+const rle = (cells) => {
+  const out = [];
+  for (let i = 0; i < cells.length; ) {
+    let n = 1;
+    while (i + n < cells.length && cells[i + n] === cells[i]) n++;
+    out.push(cells[i], n);
+    i += n;
+  }
+  return out;
+};
+const unrle = (pairs, n) => {
+  const cells = new Uint8Array(n);
+  for (let k = 0, i = 0; k < pairs.length; i += pairs[k + 1], k += 2) cells.fill(pairs[k], i, i + pairs[k + 1]);
+  return cells;
+};
+
+const exportObject = (obj) => {
+  const { kind, base } = obj;
+  if (kind === 'stick') {
+    const segs = obj.segs.map((g) => ({
+      root: g.root,
+      tip: g.tip,
+      parent: obj.segs.indexOf(g.parent),
+      depth: g.depth,
+      leaves: g.leaves,
+    }));
+    return { kind, base, hold: obj.hold, wood: obj.wood, foliage: obj.foliage, segs };
+  }
+  if (kind === 'plant') {
+    const stems = obj.stems.map(({ parent, ...st }) => ({ ...st, parent: obj.stems.indexOf(parent) }));
+    return { kind, base, hold: obj.hold, species: obj.species, stems };
+  }
+  if (kind === 'grass') return { kind, base, genome: obj.genome, tufts: obj.tufts };
+  if (kind === 'vine') return { kind, base, genome: obj.genome, hold: obj.hold, nodes: obj.nodes, growth: obj.growth };
+  return null;
+};
+
+// The whole tank as plain data, for saving: no references, just enough to build it again. Bugs are kept as where
+// they stand and which way they face; they start over idle when the tank is loaded.
+export const exportWorld = (world) => ({
+  version: SAVE_VERSION,
+  W: world.W,
+  H: world.H,
+  time: world.time,
+  coins: world.coins,
+  clippings: world.clippings ?? 0,
+  rerolls: world.rerolls ?? null,
+  wallpaper: world.wallpaper,
+  shop: world.shop,
+  offers: world.offers,
+  terrain: {
+    cols: world.terrain.cols,
+    rows: world.terrain.rows,
+    cells: rle(world.terrain.cells),
+    tint: rle(world.terrain.tint),
+  },
+  branches: world.branches
+    .filter((g) => g.kind === 'branch')
+    .map((g) => ({ root: g.root, tip: g.tip, leaves: g.leaves })),
+  objects: world.objects.map(exportObject).filter(Boolean),
+  bugs: world.bugs.map((bug) => ({
+    name: bug.name,
+    genes: bug.genes,
+    hunger: bug.hunger,
+    at: bug.surf ? pointAt(bug.surf, bug.s) : bug.pts[MID],
+    standing: !!bug.surf,
+    facing: bug.surf ? Math.sign(segDir(bug.surf).x * bug.dir) || 1 : 1,
+  })),
+});
+
+// Build a tank from saved data, at this tank's size. Everything is kept on the floor: if the tank is taller or
+// shorter than when it was saved, things move down or up with it.
+export const importWorld = (data, W, H) => {
+  const world = createWorld(W, H, { scene: false });
+  const dy = world.ground.y0 - (data.H - 6);
+  const at = (p) => ({ x: clamp(p.x, 0, W - 1), y: p.y + dy });
+  Object.assign(world, {
+    time: data.time,
+    coins: data.coins,
+    clippings: data.clippings,
+    rerolls: data.rerolls,
+    wallpaper: data.wallpaper,
+    shop: data.shop,
+    offers: data.offers,
+  });
+  const t = data.terrain;
+  const n = t.cols * t.rows;
+  const saved = { cols: t.cols, rows: t.rows, cells: unrle(t.cells, n), tint: unrle(t.tint, n) };
+  world.terrain = resizeTerrain(saved, W, world.ground.y0);
+  for (const b of data.branches) {
+    world.branches.push(Object.assign(makeSeg(world, at(b.root), at(b.tip)), { leaves: b.leaves }));
+  }
+  for (const o of data.objects) {
+    const obj = { kind: o.kind, base: at(o.base) };
+    if (o.kind === 'stick' || o.kind === 'plant') obj.hold = o.hold && at(o.hold); // standing on the terrain
+    if (o.kind === 'stick') {
+      Object.assign(obj, { wood: o.wood, foliage: o.foliage, segs: [] });
+      for (const g of o.segs) {
+        const extra = { kind: 'stick', obj, parent: obj.segs[g.parent] ?? null, depth: g.depth };
+        obj.segs.push(Object.assign(makeSeg(world, at(g.root), at(g.tip), extra), { leaves: g.leaves }));
+      }
+      world.branches.push(...obj.segs);
+    } else if (o.kind === 'plant') {
+      obj.species = o.species;
+      obj.stems = o.stems.map((st) => ({ ...st, root: at(st.root), tip: at(st.tip) }));
+      obj.stems.forEach((st) => (st.parent = obj.stems[st.parent] ?? null));
+    } else if (o.kind === 'grass') {
+      Object.assign(obj, { genome: o.genome, tufts: o.tufts.map((tuft) => ({ ...tuft, ...at(tuft) })) });
+    } else if (o.kind === 'vine') {
+      const nodes = o.nodes.map((p) => ({ ...at(p), px: p.px, py: p.py + dy }));
+      Object.assign(obj, { genome: o.genome, hold: o.hold && at(o.hold), nodes, growth: o.growth });
+    }
+    world.objects.push(obj);
+  }
+  rebuildJunctions(world);
+  rebuildSkyline(world);
+  // What each thing stands on (or hangs from), now the surfaces are back.
+  for (const obj of world.objects) {
+    if ((obj.kind === 'stick' || obj.kind === 'plant') && !obj.hold) {
+      obj.on = floorBelow(world, obj.base.x, obj.base.y - 0.5).g;
+    }
+    if (obj.kind === 'vine' && !obj.hold && obj.base.y > 4) {
+      obj.on = world.branches.find((g) => g.kind !== 'terrain' && distToSeg(g, obj.base.x, obj.base.y) < 3) ?? null;
+    }
+  }
+  for (const b of data.bugs) {
+    const p = at(b.at);
+    let near = null;
+    for (const g of b.standing ? surfaces(world) : []) {
+      const d = distToSeg(g, p.x, p.y);
+      if (d < 4 && (!near || d < near.d)) near = { d, g };
+    }
+    const bug = near
+      ? placeBug(world, near.g, project(near.g, p.x, p.y), Math.sign(segDir(near.g).x || 1) * b.facing, b.genes)
+      : addBug(world, p.x, p.y - 10, b.genes);
+    if (bug) Object.assign(bug, { name: b.name, hunger: b.hunger });
+  }
+  return world;
+};
+

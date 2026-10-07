@@ -14,8 +14,8 @@ import {
 import { add, hash, hslHex, lerp, normalize, pointAt, segDir, segLength, segNormal } from './geom.js';
 import { FAR_SHADE, bodyHex, patternHex, patternOf, traitsOf } from './genome.js';
 import { DEFAULT_FOLIAGE } from './decor.js';
-import { CELL, DIRT, EMPTY, FOUNTAIN, SAND, STONE, WATER } from './terrain.js';
-import { floorBelow, previewAt, relocationAt } from './sim.js';
+import { CELL, DIRT, EMPTY, FOUNTAIN, SAND, SANDSTONE, STONE, WATER, WOOD } from './terrain.js';
+import { floorBelow, previewAt, propagatable, relocationAt } from './sim.js';
 
 const NOTE = ['..#.', '..##', '..#.', '..#.', '###.', '##..'];
 const ARROW = ['#####', '.###.', '..#..'];
@@ -333,9 +333,28 @@ const debrisColor = (look) => {
   return BRANCH.light;
 };
 
-// A plant being relocated: a ghost of it where it would land, with the arrow under its new base.
+// While propagating, a little blinking green plus over each plant that's grown enough to take a cutting from,
+// and a steady yellow one over the plant picked.
+const READY = ['.#.', '###', '.#.'];
+const drawReady = (ctx, world) => {
+  const picked = world.moving?.obj;
+  for (const obj of world.objects) {
+    if (!propagatable(obj)) continue;
+    const top = obj.stems.reduce((a, st) => (st.tip.y < a.y ? st.tip : a), obj.base);
+    ctx.globalAlpha = obj === picked ? 1 : 0.6 + 0.4 * Math.sin(world.time * 0.1);
+    ctx.fillStyle = obj === picked ? COIN : '#9fe07a';
+    sprite(ctx, READY, top.x - 1, top.y - 8);
+  }
+  ctx.globalAlpha = 1;
+};
+
+// A plant being relocated: a ghost of it where it would land, with the arrow pointing at it.
 const drawRelocation = (ctx, world, move) => {
   const { obj } = move;
+  // Propagating, what goes in is a seedling.
+  if (world.tool === 'propagate') {
+    return drawPreview(ctx, world, { kind: 'plant', base: move.base, species: obj.species });
+  }
   ctx.save();
   ctx.globalAlpha = 0.55;
   ctx.translate(Math.round(move.dx), Math.round(move.dy));
@@ -343,24 +362,43 @@ const drawRelocation = (ctx, world, move) => {
   else if (obj.kind === 'grass') drawGrass(ctx, obj, world.time);
   else drawVine(ctx, obj);
   ctx.restore();
+  // The arrow over the top of the plant or grass, or over where a vine hangs from.
+  let [ax, top] = [move.base.x, move.base.y - 1];
+  if (obj.kind === 'plant') {
+    const hi = obj.stems.reduce((a, st) => (st.tip.y < a.y ? st.tip : a), obj.base);
+    [ax, top] = [hi.x + move.dx, hi.y + move.dy - 3];
+  } else if (obj.kind === 'grass') {
+    top = Math.min(...obj.tufts.map((t) => t.y - obj.genome.height * t.size)) + move.dy - 1;
+  }
+  dropArrow(ctx, world, ax, top);
+};
+
+// The bobbing yellow arrow pointing down at something being put down, just above its top at x: always in the
+// open, never in the ground it's going on.
+const dropArrow = (ctx, world, x, top) => {
   ctx.fillStyle = COIN;
-  sprite(ctx, ARROW, move.base.x - 2, move.base.y + 1 + (Math.floor(world.time / 15) % 2));
+  sprite(ctx, ARROW, x - 2, top - 5 - (Math.floor(world.time / 15) % 2));
 };
 
 // A shop item following the pointer, before it's put down.
 const drawPreview = (ctx, world, spec) => {
+  let [ax, top] = [spec.base.x, spec.base.y - 1]; // where the arrow points
   ctx.globalAlpha = 0.55;
   if (spec.kind === 'stick') {
     ctx.fillStyle = woodColors(spec.wood).light;
     for (const p of spec.pieces) line(ctx, p.a, p.b, STICK_WIDTH[p.depth] ?? 2);
+    const hi = spec.pieces.flatMap((p) => [p.a, p.b]).reduce((a, p) => (p.y < a.y ? p : a));
+    [ax, top] = [hi.x, hi.y - 2];
   } else if (spec.kind === 'fountain') {
     const { x, y, size } = spec.box;
     ctx.fillStyle = MATERIAL_COLORS[FOUNTAIN][0];
     ctx.fillRect(x, y, size, size);
+    top = y;
   } else if (spec.kind === 'grass') {
     // A seedling tuft.
     const tufts = [{ x: spec.base.x, y: spec.base.y, size: 0.6, seed: 1 }];
     drawGrass(ctx, { genome: spec.genome, tufts }, world.time);
+    top = spec.base.y - spec.genome.height * 0.6 - 1;
   } else if (spec.kind === 'vine') {
     // A short sprig hanging from where it would be anchored.
     const { x, y } = spec.base;
@@ -382,10 +420,10 @@ const drawPreview = (ctx, world, spec) => {
     ctx.fillStyle = hslHex(sp.leaf.h, sp.leaf.s, sp.leaf.l);
     plot(ctx, spec.base.x - 2, spec.base.y - 5, 2);
     plot(ctx, spec.base.x + 2, spec.base.y - 5, 2);
+    top = spec.base.y - 6;
   }
   ctx.globalAlpha = 1;
-  ctx.fillStyle = COIN;
-  sprite(ctx, ARROW, spec.base.x - 2, spec.base.y + 1 + (Math.floor(world.time / 15) % 2));
+  dropArrow(ctx, world, ax, top);
 };
 
 // ---------- bugs ----------
@@ -550,25 +588,95 @@ const drawBug = (ctx, world, bug) => {
 // ---------- terrain ----------
 
 // Each material is one colour with just a hint of grain: three shades a couple of percent apart, and each
-// grain keeps its own shade as it moves.
-const shades = (h, s, l) => [l, l - 2, l + 2].map((v) => hslHex(h, s, v));
+// grain keeps its own shade as it moves. Wood and sandstone never move, so their shade comes from where they
+// are instead: wavy grain lines in wood, soft layers in sandstone.
+const shades = (h, s, l, [a, b] = [-2, 2]) => [l, l + a, l + b].map((v) => hslHex(h, s, v));
 export const MATERIAL_COLORS = {
   [STONE]: shades(240, 3, 44),
   [DIRT]: shades(28, 40, 25),
   [SAND]: shades(44, 52, 70),
   [WATER]: shades(212, 60, 47),
   [FOUNTAIN]: shades(186, 38, 56),
+  // Plain, grain line, light streak, dim streak: all within a few percent, so the grain is felt more than seen.
+  [WOOD]: [0, -3, 1, -1].map((d) => hslHex(28, 26, 36 + d)),
+  [SANDSTONE]: shades(33, 48, 56, [-4, 3]),
 };
+const mod3 = (n) => ((n % 3) + 3) % 3;
+// How many wood cells run on from (r, c) in direction (dr, dc), up to 10.
+const woodRun = (ter, r, c, dr, dc) => {
+  let k = 0;
+  for (let rr = r + dr, cc = c + dc; k < 10; rr += dr, cc += dc, k++) {
+    if (rr < 0 || rr >= ter.rows || cc < 0 || cc >= ter.cols || ter.cells[rr * ter.cols + cc] !== WOOD) break;
+  }
+  return k;
+};
+// Wood's grain: the shade of each world pixel of each wood cell, CELL * CELL to a cell, with the grain running
+// the way the wood goes on furthest: along the row, up and down, or either diagonal. Wood never moves, so this
+// only changes when wood is drawn or erased; it's kept with the terrain's layers until then.
+const GRAIN_DIRS = [
+  [0, 1],
+  [1, 0],
+  [1, 1],
+  [1, -1],
+];
+const woodGrain = (ter) => {
+  const cache = layersOf(ter);
+  if (cache.grainVersion === ter.woodVersion) return cache.grain;
+  const grain = new Uint8Array(ter.cells.length * CELL * CELL);
+  for (let i = 0; i < ter.cells.length; i++) {
+    if (ter.cells[i] !== WOOD) continue;
+    const r = Math.floor(i / ter.cols);
+    const c = i % ter.cols;
+    let best = -1;
+    let dir = 0;
+    GRAIN_DIRS.forEach(([dr, dc], d) => {
+      const n = woodRun(ter, r, c, dr, dc) + woodRun(ter, r, c, -dr, -dc);
+      if (n > best) [best, dir] = [n, d];
+    });
+    for (let dy = 0; dy < CELL; dy++) {
+      for (let dx = 0; dx < CELL; dx++) {
+        grain[(i * CELL + dy) * CELL + dx] = woodShade(dir, c * CELL + dx, r * CELL + dy);
+      }
+    }
+  }
+  return Object.assign(cache, { grain, grainVersion: ter.woodVersion }).grain;
+};
+// Wood's shade at world pixel (x, y), running in direction dir: short faint dashes of grain a pixel thick, in
+// rows three apart that wander a little, over short streaks a touch lighter or darker. Pixel lines on a slant
+// look like dithering, so slanted wood (dir 2 and 3) shows just its streaks, closer together.
+const woodShade = (dir, x, y) => {
+  const u = dir === 0 ? x : dir === 1 ? y : dir === 2 ? x + y : y - x;
+  const v = dir === 0 ? y : dir === 1 ? x : dir === 2 ? y - x : x + y;
+  if (dir >= 2) {
+    const streak = hash(Math.floor(v / 3), Math.floor((u + v * 3) / 7), 5);
+    return streak < 0.3 ? 3 : streak > 0.75 ? 2 : 0;
+  }
+  const w = v + Math.round(Math.sin(u * 0.09 + Math.floor(v / 3) * 2.3) * 0.9);
+  const band = Math.floor(w / 3);
+  if (mod3(w) === 0 && hash(band, Math.floor((u + band * 5) / 4), 7) < 0.4) return 1;
+  const streak = hash(band, Math.floor((u + band * 11) / 8), 3);
+  return streak < 0.2 ? 3 : streak > 0.85 ? 2 : 0;
+};
+// Sandstone's layers, two cells thick and gently sloping, in three shades.
+const sandstoneShade = (r, c) => mod3(Math.floor((r + Math.round(Math.sin(c * 0.08) * 2)) / 2));
 const WATER_TOP = '#7fb2ee';
 const WATER_ALPHA = 0.6;
 
-// The colour of cell i, or null; water cells only when water is asked for, solids otherwise.
-const cellColor = (ter, i, water) => {
+// The colour of dot (x, y) of a terrain layer drawn scale dots to a cell, or null; water only when water is
+// asked for, solids otherwise. The solids are drawn a dot per world pixel, for wood's fine grain (grain is
+// woodGrain's shades).
+const dotColor = (ter, water, scale, x, y, grain) => {
+  const r = Math.floor(y / scale);
+  const c = Math.floor(x / scale);
+  const i = r * ter.cols + c;
   const m = ter.cells[i];
   if (m === EMPTY || (m === WATER) !== water) return null;
-  if (water && (i < ter.cols || ter.cells[i - ter.cols] !== WATER)) return WATER_TOP;
+  if (water && (r === 0 || ter.cells[i - ter.cols] !== WATER)) return WATER_TOP;
+  if (m === WOOD) return MATERIAL_COLORS[WOOD][grain[(i * CELL + (y % CELL)) * CELL + (x % CELL)]];
+  if (m === SANDSTONE) return MATERIAL_COLORS[SANDSTONE][sandstoneShade(r, c)];
   return MATERIAL_COLORS[m][ter.tint[i]];
 };
+const layerScale = (water) => (water ? 1 : CELL);
 
 const rgbCache = new Map();
 const rgb = (hex) => {
@@ -576,33 +684,61 @@ const rgb = (hex) => {
   if (!v) rgbCache.set(hex, (v = [1, 3, 5].map((k) => parseInt(hex.slice(k, k + 2), 16))));
   return v;
 };
+// Colours as whole opaque pixels, to write straight into image data.
+const LITTLE_ENDIAN = new Uint8Array(new Uint32Array([1]).buffer)[0] === 1;
+const pixelCache = new Map();
+const pixel = (hex) => {
+  let v = pixelCache.get(hex);
+  if (v === undefined) {
+    const [r, g, b] = rgb(hex);
+    v = (LITTLE_ENDIAN ? (255 << 24) | (b << 16) | (g << 8) | r : (r << 24) | (g << 16) | (b << 8) | 255) >>> 0;
+    pixelCache.set(hex, v);
+  }
+  return v;
+};
 
-// In the browser each layer is an image the size of the grid, redrawn only when the terrain changes and
-// scaled up onto the tank.
+// Each terrain's drawing caches: its layers and its wood grain.
 const layers = new WeakMap();
-const terrainLayer = (ter, water) => {
+const layersOf = (ter) => {
   let cache = layers.get(ter);
   if (!cache) layers.set(ter, (cache = {}));
+  return cache;
+};
+
+// In the browser each layer is an image (the solids at world-pixel size, water a pixel to a cell), redrawn only
+// when its cells change and scaled up onto the tank.
+const terrainLayer = (ter, water) => {
+  const cache = layersOf(ter);
+  const scale = layerScale(water);
+  const w = ter.cols * scale;
   let layer = cache[water];
   if (!layer) {
-    const canvas = Object.assign(document.createElement('canvas'), { width: ter.cols, height: ter.rows });
+    const canvas = Object.assign(document.createElement('canvas'), { width: w, height: ter.rows * scale });
     const ctx = canvas.getContext('2d');
-    layer = cache[water] = { canvas, ctx, image: ctx.createImageData(ter.cols, ter.rows), version: -1 };
+    const image = ctx.createImageData(w, ter.rows * scale);
+    layer = cache[water] = { canvas, ctx, image, pixels: new Uint32Array(image.data.buffer), version: -1 };
   }
-  if (layer.version !== ter.version) {
-    const data = layer.image.data;
-    for (let i = 0; i < ter.cells.length; i++) {
-      const c = cellColor(ter, i, water);
-      if (c) {
-        const [r, g, b] = rgb(c);
-        data[i * 4] = r;
-        data[i * 4 + 1] = g;
-        data[i * 4 + 2] = b;
+  const version = water ? ter.version : ter.solidVersion;
+  if (layer.version !== version) {
+    const { pixels } = layer;
+    const grain = water ? null : woodGrain(ter);
+    // A cell at a time, every dot alike, except wood's grain which goes a dot at a time.
+    for (let r = 0, i = 0; r < ter.rows; r++) {
+      for (let c = 0; c < ter.cols; c++, i++) {
+        const x0 = c * scale;
+        const y0 = r * scale;
+        const fine = grain && ter.cells[i] === WOOD;
+        const color = fine ? null : dotColor(ter, water, scale, x0, y0, grain);
+        const flat = color ? pixel(color) : 0;
+        for (let dy = 0; dy < scale; dy++) {
+          for (let dx = 0, k = (y0 + dy) * w + x0; dx < scale; dx++, k++) {
+            pixels[k] = fine ? pixel(dotColor(ter, water, scale, x0 + dx, y0 + dy, grain)) : flat;
+          }
+        }
       }
-      data[i * 4 + 3] = c ? 255 : 0;
     }
     layer.ctx.putImageData(layer.image, 0, 0);
-    layer.version = ter.version;
+    layer.version = version;
   }
   return layer.canvas;
 };
@@ -614,18 +750,21 @@ const drawTerrain = (ctx, world, water) => {
     ctx.imageSmoothingEnabled = false;
     ctx.drawImage(terrainLayer(ter, water), 0, ter.top, ter.cols * CELL, ter.rows * CELL);
   } else {
-    // No DOM (tests): runs of same-coloured cells as rectangles.
-    for (let r = 0; r < ter.rows; r++) {
-      let c = 0;
-      while (c < ter.cols) {
-        const color = cellColor(ter, r * ter.cols + c, water);
-        let end = c + 1;
-        while (end < ter.cols && cellColor(ter, r * ter.cols + end, water) === color) end++;
+    // No DOM (tests): runs of same-coloured dots as rectangles.
+    const scale = layerScale(water);
+    const size = CELL / scale;
+    const grain = water ? null : woodGrain(ter);
+    for (let y = 0; y < ter.rows * scale; y++) {
+      let x = 0;
+      while (x < ter.cols * scale) {
+        const color = dotColor(ter, water, scale, x, y, grain);
+        let end = x + 1;
+        while (end < ter.cols * scale && dotColor(ter, water, scale, end, y, grain) === color) end++;
         if (color) {
           ctx.fillStyle = color;
-          ctx.fillRect(c * CELL, ter.top + r * CELL, (end - c) * CELL, CELL);
+          ctx.fillRect(x * size, ter.top + y * size, (end - x) * size, size);
         }
-        c = end;
+        x = end;
       }
     }
   }
@@ -736,6 +875,76 @@ const drawWallpaper = (ctx, world) => {
   ctx.fillRect(0, 0, world.W, world.H);
 };
 
+// ---------- the prune tool's how-to ----------
+
+const DEMO_TICKS = 170;
+const DEMO_CUT = 55; // tick the line finishes crossing the stem and cuts it
+const DEMO_CUT_Y = -15; // px above the demo plant's base
+
+// The demo plant, base at (0, 0): a stem with three pairs of leaves and a flower on top.
+const DEMO_PLANT = (() => {
+  const px = [];
+  for (let y = 0; y >= -22; y--) px.push({ x: 0, y, c: '#3f7a34' });
+  for (const h of [-6, -12, -18]) {
+    for (const s of [-1, 1]) {
+      for (const [dx, dy] of [[1, 0], [2, -1], [3, -1], [4, -2]]) px.push({ x: s * dx, y: h + dy, c: '#5fa04a' });
+    }
+  }
+  for (const [dx, dy] of [[0, -1], [-1, 0], [1, 0], [0, 1]]) px.push({ x: dx, y: -24 + dy, c: '#e88fb0' });
+  px.push({ x: 0, y: -24, c: COIN });
+  return px;
+})();
+const COIN_DOT = ['.##.', '####', '####', '.##.'];
+
+// Picking the prune tool shows how it's used: in the middle of the tank, straight over whatever is there, a
+// red line is dragged across a plant, the top falls away and sells for a coin, then it all fades.
+const drawPruneDemo = (ctx, world) => {
+  const age = world.time - (world.pruneDemo ?? -Infinity);
+  if (!(age >= 0 && age < DEMO_TICKS)) return;
+  const fade = Math.min(1, age / 12, (DEMO_TICKS - age) / 30);
+  ctx.save();
+  ctx.translate(Math.round(world.W / 2), Math.round(world.H / 2 + 12)); // centred in the tank
+
+  // The plant: what's below the cut stays put, the top tumbles away once it's cut.
+  const t = Math.max(0, age - DEMO_CUT);
+  const [cos, sin] = [Math.cos(t * 0.03), Math.sin(t * 0.03)];
+  for (const p of DEMO_PLANT) {
+    const falling = t > 0 && p.y < DEMO_CUT_Y;
+    ctx.globalAlpha = fade * (falling ? Math.max(0, 1 - t / 45) : 1);
+    if (!ctx.globalAlpha) continue;
+    ctx.fillStyle = p.c;
+    if (!falling) {
+      ctx.fillRect(p.x, p.y, 1, 1);
+      continue;
+    }
+    const [rx, ry] = [p.x, p.y - DEMO_CUT_Y];
+    plot(ctx, rx * cos - ry * sin + t * 0.15, rx * sin + ry * cos + DEMO_CUT_Y + 0.012 * t * t, 1);
+  }
+
+  // The pruning line being dragged across, the pointer at its end, then fading after the cut.
+  const drag = Math.min(1, Math.max(0, (age - 15) / (DEMO_CUT - 15)));
+  const [a, b] = [{ x: -12, y: DEMO_CUT_Y + 3 }, { x: 12, y: DEMO_CUT_Y - 3 }];
+  ctx.globalAlpha = fade * Math.min(1, Math.max(0, 1 - (age - DEMO_CUT - 10) / 25));
+  ctx.fillStyle = '#e04a3a';
+  for (let i = 0; i <= 24 * drag; i++) {
+    if (!(Math.floor(i / 2) % 2)) plot(ctx, a.x + (b.x - a.x) * (i / 24), a.y + (b.y - a.y) * (i / 24), 1);
+  }
+  if (age >= 15 && age < DEMO_CUT) {
+    ctx.fillStyle = '#e3d3b5';
+    plot(ctx, a.x + (b.x - a.x) * drag, a.y + (b.y - a.y) * drag, 2);
+  }
+
+  // The clipping sells: +1 and a coin float up from the cut.
+  if (t > 3) {
+    const y = DEMO_CUT_Y - 8 - (t - 3) * 0.2;
+    ctx.globalAlpha = fade * Math.max(0, 1 - (t - 3) / 60);
+    ctx.fillStyle = COIN;
+    [...'+1'].forEach((ch, i) => sprite(ctx, GLYPHS[ch], 3 + i * 4, y));
+    sprite(ctx, COIN_DOT, 11, y + 0.5);
+  }
+  ctx.restore();
+};
+
 // ---------- the world ----------
 
 export const drawWorld = (ctx, world) => {
@@ -758,6 +967,7 @@ export const drawWorld = (ctx, world) => {
   drawTerrain(ctx, world, false);
   for (const obj of world.objects) if (obj.kind === 'grass') drawGrass(ctx, obj, world.time);
   for (const obj of world.objects) if (obj.kind === 'vine') drawVine(ctx, obj);
+  if (world.tool === 'propagate') drawReady(ctx, world);
 
   const move = relocationAt(world);
   if (move) drawRelocation(ctx, world, move);
@@ -795,5 +1005,6 @@ export const drawWorld = (ctx, world) => {
     [...p.text].forEach((ch, i) => sprite(ctx, GLYPHS[ch], p.x - 4 + i * 4, p.y));
   }
   ctx.globalAlpha = 1;
+  drawPruneDemo(ctx, world);
   if (world.tool === 'paint') drawBrush(ctx, world);
 };

@@ -24,8 +24,12 @@ objects to buy in the shop:
 - [x] lets add a genome with color, gradiants and padderns for the stickbugs visual
 - [x] stick bugs should also be able to be spawned with a random set of genomes (all of our sliders)
 
+## saves
+
+- [x] save states, autosave (toggleable) and deleting saves, with a photo of each tank
+- [x] reset tank button and a debug mode that hides the settings
+
 ## ideas
 
 - plants are decoration only: their stems are shorter than a bug, so bugs can't climb them or eat their leaves yet
 - breeding: bugs that dance together lay an egg that hatches into a mix of both genomes
-- save the tank (coins, decorations, bugs) between visits

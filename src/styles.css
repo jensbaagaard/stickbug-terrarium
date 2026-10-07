@@ -47,7 +47,6 @@ body {
 .group > summary::after { content: '+'; color: var(--dim); font-family: var(--mono); font-size: 16px; }
 .group[open] > summary::after { content: '\2212'; }
 .group[open] { padding-bottom: 8px; }
-.hint { margin: 0; font-size: 11px; line-height: 1.6; letter-spacing: 0.04em; text-align: center; color: var(--tan); }
 .row {
   display: grid;
   grid-template-columns: 10.5em minmax(0, 1fr) 4.2em;
@@ -97,12 +96,12 @@ textarea {
 .tabs button { background: transparent; color: var(--dim); border-bottom: 2px solid transparent; }
 .tabs button[aria-selected='true'] { color: var(--bright); border-bottom-color: var(--tan); }
 .editor { display: flex; flex-direction: column; gap: 10px; }
-.palette { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
+.palette { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
 .palette button { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; min-height: 52px; }
 .palette .chip { width: 16px; height: 16px; border: 1px solid var(--frame); background-image: none; }
 .palette button:last-child .chip { background: repeating-linear-gradient(45deg, #000 0 3px, #3b2d21 3px 6px); }
 .shop, .garden { display: flex; flex-direction: column; gap: 8px; }
-.shop .status, .garden .status { margin: 0; }
+.shop .status { margin: 0; }
 .shop .reroll { min-height: 52px; margin-top: 4px; font-size: 13px; }
 .showcase h3 { margin: 2px 0 6px; font-size: 10px; font-weight: normal; letter-spacing: 0.08em; text-transform: uppercase; color: var(--dim); }
 .offers { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
@@ -144,3 +143,29 @@ button:active { background: var(--dim); }
 button[aria-pressed='true'] { background: var(--tan); color: var(--soil); }
 button:disabled { opacity: 0.4; cursor: default; }
 :focus-visible { outline: 2px solid var(--bright); outline-offset: 2px; }
+.saves { display: flex; flex-direction: column; gap: 8px; }
+.saves .status { margin: 0; }
+.toggle {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px;
+  border: 1px solid var(--frame);
+  background: #000;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: var(--bright);
+  cursor: pointer;
+}
+.toggle input { margin: 0; accent-color: var(--tan); }
+.saves .list { display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.save { display: flex; gap: 10px; padding: 6px; border: 1px solid var(--frame); background: #000; }
+.save img, .save .photo { flex: 0 0 72px; width: 72px; aspect-ratio: 3 / 4; object-fit: cover; border: 1px solid var(--frame); }
+.save .about { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.save .name { font-size: 12px; letter-spacing: 0.06em; color: var(--bright); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.save .when { font-size: 10px; letter-spacing: 0.04em; color: var(--dim); }
+.save .actions { display: flex; gap: 6px; margin-top: auto; }
+.save .actions button { min-height: 32px; padding: 0 4px; font-size: 10px; }
+button.danger { background: #7a2e22; }
+.settings { display: flex; flex-direction: column; gap: 8px; }

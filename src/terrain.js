@@ -1,8 +1,8 @@
-// Falling-sand terrain, a little like Powder Game: a grid of cells of stone, dirt, sand or water sitting on
-// the tank floor. Stone stays where it's drawn, sand pours and slides into slopes, dirt piles up steeply, and
-// water runs, levels out and spills out of the sides of the tank. Sand and dirt sink through water. Fountains
-// (bought, not drawn) sit still like stone and keep pouring out water, like Powder Game's clone. Pure data +
-// functions.
+// Falling-sand terrain, a little like Powder Game: a grid of cells of stone, sandstone, wood, dirt, sand or water
+// sitting on the tank floor. Stone, sandstone and wood stay where they're drawn, sand pours and slides into
+// slopes, dirt falls straight down and stacks up, and water runs, levels out and spills out of the sides of the
+// tank. Sand and dirt sink through water. Fountains (bought, not drawn) sit still like stone and keep pouring out
+// water, like Powder Game's clone. Pure data + functions.
 
 export const CELL = 2; // world px per cell
 export const EMPTY = 0;
@@ -11,10 +11,14 @@ export const DIRT = 2;
 export const SAND = 3;
 export const WATER = 4;
 export const FOUNTAIN = 5;
+export const WOOD = 6;
+export const SANDSTONE = 7;
 
 // [key, label, cell value] for the editor palette.
 export const MATERIALS = [
   ['stone', 'Stone', STONE],
+  ['sandstone', 'Sandstone', SANDSTONE],
+  ['wood', 'Wood', WOOD],
   ['dirt', 'Dirt', DIRT],
   ['sand', 'Sand', SAND],
   ['water', 'Water', WATER],
@@ -22,11 +26,10 @@ export const MATERIALS = [
 ];
 const VALUE = Object.fromEntries(MATERIALS.map(([key, , v]) => [key, v]));
 
-const DIRT_SLIDE = 0.12; // chance a dirt grain slips sideways off a pile; sand always does
 const WATER_FLOW = 4; // cells water can run sideways in a tick
 const FOUNTAIN_SIZE = 3; // cells across a fountain
 const FOUNTAIN_RATE = 0.03; // chance a fountain fills each empty cell beside it in a tick: a trickle
-const SOLID = (m) => m === STONE || m === FOUNTAIN; // never moves
+const SOLID = (m) => m === STONE || m === SANDSTONE || m === WOOD || m === FOUNTAIN; // never moves
 
 // The grid is bottom-aligned to the floor: row r's top edge is at top + r * CELL.
 export const makeTerrain = (W, floor) => {
@@ -43,6 +46,8 @@ export const makeTerrain = (W, floor) => {
     active: false, // something may still move
     skyDirty: false, // the solid outline changed
     version: 0, // bumps whenever any cell changes, for redrawing
+    solidVersion: 0, // bumps when anything but water changes, for redrawing the solids
+    woodVersion: 0, // bumps when wood is drawn, erased or covered (wood never moves), for its grain
   };
 };
 
@@ -66,12 +71,13 @@ export const cellAt = (ter, x, y) => {
   return c < 0 || c >= ter.cols || r < 0 || r >= ter.rows ? -1 : r * ter.cols + c;
 };
 
-// Paint a round brush of size cells at (x, y). Stone and erasing fill solidly; powders and water are
+// Paint a round brush of size cells at (x, y). Solids and erasing fill solidly; powders and water are
 // sprinkled into empty cells (powders into water too), so holding still keeps pouring.
 export const paintTerrain = (ter, x, y, material, size, rand) => {
   const m = VALUE[material];
   const cx = x / CELL;
   const cy = (y - ter.top) / CELL;
+  let wood = false; // wood drawn or erased
   for (let dy = -size; dy <= size; dy++) {
     for (let dx = -size; dx <= size; dx++) {
       if (dx * dx + dy * dy > size * size + size * 0.5) continue;
@@ -80,17 +86,20 @@ export const paintTerrain = (ter, x, y, material, size, rand) => {
       if (c < 0 || c >= ter.cols || r < 0 || r >= ter.rows) continue;
       const i = r * ter.cols + c;
       const here = ter.cells[i];
-      if (m === EMPTY || m === STONE) {
+      if (m === EMPTY || SOLID(m)) {
         if (here === m) continue;
       } else if (!(here === EMPTY || (here === WATER && m !== WATER)) || rand() > (m === WATER ? 0.35 : 0.45)) {
         continue;
       }
+      if (here === WOOD || m === WOOD) wood = true;
       ter.cells[i] = m;
       ter.tint[i] = Math.floor(rand() * 3);
     }
   }
   Object.assign(ter, { active: true, skyDirty: true });
   ter.version++;
+  if (m !== WATER) ter.solidVersion++;
+  if (wood) ter.woodVersion++;
 };
 
 // Where a fountain put down at (x, y) goes: the cells of a block centred there, kept inside the grid, and the
@@ -113,12 +122,16 @@ export const placeFountain = (ter, x, y, rand) => {
   }
   Object.assign(ter, { active: true, skyDirty: true });
   ter.version++;
+  ter.solidVersion++;
+  ter.woodVersion++;
 };
 
 export const clearTerrain = (ter) => {
   ter.cells.fill(EMPTY);
   Object.assign(ter, { active: false, skyDirty: true });
   ter.version++;
+  ter.solidVersion++;
+  ter.woodVersion++;
 };
 
 // One tick of falling sand, bottom row first so a grain only moves once. Rows alternate their sweep
@@ -128,6 +141,7 @@ export const stepTerrain = (ter, rand, tick) => {
   const { cols, rows, cells, tint, done } = ter;
   done.fill(0);
   let moved = false;
+  let solidMoved = false; // something other than water moved
   let pouring = false; // a fountain has room to pour, so keep going even if this tick it didn't
   const move = (i, j) => {
     const m = cells[i];
@@ -138,7 +152,7 @@ export const stepTerrain = (ter, rand, tick) => {
     tint[j] = t;
     done[j] = 1;
     moved = true;
-    if (m !== WATER || cells[i] !== EMPTY) ter.skyDirty = true;
+    if (m !== WATER || cells[i] !== EMPTY) solidMoved = ter.skyDirty = true;
   };
   for (let r = rows - 1; r >= 0; r--) {
     const flip = (r + tick) & 1;
@@ -158,7 +172,7 @@ export const stepTerrain = (ter, rand, tick) => {
         }
         continue;
       }
-      if (m === EMPTY || m === STONE || done[i]) continue;
+      if (m === EMPTY || SOLID(m) || done[i]) continue;
       // Can m go into cell j? Into empty space, and powders sink through water.
       const into = (j) => cells[j] === EMPTY || (m !== WATER && cells[j] === WATER);
       if (r + 1 < rows) {
@@ -167,7 +181,8 @@ export const stepTerrain = (ter, rand, tick) => {
           move(i, below);
           continue;
         }
-        if (m !== DIRT || rand() < DIRT_SLIDE) {
+        // Sand and water slide off piles; dirt only ever falls straight down.
+        if (m !== DIRT) {
           const side = rand() < 0.5 ? -1 : 1;
           let slid = false;
           for (const dx of [side, -side]) {
@@ -210,6 +225,7 @@ export const stepTerrain = (ter, rand, tick) => {
   }
   if (moved) ter.version++;
   else if (!pouring) ter.active = false;
+  if (solidMoved) ter.solidVersion++;
 };
 
 // Height of the top solid cell in each column, in world px (water doesn't hold anything up); the floor where
