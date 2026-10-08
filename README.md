@@ -68,29 +68,35 @@ Shop, Garden (Prune, Relocate, Propagate and Feed), Saves and Settings. The game
   of the same species should go; the parent is cut back to a seedling too, so both grow again. Tap the plant again
   or press Esc to cancel.
 - Shop: four bugs, four fish, four plants, four sticks and four wallpapers on show, each with a picture and a price
-  (rarer ones cost more), plus fountains. Pick one and tap the tank to put it in; Reroll shop fills the shop with new
-  ones. Plants and sticks stand on whatever is below where you tap, terrain included. Sticks come in eight styles: a
-  crooked branch, a fork, an arch to walk over, a low driftwood log, twisty red manzanita, bamboo canes ringed at
-  their nodes, a fan of spiderwood roots and a holey cholla skeleton, in a dozen woods. A stick keeps its shape as you
-  carry it about; one that would poke out of the tank is cut off where it meets the glass, like a stick leaning
-  against it. Wallpaper goes up on the back of the tank as soon as you buy it, replacing the last one: patterns
-  (stripes, dots, diagonals, gingham, waves, scales, brick, plaid, argyle, herringbone) or scenes (dusk, hills, a
-  snowy night, a pine forest, mountains, desert dunes, under the sea, an aurora, city lights, a ringed planet, a
-  jungle), kept dim so the tank stands out, except now and then a rare vivid one in intense colours (and dearer).
-  Under the snowy night it snows in the tank too. A fountain is a little block that goes exactly where you
-  tap, even in mid-air, and pours out water forever, like Powder Game's clone; erase it in the Editor. The only
-  way to earn coins is to grow plants and sell the clippings.
+  (rarer ones cost more), plus fountains. Pick one and tap the tank to put it in; Reroll shop fills the shop with
+  new ones. Plants and sticks stand on whatever is below where you tap, terrain included. Sticks come in eight
+  styles: a crooked branch, a fork, an arch to walk over, a low driftwood log, twisty red manzanita, bamboo canes
+  ringed at their nodes, a fan of spiderwood roots and a holey cholla skeleton, in a dozen woods. A stick keeps its
+  shape as you carry it about; one that would poke out of the tank is cut off where it meets the glass, like a stick
+  leaning against it. Wallpaper goes up on the back of the tank as soon as you buy it, and is kept: every one you've
+  bought shows in a row under the wallpapers on offer, with plain black, to put back up for free. Wallpapers come as
+  patterns (stripes, dots, diagonals, gingham, waves, scales, brick, plaid, argyle, herringbone) or scenes (dusk,
+  hills, a snowy night, a pine forest, mountains, desert dunes, under the sea, an aurora, city lights, a ringed
+  planet, a jungle), kept dim so the tank stands out, except now and then a rare vivid one in intense colours (and
+  dearer). Under the snowy night it snows in the tank too. A fountain is a little block that goes exactly where you
+  tap, even in mid-air, and pours out water forever, like Powder Game's clone; erase it in the Editor. The only way
+  to earn coins is to grow plants and sell the clippings.
 - Plants come in four types, each with its own genome: flowering plants that grow node by node; clump plants, a
   crown of leaves straight from the ground that grows a few leaves at a time until it's full, then its flower stalks
   or runners (a bird of paradise with big paddle leaves and orange-crested flowers; a tall tussock of grass that
   arches over like a fountain, with feathery plumes, and doesn't spread; a spider plant whose striped leaves arch
   over and whose runners reach out and hang down, flowering, with a baby plant at the end, best put on a ledge; or a
-  snake plant of stiff banded swords); grass that you sow on dirt or sand (painted, or the tank floor) and that
-  spreads tuft by tuft, withering if buried (under water it grows on, swaying in the current, but doesn't blossom);
-  and hanging vines that hang from the nearest branch, stick, or underside or face of the terrain (a stone ledge,
-  say), or else from a hook at the top of the tank; they sway and drape onto the floor. Plants and vines sway more
-  under water, rocked by the current, and only flower out of it. Tap grass to mow it or a vine to cut it back; both
-  grow back, and the clippings sell. Trim a clump plant's leaf and the stump stays until a new leaf comes up to
+  snake plant of stiff banded swords; and common house plants: peace lily (white hooded flowers), anthurium (glossy
+  red hearts), monstera (big split leaves full of holes), alocasia (arrow leaves with pale veins), calathea
+  (feathered bars), Chinese evergreen (silver splashes), Chinese money plant (round coin leaves), ZZ plant, ferns
+  and palms (fronds of leaflets), aloe (fleshy, toothed and spotted, with a spike of orange tubes), echeveria (a low
+  rosette blushing at the tips, with coral bells), moth orchid (an arching spray of flowers), bromeliad (a bright
+  cone of bracts) and cacti (spiny ribbed columns)); grass that you sow on dirt or sand (painted, or the tank floor)
+  and that spreads tuft by tuft, withering if buried (under water it grows on, swaying in the current, but doesn't
+  blossom); and hanging vines that hang from the nearest branch, stick, or underside or face of the terrain (a stone
+  ledge, say), or else from a hook at the top of the tank; they sway and drape onto the floor. Plants and vines sway
+  more under water, rocked by the current, and only flower out of it. Tap grass to mow it or a vine to cut it back;
+  both grow back, and the clippings sell. Trim a clump plant's leaf and the stump stays until a new leaf comes up to
   replace it. Now and then a plant comes with leaves of an unusual colour (purple, black, golden, silver, copper or
   pink); more rarely, and for a lot more coins, a mutant missing chlorophyll from all or part of its leaves: marbled
   white (albo), half white (half-moon), splashed pink (pink princess), speckled (constellation), pale-rimmed
@@ -108,12 +114,13 @@ Shop, Garden (Prune, Relocate, Propagate and Feed), Saves and Settings. The game
   Loading another save first puts the tank you had into the autosave. Saves live in the browser's localStorage;
   Export downloads one as a `.stickbug.json` file (name, photo and tank) and Import adds such a file back as a new
   save, to keep a tank safe or move it to another browser.
-- Settings: Reset tank (asks twice) starts over with a fresh tank; saves are kept. Tank size: small, medium or
-  large (256 by 341, 320 by 427 or 384 by 512 pixels), shown as big as fits; the tank moves into the new size with
-  everything kept to the middle and the floor, and going smaller asks first, as whatever doesn't fit is lost. A save
-  comes back at the size it was saved at. Debug mode (off to start,
-  remembered) shows Load sample tank (asks twice; swaps in the tank in `src/samples/`), buttons that make every bug
-  idle, walk, eat, dance, wave its front legs, pose as a twig or groom at once, and all the tuning sliders.
+- Settings: Reset tank (asks twice) starts over with a fresh tank; saves are kept. Tank size: small, medium or large
+  (256 by 341, 320 by 427 or 384 by 512 pixels), shown as big as fits (a bigger one never smaller than a smaller one
+  would be); the tank moves into the new size with everything kept to the middle and the floor, and going smaller
+  asks first, as whatever doesn't fit is lost. A save comes back at the size it was saved at. Debug mode (off to
+  start, remembered) shows Load sample tank (asks twice; swaps in the tank in `src/samples/`), buttons that make
+  every bug idle, walk, eat, dance, wave its front legs, pose as a twig or groom at once, and all the tuning
+  sliders.
 
 ## Code
 
@@ -134,7 +141,7 @@ Shop, Garden (Prune, Relocate, Propagate and Feed), Saves and Settings. The game
   painting and stepping. `sim.js` traces its outline (and the open floor's) into the surfaces bugs walk on.
 - `src/decor.js` – random sticks (eight styles, with their own foliage), wallpapers (patterns and themed scenes, now
   and then vivid), and the plant genomes: flowering species with a flower genome (form, petals, colours, size), clump
-  plants (four forms), grasses and hanging vines, the plants now and then with rare leaves.
+  plants (four forms and fifteen house plants), grasses and hanging vines, the plants now and then with rare leaves.
 - `src/geom.js` – maths, segment and colour helpers.
 - `src/render.js` – canvas drawing (scenery, flowers, ageing and fallen leaves, light on the water, fireflies and
   dust, genome colours and patterns, quirk poses, previews, coin popups, the marks under the pointer and the tools'

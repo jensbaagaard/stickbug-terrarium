@@ -516,6 +516,7 @@ export const createWorld = (W, H, { seed = Date.now(), scene = true } = {}) => {
     demo: null, // the how-to animation for the tool just picked: {kind, at}
     selected: null,
     wallpaper: null, // the back of the tank: null for plain black
+    wallpapers: [], // every wallpaper bought, to put back up for free
     terrain: makeTerrain(W, H - 6),
     brush: { material: 'sand', size: 3 }, // cells
     painting: false,
@@ -809,13 +810,19 @@ export const setTool = (world, tool) => {
   Object.assign(world, { tool, placing: null, painting: false, moving: null });
 };
 
-// Wallpaper goes straight up when bought, over whatever was there before.
+// Wallpaper goes straight up when bought, over whatever was there before, and is kept to put back up any time.
 export const buyWallpaper = (world, offer) => {
   if (offer.sold || world.coins < offer.price) return;
   world.wallpaper = makeWallpaper(mulberry32(offer.seed));
+  world.wallpapers.push(world.wallpaper);
   world.coins -= offer.price;
   offer.sold = true;
   world.placing = null;
+};
+
+// Put a wallpaper bought before back up, or none (null) for plain black. Free.
+export const hangWallpaper = (world, wp) => {
+  world.wallpaper = wp;
 };
 
 const placeItem = (world, x, y) => {
@@ -865,7 +872,8 @@ const makeOffer = (world, kind) => {
     if (type < 0.65) {
       const sp = makeClump(mulberry32(offer.seed));
       const showy = sp.form === 'strelitzia' ? 8 : sp.flower ? 4 : 0;
-      return { ...offer, type: 'clump', name: sp.name, price: 8 + Math.round(sp.leafLen / 4) + showy + rarePrice(sp) };
+      const price = 8 + Math.round(sp.leafLen / 4) + showy + (sp.premium ?? 0) + rarePrice(sp);
+      return { ...offer, type: 'clump', name: sp.name, price };
     }
     const sp = makeSpecies(mulberry32(offer.seed));
     return { ...offer, name: sp.name, price: 6 + sp.maxNodes + Math.round(sp.flower.size * 3) + rarePrice(sp) };
@@ -942,7 +950,7 @@ export const stageOffer = (world, offer) => {
     return { x0: x - len / 2 - tail - 2, x1: x + len / 2 + 2, y0: fish.y - spread - dorsal, y1: fish.y + spread + 1 };
   }
   if (offer.kind === 'wallpaper') {
-    world.wallpaper = makeWallpaper(mulberry32(offer.seed));
+    world.wallpaper = offer.wallpaper ?? makeWallpaper(mulberry32(offer.seed)); // one already bought, or on offer
     return { x0: 0, y0: 0, x1: world.W, y1: world.H };
   }
   const kind = offer.type ?? offer.kind;
@@ -2420,6 +2428,8 @@ export const snapshot = (world) => {
   const fish = world.fish.includes(world.selected) ? world.selected : null;
   return {
     W: world.W, // which size of tank it is
+    wallpaper: world.wallpaper?.seed ?? null, // which wallpaper is up
+    wallpapers: world.wallpapers,
     coins: world.coins,
     rerollCost: rerollCost(world),
     rerollWait: freeRerollIn(world) / FREE_REROLL_TICKS, // share of the minute left until rerolling is free
@@ -2490,6 +2500,7 @@ export const exportWorld = (world) => ({
   clippings: world.clippings ?? 0,
   rerolls: world.rerolls ?? null,
   wallpaper: world.wallpaper,
+  wallpapers: world.wallpapers,
   shop: world.shop,
   offers: world.offers,
   terrain: {
@@ -2531,6 +2542,8 @@ export const importWorld = (data, W, H) => {
     clippings: data.clippings,
     rerolls: data.rerolls,
     wallpaper: data.wallpaper,
+    // Saved before wallpapers were kept: the one up is the start of the collection.
+    wallpapers: data.wallpapers ?? (data.wallpaper ? [data.wallpaper] : []),
     shop: data.shop,
     offers: data.offers,
   });

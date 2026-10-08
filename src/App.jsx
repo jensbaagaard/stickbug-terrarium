@@ -12,6 +12,7 @@ import {
   command,
   createWorld,
   exportWorld,
+  hangWallpaper,
   feedFish,
   importWorld,
   release,
@@ -120,6 +121,20 @@ function Offer({ offer, active, short, blocked, onPick }) {
       <canvas ref={canvas} aria-hidden="true" />
       <span className="name">{offer.name}</span>
       {!offer.sold && <Price n={offer.price} short={short} />}
+    </button>
+  );
+}
+
+// A wallpaper bought before, or plain black (wp null): its picture and name, pressed if it's the one up.
+function Wallpaper({ wp, active, onPick }) {
+  const canvas = useRef(null);
+  useEffect(() => {
+    if (wp) drawThumb(canvas.current, { kind: 'wallpaper', seed: wp.seed, wallpaper: wp });
+  }, [wp]);
+  return (
+    <button type="button" className="offer" title={wp?.name ?? 'Plain'} aria-pressed={active} onClick={onPick}>
+      <canvas ref={canvas} className={wp ? '' : 'plain'} aria-hidden="true" />
+      <span className="name">{wp?.name ?? 'Plain'}</span>
     </button>
   );
 }
@@ -575,6 +590,20 @@ export default function App() {
               ))}
             </div>
           ))}
+          {/* The wallpapers bought so far, to put back up for free. */}
+          {snap?.wallpapers.length > 0 && (
+            <div className="offers library" role="group" aria-label="Your wallpapers">
+              <Wallpaper wp={null} active={snap.wallpaper === null} onPick={act((w) => hangWallpaper(w, null))} />
+              {snap.wallpapers.map((wp) => (
+                <Wallpaper
+                  key={wp.seed}
+                  wp={wp}
+                  active={snap.wallpaper === wp.seed}
+                  onPick={act((w) => hangWallpaper(w, wp))}
+                />
+              ))}
+            </div>
+          )}
           <div className="bar">
             <button
               type="button"

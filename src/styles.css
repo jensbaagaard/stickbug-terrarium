@@ -125,6 +125,8 @@ button.stack { flex-direction: column; gap: 5px; min-width: 0; padding: 6px 2px;
   border: 1px solid var(--frame);
 }
 .offer canvas { width: 100%; aspect-ratio: 1; image-rendering: pixelated; }
+.offer canvas.plain { background: #000; }
+.library { padding-top: 6px; border-top: 1px dashed var(--frame); }
 .offer .name { font-size: 9px; color: var(--tan); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .offer .price { font-size: 10px; }
 .offer .price .icon { width: 7px; height: 7px; }

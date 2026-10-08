@@ -16,7 +16,8 @@ import { SCISSORS_CURSOR } from './icons.js';
 // The tank is one of a few sizes in world pixels (TANK_SIZES; size picks which to start with, and the world
 // swapped in later may be another), shown a whole number of screen pixels to each so they all come out the same
 // size: the most that fits, up to MAX_SCALE css px to a world pixel and HEIGHT_SHARE of the window's height (leaving
-// room for the panel). Resizing the window leaves it be until it no longer fits, or the next size up does.
+// room for the panel). Resizing the window leaves it be until it no longer fits, or the next size up does. A bigger
+// tank shows more, not smaller: never narrower than a smaller one would be, even if that means pixels a touch uneven.
 const MAX_SCALE = 2;
 const HEIGHT_SHARE = 0.7;
 const GUTTER = 38; // css px beside the tank: the page's padding and the tank's frame
@@ -50,12 +51,14 @@ export default function Terrarium({ worldRef: ref, size = 'small' }) {
       [canvas.width, canvas.height] = [W, H];
       const dpr = window.devicePixelRatio || 1;
       const across = document.documentElement.clientWidth - GUTTER;
-      const room = Math.min(W * MAX_SCALE, across, (innerHeight * HEIGHT_SHARE * W) / H);
-      // Whole screen pixels to a world pixel, unless that's just the one with room for half as much again (on a
-      // low-resolution screen, a big tank): then as many as fit, pixels a little uneven rather than a tank too small.
-      const fits = (room * dpr) / W;
-      const k = fits >= 1.5 && fits < 2 ? fits : Math.max(1, Math.floor(fits));
-      const [w, h] = [(W * k) / dpr, (H * k) / dpr];
+      // css px wide a tank W by H is shown at: whole screen pixels to a world pixel, as many as fit.
+      const crisp = (W, H) => {
+        const room = Math.min(W * MAX_SCALE, across, (innerHeight * HEIGHT_SHARE * W) / H);
+        return (W * Math.max(1, Math.floor((room * dpr) / W))) / dpr;
+      };
+      const smaller = Object.values(TANK_SIZES).filter(([sw]) => sw <= W);
+      const w = Math.max(crisp(W, H), ...smaller.map(([sw, sh]) => crisp(sw, sh)));
+      const h = (w * H) / W;
       Object.assign(canvas.style, { width: `${w}px`, height: `${h}px` });
       document.documentElement.style.setProperty('--tank-width', `${w}px`);
     };

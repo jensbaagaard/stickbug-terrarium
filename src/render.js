@@ -348,15 +348,30 @@ const chainPoints = (chain) => {
   return { pts, total };
 };
 
+// Clump leaf shapes that are a blade on a bare stalk (the first petiole of the leaf).
+const BLADES = ['paddle', 'lance', 'heart', 'monstera', 'coin'];
+
 // Half the width of a clump plant's leaf u of the way along it, and grown (0..1) of its full length.
 const clumpWidth = (sp, u, grown) => {
   const w = sp.leafWidth * (0.5 + 0.5 * grown);
+  if (BLADES.includes(sp.shape) && u < sp.petiole) return 0; // the bare stalk
+  const v = (u - sp.petiole) / (1 - sp.petiole); // how far along the blade
   switch (sp.shape) {
-    case 'paddle': {
-      if (u < sp.petiole) return 0; // the bare stalk
-      const v = (u - sp.petiole) / (1 - sp.petiole);
+    case 'paddle':
       return w * Math.sin(Math.PI * Math.min(1, 0.08 + v * 0.92)) ** 0.7;
-    }
+    case 'lance':
+      return w * Math.sin(Math.PI * Math.min(1, 0.06 + v * 0.94)) ** 0.9 * (1 - 0.25 * v);
+    case 'heart':
+    case 'monstera':
+      return w * Math.min(1, 0.7 + v * 2.5, (1 - v) * 1.6); // broad at the base, narrowing to a point
+    case 'coin':
+      return w * Math.sqrt(Math.max(0, 1 - (2 * v - 1) ** 2));
+    case 'fleshy':
+      return w * (1 - u) ** 0.7 * Math.min(1, 0.6 + u * 4);
+    case 'column':
+      return w * Math.sqrt(Math.max(0, 1 - Math.max(0, (u - 0.85) / 0.15) ** 2)); // rounded at the top
+    case 'pinnate':
+      return 0; // a stalk with leaflets along it, drawn by drawFrond
     case 'strap':
       return w * Math.min(1, (1 - u) * 3, 0.6 + u * 3);
     case 'sword':
@@ -427,16 +442,72 @@ const drawClumpLeaf = (ctx, sp, chain, back) => {
     }
     runs.flush();
   };
-  if (sp.shape === 'paddle') {
+  if (BLADES.includes(sp.shape)) {
     ctx.fillStyle = hslHex(sp.stem.h, sp.stem.s, sp.stem.l - back * 4);
     stamp(null, (w, p) => (p.u < sp.petiole ? 1.4 : 0));
-    ctx.fillStyle = hex(-4);
-    stamp(null, (w) => w * 2);
-    ctx.fillStyle = hex(4);
-    stamp(null, (w) => w, root.side * 0.5); // the lit half
+    if (sp.shape === 'monstera') {
+      // A few deep splits from the edges in toward the midrib, and a row of holes inside them.
+      const slit = (p, k, w) => {
+        const v = (p.u - sp.petiole) / (1 - sp.petiole);
+        if (v < 0.15 || v > 0.9) return false;
+        const at = (p.along + k * 0.5) % 6.5; // the splits lean back toward the stalk as they go out
+        return (k > w * 0.42 && at < 1.7) || (k > w * 0.18 && k < w * 0.32 && at > 3 && at < 4.6);
+      };
+      splitBlade(ctx, sp, chain, total, grown, root.side, hex(-4), hex(4), slit);
+    } else {
+      ctx.fillStyle = hex(-4);
+      stamp(null, (w) => w * 2);
+      ctx.fillStyle = hex(4);
+      stamp(null, (w) => w, root.side * 0.5); // the lit half
+    }
+    bladePattern(ctx, sp, pts, widths, root, hex);
     if (sp.mutation) clumpMarks(ctx, sp.mutation, pts, widths, root);
-    ctx.fillStyle = hslHex(sp.stem.h, sp.stem.s, sp.stem.l + 12);
-    stamp(null, (w) => (w > 0 ? 1 : 0));
+    if (sp.shape !== 'coin') {
+      ctx.fillStyle = hslHex(sp.stem.h, sp.stem.s, sp.stem.l + 12); // the midrib
+      stamp(null, (w) => (w > 0 ? 1 : 0));
+    }
+    return;
+  }
+  if (sp.shape === 'pinnate') return drawFrond(ctx, sp, pts, grown, hex);
+  if (sp.shape === 'column') {
+    // A ribbed cactus column, lit down one side, its ribs and edges dotted with spines.
+    ctx.fillStyle = hex(-2);
+    stamp(null, (w) => w * 2);
+    ctx.fillStyle = hex(6);
+    stamp(null, (w) => w * 0.7, root.side * 0.45);
+    ctx.fillStyle = hex(-10);
+    for (const off of [-0.55, 0.55]) stamp(null, (w) => (w > 1 ? 1 : 0), off);
+    ctx.fillStyle = hslHex(sp.spines.h, sp.spines.s, sp.spines.l);
+    pts.forEach((p, i) => {
+      if (i % 2 || widths[i] <= 0) return;
+      for (const k of [-1, -0.55, 0.55, 1]) {
+        if (hash(root.seed + i, k * 10, 12) > 0.55) continue;
+        const r = k * widths[i] + Math.sign(k) * (Math.abs(k) === 1 ? 0.6 : 0);
+        plot(ctx, p.x + p.n.x * r, p.y + p.n.y * r, 1);
+      }
+    });
+    if (sp.mutation) clumpMarks(ctx, sp.mutation, pts, widths, root);
+    return;
+  }
+  if (sp.shape === 'fleshy') {
+    // A plump succulent leaf, lit down one side, maybe spotted, toothed or blushing at the tip.
+    ctx.fillStyle = hex(-3);
+    stamp(null, (w) => w * 2);
+    ctx.fillStyle = hex(6);
+    stamp(null, (w) => w, root.side * 0.5);
+    if (sp.tips) {
+      ctx.fillStyle = hslHex(sp.tips.h, sp.tips.s, sp.tips.l);
+      stamp(null, (w, p) => (p.u > 0.72 ? w * 2 : 0));
+    }
+    bladePattern(ctx, sp, pts, widths, root, hex);
+    if (sp.teeth) {
+      ctx.fillStyle = hex(18, -10);
+      pts.forEach((p, i) => {
+        if (i % 4 || widths[i] < 0.6) return;
+        for (const k of [-1, 1]) plot(ctx, p.x + p.n.x * k * (widths[i] + 0.5), p.y + p.n.y * k * (widths[i] + 0.5), 1);
+      });
+    }
+    if (sp.mutation) clumpMarks(ctx, sp.mutation, pts, widths, root);
     return;
   }
   const edge = sp.stripe?.where === 'edge';
@@ -484,6 +555,207 @@ const clumpMarks = (ctx, m, pts, widths, root) => {
 };
 
 const rotate = (v, a) => ({ x: v.x * Math.cos(a) - v.y * Math.sin(a), y: v.x * Math.sin(a) + v.y * Math.cos(a) });
+
+// A blade with gaps in it (a monstera's splits and holes), filled a row of pixels at a time: each pixel near the
+// leaf is projected onto its stems, which says how far along the leaf it is and how far out from the midrib, and
+// on which side, so whether it's in the blade and in the shaded half or the lit one (the lit half on side), unless
+// slit({along, u}, k, w) leaves it out, k px out from the midrib of a blade w across there.
+const splitBlade = (ctx, sp, chain, total, grown, side, dark, lit, slit) => {
+  const n = chain.length;
+  const [ax, ay, dx, dy, lens, starts] = [0, 0, 0, 0, 0, 0].map(() => new Float64Array(n));
+  let [x0, x1, y0, y1] = [Infinity, -Infinity, Infinity, -Infinity];
+  let first = n; // the first stem the blade reaches
+  for (let i = 0, start = 0; i < n; i++) {
+    const st = chain[i];
+    const len = st.len || 1e-6;
+    ax[i] = st.root.x;
+    ay[i] = st.root.y;
+    dx[i] = (st.tip.x - st.root.x) / len;
+    dy[i] = (st.tip.y - st.root.y) / len;
+    lens[i] = len;
+    starts[i] = start;
+    start += st.len;
+    if (start / total < sp.petiole) continue; // only the blade needs looking at
+    first = Math.min(first, i);
+    x0 = Math.min(x0, st.root.x, st.tip.x);
+    x1 = Math.max(x1, st.root.x, st.tip.x);
+    y0 = Math.min(y0, st.root.y, st.tip.y);
+    y1 = Math.max(y1, st.root.y, st.tip.y);
+  }
+  if (x0 > x1) return;
+  const pad = sp.leafWidth + 1;
+  [x0, x1, y0, y1] = [Math.floor(x0 - pad), Math.ceil(x1 + pad), Math.floor(y0 - pad), Math.ceil(y1 + pad)];
+  const cols = x1 - x0 + 1;
+  const half = new Uint8Array(cols * (y1 - y0 + 1)); // 0 not in the blade, 1 the shaded half, 2 the lit half
+  const at = { along: 0, u: 0 };
+  for (let y = y0; y <= y1; y++) {
+    for (let x = x0; x <= x1; x++) {
+      const px = x + 0.5;
+      const py = y + 0.5;
+      let best = Infinity;
+      let along = 0;
+      let k = 0;
+      for (let i = first; i < n; i++) {
+        const t = Math.min(lens[i], Math.max(0, (px - ax[i]) * dx[i] + (py - ay[i]) * dy[i]));
+        const qx = ax[i] + dx[i] * t;
+        const qy = ay[i] + dy[i] * t;
+        const d2 = (px - qx) * (px - qx) + (py - qy) * (py - qy);
+        if (d2 >= best) continue;
+        best = d2;
+        along = starts[i] + t;
+        k = (py - qy) * dx[i] - (px - qx) * dy[i]; // + on the side the normal points
+      }
+      at.along = along;
+      at.u = along / total;
+      if (at.u < sp.petiole) continue;
+      const w = clumpWidth(sp, at.u, grown);
+      if (w > 0 && Math.abs(k) <= w && !slit(at, Math.abs(k), w)) {
+        half[(y - y0) * cols + x - x0] = k * side >= 0 ? 2 : 1;
+      }
+    }
+  }
+  for (const [which, color] of [
+    [1, dark],
+    [2, lit],
+  ]) {
+    ctx.fillStyle = color;
+    const runs = pixelRuns(ctx);
+    for (let i = 0; i < half.length; i++) if (half[i] === which) runs.put(x0 + (i % cols), y0 + Math.floor(i / cols));
+    runs.flush();
+  }
+};
+
+// Markings on a clump plant's blade: dark feathered bars either side of the midrib (feather), silver patches
+// (silver), pale veins running out to the edge (veins), or pale dots (spots).
+const bladePattern = (ctx, sp, pts, widths, root, hex) => {
+  if (!sp.pattern) return;
+  ctx.fillStyle =
+    sp.pattern === 'feather'
+      ? hex(-12)
+      : sp.pattern === 'silver'
+        ? hslHex(sp.leaf.h, 10, 72)
+        : hslHex(sp.stem.h, 20, sp.pattern === 'spots' ? 80 : 66);
+  pts.forEach((p, i) => {
+    const w = widths[i];
+    if (w <= 0) return;
+    const at = (k, size) => plot(ctx, p.x + p.n.x * k, p.y + p.n.y * k, Math.max(1, size));
+    if (sp.pattern === 'feather') {
+      if (w > 1.2 && Math.floor(p.along / 2.2) % 2 === 0) for (const k of [-0.45, 0.45]) at(k * w, w * 0.5);
+    } else if (sp.pattern === 'silver') {
+      if (hash(root.seed, Math.floor(p.along / 2), 8) < 0.55) at((hash(root.seed, i, 9) - 0.5) * w * 0.9, w * 0.8);
+    } else if (sp.pattern === 'spots') {
+      if (hash(root.seed + i, 0, 9) < 0.15) at((hash(root.seed, i, 10) - 0.5) * w * 1.4, 1);
+    } else if (i % 4 === 0 && w > 1.5) {
+      const d = { x: p.n.y, y: -p.n.x }; // toward the tip
+      for (const k of [-1, 1]) line(ctx, p, add(add(p, p.n, k * w * 0.9), d, w * 0.5), 1); // veins
+    }
+  });
+};
+
+// A pinnate frond: its stalk and midrib, with leaflets in pairs every few px past the stalk, longest a third of
+// the way along and leaning toward the tip (and, for a palm, drooping): oval ones (a ZZ plant) or fine ones.
+const drawFrond = (ctx, sp, pts, grown, hex) => {
+  const f = sp.leaflet;
+  ctx.fillStyle = hslHex(sp.stem.h, sp.stem.s, sp.stem.l);
+  const runs = pixelRuns(ctx);
+  for (const p of pts) runs.put(Math.ceil(p.x - 0.5), Math.ceil(p.y - 0.5));
+  runs.flush();
+  const anchors = [];
+  for (const p of pts) {
+    if (p.u < sp.petiole || (anchors.length && p.along < anchors[anchors.length - 1].along + f.spacing)) continue;
+    anchors.push(p);
+  }
+  for (const side of [-1, 1]) {
+    ctx.fillStyle = hex(side * 3);
+    for (const p of anchors) {
+      const v = (p.u - sp.petiole) / (1 - sp.petiole);
+      const len = f.len * grown * Math.sin(Math.PI * Math.min(1, 0.12 + v * 0.88)) ** 0.6;
+      const d = { x: p.n.y, y: -p.n.x };
+      const dir = normalize({
+        x: d.x * Math.cos(f.angle) + p.n.x * side * Math.sin(f.angle),
+        y: d.y * Math.cos(f.angle) + p.n.y * side * Math.sin(f.angle) + (f.droop ?? 0),
+      });
+      if (f.width > 1.2) {
+        for (let k = 0; k <= len; k += 0.5) {
+          plot(ctx, p.x + dir.x * k, p.y + dir.y * k, Math.max(1, f.width * Math.sin((Math.PI * k) / len)));
+        }
+      } else {
+        for (let k = 0; k <= len; k += 0.7) runs.put(Math.round(p.x + dir.x * k), Math.round(p.y + dir.y * k));
+      }
+    }
+    runs.flush();
+  }
+};
+
+// A spathe at the top of its stalk (c, the stalk heading along d): a hood standing up behind a spike (a peace
+// lily), or a glossy heart held out to one side with the spike standing up out of it (an anthurium).
+const drawSpathe = (ctx, f, c, d, bloom, side) => {
+  const s = f.size * (0.4 + 0.6 * bloom);
+  const dir = rotate(d, side * (f.hood ? 0.25 : 1.3));
+  const len = (f.hood ? 7 : 6) * s;
+  const wide = (f.hood ? 2.2 : 3) * s;
+  ctx.fillStyle = hslHex(f.spathe.h, f.spathe.s, f.spathe.l);
+  for (let k = 0; k <= len; k += 0.5) {
+    const t = k / len;
+    const hood = Math.sin(Math.PI * Math.min(1, 0.1 + t * 0.9)) ** 0.7;
+    const heart = Math.min(1, 0.7 + t * 2.5, (1 - t) * 1.6);
+    const w = wide * (f.hood ? hood : heart);
+    plot(ctx, c.x + dir.x * k, c.y + dir.y * k, Math.max(1, w));
+  }
+  if (bloom < 0.3) return;
+  const up = rotate(d, -side * (f.hood ? 0.15 : 0.2));
+  ctx.fillStyle = hslHex(f.spadix.h, f.spadix.s, f.spadix.l);
+  for (let k = 0; k <= 3.5 * s; k += 0.5) plot(ctx, c.x + up.x * k, c.y + up.y * k, 1.3);
+};
+
+// Orchid flowers hanging along the end of an arching spike, opening one after another from the bottom: five
+// rounded petals and a darker lip.
+const drawOrchid = (ctx, f, pts, bloom) => {
+  const n = f.count;
+  for (let k = 0; k < n; k++) {
+    const open = clamp(bloom * 1.8 - (k * 0.8) / n, 0, 1);
+    if (open <= 0) continue;
+    const at = pts[Math.round((pts.length - 1) * (0.55 + (0.45 * k) / Math.max(1, n - 1)))];
+    const c = { x: at.x, y: at.y + 2 };
+    const r = (0.8 + 1.6 * open) * f.size;
+    ctx.fillStyle = hslHex(f.petal.h, f.petal.s, f.petal.l);
+    for (let a = 0; a < 5; a++) {
+      const ang = (a * Math.PI * 2) / 5 - Math.PI / 2;
+      plot(ctx, c.x + Math.cos(ang) * r * 0.6, c.y + Math.sin(ang) * r * 0.6, Math.max(1, r * 0.8));
+    }
+    if (open > 0.5) {
+      ctx.fillStyle = hslHex(f.lip.h, f.lip.s, f.lip.l);
+      plot(ctx, c.x, c.y + r * 0.2, Math.max(1, r * 0.5));
+    }
+  }
+};
+
+// Little tubular flowers hanging along the top of a stalk, coming out from the bottom up, lighter at the mouth.
+const drawBells = (ctx, f, pts, bloom) => {
+  const from = Math.floor(pts.length * 0.6);
+  const upTo = from + Math.round((pts.length - from) * Math.min(1, bloom * 1.2));
+  const tube = hslHex(f.color.h, f.color.s, f.color.l);
+  const mouth = hslHex(f.color.h + 25, f.color.s, f.color.l + 15);
+  for (let i = from; i < upTo; i += 2) {
+    const [x, y] = [Math.round(pts[i].x), Math.round(pts[i].y)];
+    ctx.fillStyle = tube;
+    ctx.fillRect(x, y + 1, 1, Math.max(1, Math.round(2 * f.size)));
+    ctx.fillStyle = mouth;
+    ctx.fillRect(x, y + 1 + Math.max(1, Math.round(2 * f.size)), 1, 1);
+  }
+};
+
+// A bromeliad's cone of bright bracts on its short stalk: chevrons stacked up it, narrowing to the top.
+const drawBract = (ctx, f, c, d, bloom) => {
+  const n = Math.max(1, Math.round(5 * f.size * (0.3 + 0.7 * bloom)));
+  const across = { x: -d.y, y: d.x };
+  for (let k = 0; k < n; k++) {
+    ctx.fillStyle = hslHex(f.color.h, f.color.s, f.color.l + (k % 2 ? 6 : -4));
+    const at = add(c, d, k * 1.6 - 1);
+    const half = (n - k) * 0.9 * f.size;
+    for (const side of [-1, 1]) line(ctx, at, add(add(at, across, side * half), d, -half * 0.6), 1.2);
+  }
+};
 
 // A bird of paradise flower at the top of its stalk (c, the stalk heading up along d): a beak-like sheath lying
 // across the stalk, then as it opens a crest of orange petals standing up and back out of it, and a blue tongue.
@@ -582,13 +854,16 @@ const drawClump = (ctx, plant) => {
           ctx.fillStyle = COIN;
           ctx.fillRect(x, y, 1, 1);
         }
-      } else if (st === end && sp.flower.kind === 'bird') {
-        const d = normalize({ x: end.tip.x - end.root.x, y: end.tip.y - end.root.y });
-        drawBird(ctx, sp.flower, end.tip, d, st.flower, root.side);
-      } else if (st === end && sp.flower.kind === 'plume') {
-        drawPlume(ctx, sp.flower, pts, st.flower, root.seed);
       } else if (st === end) {
-        drawPlantlet(ctx, sp, end.tip, st.flower);
+        const d = normalize({ x: end.tip.x - end.root.x, y: end.tip.y - end.root.y });
+        const f = sp.flower;
+        if (f.kind === 'bird') drawBird(ctx, f, end.tip, d, st.flower, root.side);
+        else if (f.kind === 'plume') drawPlume(ctx, f, pts, st.flower, root.seed);
+        else if (f.kind === 'spathe') drawSpathe(ctx, f, end.tip, d, st.flower, root.side);
+        else if (f.kind === 'orchid') drawOrchid(ctx, f, pts, st.flower);
+        else if (f.kind === 'bells') drawBells(ctx, f, pts, st.flower);
+        else if (f.kind === 'bract') drawBract(ctx, f, end.tip, d, st.flower);
+        else drawPlantlet(ctx, sp, end.tip, st.flower);
       }
     }
   }
