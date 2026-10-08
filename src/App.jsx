@@ -576,6 +576,30 @@ export default function App() {
 
       {tab === 'shop' && (
         <section className="shop" aria-label="Shop">
+          <div className="bar">
+            <button
+              type="button"
+              aria-pressed={snap?.placing === 'fountain'}
+              disabled={snap?.placing !== 'fountain' && coins < PRICES.fountain}
+              onClick={act((w) => startPlacing(w, 'fountain'))}
+            >
+              <Icon name="fountain" />
+              Fountain
+              <Price n={PRICES.fountain} short={coins < PRICES.fountain} />
+            </button>
+            {/* Fills up over the minute until rerolling is free again. */}
+            <button
+              type="button"
+              className="reroll"
+              style={{ '--ready': 1 - (snap?.rerollWait ?? 0) }}
+              disabled={coins < rerollCost}
+              onClick={act(buyReroll)}
+            >
+              <Icon name="reroll" />
+              Reroll shop
+              {rerollCost > 0 && <Price n={rerollCost} short={coins < rerollCost} />}
+            </button>
+          </div>
           {SHOWCASE.map(([kind, label]) => (
             <div key={kind} className="offers" role="group" aria-label={label}>
               {snap?.shop?.[kind].map((offer) => (
@@ -604,30 +628,6 @@ export default function App() {
               ))}
             </div>
           )}
-          <div className="bar">
-            <button
-              type="button"
-              aria-pressed={snap?.placing === 'fountain'}
-              disabled={snap?.placing !== 'fountain' && coins < PRICES.fountain}
-              onClick={act((w) => startPlacing(w, 'fountain'))}
-            >
-              <Icon name="fountain" />
-              Fountain
-              <Price n={PRICES.fountain} short={coins < PRICES.fountain} />
-            </button>
-            {/* Fills up over the minute until rerolling is free again. */}
-            <button
-              type="button"
-              className="reroll"
-              style={{ '--ready': 1 - (snap?.rerollWait ?? 0) }}
-              disabled={coins < rerollCost}
-              onClick={act(buyReroll)}
-            >
-              <Icon name="reroll" />
-              Reroll shop
-              {rerollCost > 0 && <Price n={rerollCost} short={coins < rerollCost} />}
-            </button>
-          </div>
         </section>
       )}
 
