@@ -290,7 +290,7 @@ const drawLitter = (ctx, world) => {
   }
 };
 
-// Grass: tufts of blades fanning up from the dirt, lighter toward the tips and leaning in the breeze, some
+// Grass: tufts of blades fanning up from the ground, lighter toward the tips and leaning in the breeze, some
 // with seed heads or little blossoms once grown. A tank of it is tens of thousands of single dots, too many to
 // fill one at a time, so they're written into an image and drawn in one go, afresh every frame so it still sways.
 let grassLayer = null;

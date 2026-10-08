@@ -177,7 +177,7 @@ export const makeWallpaper = (rand) => {
 
 const GRASS_NAMES = ['Fescue', 'Bluegrass', 'Sedge', 'Clover', 'Ryegrass', 'Moss', 'Bent grass', 'Hair grass'];
 
-// A grass genome: what its blades look like and how fast it spreads across dirt, tuft by tuft. Some grasses
+// A grass genome: what its blades look like and how fast it spreads across dirt or sand, tuft by tuft. Some grasses
 // carry seed heads, some little clover-like blossoms.
 export const makeGrass = (rand) => {
   const autumn = rand() < 0.15;

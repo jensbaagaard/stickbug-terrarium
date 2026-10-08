@@ -57,7 +57,8 @@ Shop, Garden (Prune, Relocate, Propagate and Feed), Saves and Settings. The game
 - Tap a branch, stick or plant to prune it there; whatever stood on a cut-off piece comes down with it. The Prune
   tool (Gardening) cuts along a dragged line instead. Plant clippings sell for coins.
 - Relocate (Gardening): drag a plant, grass patch or vine somewhere else. Plants and grass land on whatever is below
-  where you let go (grass withers off dirt); vines hang from the nearest stick or ledge, or the top of the tank.
+  where you let go (grass withers off dirt and sand); vines hang from the nearest stick or ledge, or the top of the
+  tank.
 - Propagate (Gardening): fully grown flowering plants get a blinking green plus. Tap one, then tap where a seedling
   of the same species should go; the parent is cut back to a seedling too, so both grow again. Tap the plant again
   or press Esc to cancel.
@@ -68,12 +69,11 @@ Shop, Garden (Prune, Relocate, Propagate and Feed), Saves and Settings. The game
   tap, even in mid-air, and pours out water forever, like Powder Game's clone; erase it in the Editor. The only
   way to earn coins is to grow plants and sell the clippings.
 - Plants come in three types, each with its own genome: flowering plants that grow node by node; grass that you sow
-  on dirt (painted dirt or the tank floor) and that spreads tuft by tuft, withering if buried (under water it grows
-  on, swaying in the current, but doesn't blossom); and hanging vines that hang from the nearest branch, stick, or
-  underside or face of the terrain (a stone ledge, say), or else from a hook at the top of the tank; they sway and
-  drape onto the floor.
-  Plants and vines sway more under water, rocked by the current, and only flower out of it. Tap grass to mow it or a
-  vine to cut it back; both grow back, and the clippings sell.
+  on dirt or sand (painted, or the tank floor) and that spreads tuft by tuft, withering if buried (under water it
+  grows on, swaying in the current, but doesn't blossom); and hanging vines that hang from the nearest branch,
+  stick, or underside or face of the terrain (a stone ledge, say), or else from a hook at the top of the tank; they
+  sway and drape onto the floor. Plants and vines sway more under water, rocked by the current, and only flower out
+  of it. Tap grass to mow it or a vine to cut it back; both grow back, and the clippings sell.
 - The tank lives on its own. A breeze sways the plants, grass and vines in the air, and now and then a gust rolls
   across the tank, leaning everything over as it passes. Old plant leaves yellow, droop and drop, one at a time, and
   the node grows a new one: fallen leaves flutter down and lie browning on the ground until they're gone, or float on

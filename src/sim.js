@@ -47,6 +47,7 @@ import {
   paintTerrain,
   placeFountain,
   resizeTerrain,
+  SAND,
   stepTerrain,
   WATER,
 } from './terrain.js';
@@ -1135,11 +1136,11 @@ const prunePlant = (world, plant, stem, p) => {
 
 // ---------- grass and vines ----------
 
-// Is (x, y) dirt that grass can grow in: painted dirt or the bare tank floor?
+// Is (x, y) ground that grass can grow in: painted dirt or sand, or the bare tank floor?
 const isSoil = (world, x, y) => {
   const ter = world.terrain;
   const i = cellAt(ter, x, y + 1);
-  if (i >= 0 && ter.cells[i] !== EMPTY) return ter.cells[i] === DIRT;
+  if (i >= 0 && ter.cells[i] !== EMPTY) return ter.cells[i] === DIRT || ter.cells[i] === SAND;
   return Math.abs(y - world.ground.y0) < 1;
 };
 
@@ -1169,7 +1170,7 @@ const faceAt = (world, x, y0, y1) => {
 };
 
 // Where grass sown near (x, y) takes root: whatever ground is below, within PLACE_REACH, whether or not it's
-// dirt. Null if there's none.
+// soil. Null if there's none.
 const sowAt = (world, x, y) => {
   const gx = clamp(x, 3, world.W - 4);
   const gy = groundTop(world, gx, y);
@@ -1213,9 +1214,9 @@ const terrainHook = (world, x, y) => {
   return best;
 };
 
-// Grass grows tuft by tuft. Grown tufts seed neighbours a few px along the same dirt, over bumps and up and
-// down the faces of piles (but not cliffs, or onto a ledge with a gap under it); tufts that get buried or lose
-// their dirt wither away. Under water they grow on (wet), but don't blossom.
+// Grass grows tuft by tuft. Grown tufts seed neighbours a few px along the same dirt or sand, over bumps and up
+// and down the faces of piles (but not cliffs, or onto a ledge with a gap under it); tufts that get buried or
+// lose their soil (sand slides away, say) wither away. Under water they grow on (wet), but don't blossom.
 const growGrass = (world, patch, rate) => {
   const g = patch.genome;
   const ter = world.terrain;
@@ -1646,7 +1647,7 @@ const relocate = (world, obj, to) => {
   } else if (obj.kind === 'vine') {
     obj.nodes = obj.nodes.map((p) => ({ x: p.x + dx, y: p.y + dy, px: p.px + dx, py: p.py + dy }));
   } else {
-    // Each tuft settles onto whatever is below it; any that land off dirt wither.
+    // Each tuft settles onto whatever is below it; any that land off dirt or sand wither.
     for (const tuft of obj.tufts) {
       tuft.x = clamp(tuft.x + dx, 1, world.W - 2);
       tuft.y = groundTop(world, tuft.x, tuft.y + dy - 3);
