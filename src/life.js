@@ -9,7 +9,8 @@ import { params } from './tuning.js';
 const GUST_EVERY = 2400; // ticks: one gust somewhere in each stretch this long
 const GUST_SPEED = 1.2; // px a tick a gust rolls across the tank
 const GUST_WIDTH = 140; // px across a gust's front
-const SYNC_REACH = 70; // px: a flash pulls on the clocks of fireflies this near
+const SYNC_REACH = 120; // px: a flash pulls on the clocks of fireflies this near
+const FIREFLY_SPEED = 0.25; // px a tick at the most: a lazy drift
 const MAX_BUBBLES = 40;
 const BUBBLE_TICKS = 15;
 const MOTES = 10;
@@ -53,24 +54,33 @@ const homeOf = (o) => {
   return null;
 };
 
-// Each rises out of its plant and keeps over it.
+// Somewhere new to drift over to, within its wander of the plant it keeps to, and how long till it changes its mind.
+const roam = (world, f) => {
+  const [r, reach] = [world.lifeRand, params.fireflyWander];
+  f.home = { x: f.plant.x + (r() - 0.5) * 2 * reach, y: f.plant.y - 6 - r() * reach };
+  f.roam = 180 + r() * 300;
+};
+
+// Each rises out of its plant and roams about over it.
 const spawnFirefly = (world, at) => {
   const r = world.lifeRand;
-  world.fireflies.push({
+  const f = {
     x: at.x,
     y: at.y + 4,
     vx: 0,
     vy: -0.1,
-    home: { x: at.x + (r() - 0.5) * 30, y: at.y - 6 - r() * 20 },
+    plant: at,
     clock: r(),
     pace: 1 + (r() - 0.5) * 0.04, // its clock runs a touch fast or slow
     age: 0,
     life: 3600 + r() * 7200,
-  });
+  };
+  roam(world, f);
+  world.fireflies.push(f);
 };
 
-// They drift lazily about over the plant they came from, keeping out of the terrain and the water, each blinking on its
-// own clock, and every flash nudges the clocks of those near it on a little: soon they flash together.
+// They drift lazily from spot to spot over the plant they came from, keeping out of the terrain and the water, each
+// blinking on its own clock, and every flash nudges the clocks of those near it on a little: soon they flash together.
 const stepFireflies = (world) => {
   const list = world.fireflies;
   if (world.time % 60 === 0 && world.lifeRand() < 0.25) {
@@ -82,8 +92,11 @@ const stepFireflies = (world) => {
   const flashed = [];
   for (const f of list) {
     f.age++;
+    if (--f.roam <= 0) roam(world, f);
     f.vx = (f.vx + (world.lifeRand() - 0.5) * 0.03 + (f.home.x - f.x) * 0.0004 + wind(world, f.x) * 0.002) * 0.97;
     f.vy = (f.vy + (world.lifeRand() - 0.5) * 0.03 + (f.home.y - f.y) * 0.0004) * 0.97;
+    const speed = Math.hypot(f.vx, f.vy);
+    if (speed > FIREFLY_SPEED) [f.vx, f.vy] = [(f.vx * FIREFLY_SPEED) / speed, (f.vy * FIREFLY_SPEED) / speed];
     if (open(world, f.x + f.vx, f.y + f.vy)) {
       f.x += f.vx;
       f.y += f.vy;

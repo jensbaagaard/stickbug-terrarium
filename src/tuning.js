@@ -132,6 +132,7 @@ export const GROUPS = [
     genes: false,
     sliders: [
       ['fireflies', 'Fireflies', 6, 6, 1], // at most, and never more than two to a plant
+      ['fireflyWander', 'Wander', 50, 45, 5], // px from its plant a firefly roams
       ['fireflyBlink', 'Blink time', 240, 180, 10], // ticks between a firefly's flashes, give or take
       ['fireflyFlash', 'Flash length', 0.12, 0.1, 0.01], // the share of that it's lit
       ['fireflySync', 'Sync', 0.08, 0.08, 0.01], // how far a flash pulls on nearby clocks; at 0 they never fall in step
@@ -142,8 +143,8 @@ export const GROUPS = [
     genes: false,
     sliders: [
       // The chance a stem tip, vine node or tuft under water lets a bubble go, every 15 ticks.
-      ['bubbleRate', 'Bubble rate', 0.005, 0.005, 0.0005],
-      ['bubbleSpeed', 'Bubble speed', 0.25, 0.2, 0.01], // px per tick at the most; they start slower and speed up
+      ['bubbleRate', 'Bubble rate', 0.0005, 0.0005, 0.00005],
+      ['bubbleSpeed', 'Bubble speed', 0.19, 0.18, 0.01], // px per tick at the most; they start slower and speed up
       ['bigBubbles', 'Big bubbles', 0.25, 0.25, 0.05], // the share that are big, and pop with a ring at the surface
     ],
   },

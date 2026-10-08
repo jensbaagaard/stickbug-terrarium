@@ -94,13 +94,14 @@ const pool = (world, x0, x1, depth) => {
   assert.ok(apart(a.clock, b.clock) < 0.02, 'they flash together');
 
   pool(world, 180, 248, 30);
+  params.bubbleRate = 0.01; // bubbling hard, to see some soon
   let bubbles = 0;
   steps(world, 3000, () => {
     bubbles = Math.max(bubbles, world.bubbles.length);
     assert.ok(world.bubbles.every((bb) => cell(world, bb) === WATER), 'bubbles are only ever in the water');
   });
   assert.ok(bubbles > 0, 'the plant under water gives off bubbles');
-  params.fireflies = 6;
+  Object.assign(params, { fireflies: 6, bubbleRate: 0.0005 });
 }
 
 {
