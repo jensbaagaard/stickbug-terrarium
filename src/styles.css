@@ -111,7 +111,7 @@ button.stack { flex-direction: column; gap: 5px; min-width: 0; padding: 6px 2px;
 .shop .bar button { min-height: 44px; }
 /* The reroll button fills up over the minute until rerolling is free again. */
 .reroll { background: linear-gradient(to right, var(--dim) calc(var(--ready) * 100%), var(--frame) 0); }
-.garden { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.garden { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
 .garden button { min-height: 72px; }
 .offers { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
 .offer {

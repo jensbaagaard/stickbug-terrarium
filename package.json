@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "check": "node src/aim.check.js && node src/plants.check.js"
+    "check": "node src/aim.check.js && node src/plants.check.js && node src/fish.check.js"
   },
   "dependencies": {
     "react": "^18.3.1",

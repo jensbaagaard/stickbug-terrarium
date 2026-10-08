@@ -1,8 +1,8 @@
 # Stickbug Terrarium
 
-A tiny pixel-art terrarium of stick insects that walk, climb, eat leaves, dance and do odd stick insect things, each
-with its own genome. Paint the landscape in stone, sandstone, wood, dirt, sand and water, decorate it from the
-shop, and tune everything.
+A tiny pixel-art terrarium of stick insects that walk, climb, eat leaves, dance and do odd stick insect things, and
+guppies that shoal in its water, each with its own genome. Paint the landscape in stone, sandstone, wood, dirt, sand
+and water, decorate it from the shop, and tune everything.
 
 ## Run
 
@@ -10,18 +10,18 @@ shop, and tune everything.
 npm install
 npm run dev     # local dev server
 npm run build   # static build in dist/
-npm run check   # checks the pointer's marks, and pulling plants and flowering under water
+npm run check   # checks the pointer's marks, pulling plants, flowering under water, and the fish
 ```
 
 ## Interact
 
 The panel under the tank has five tabs, each a pixel icon over its name, with the coins beside them: Editor (terrain),
-Shop, Garden (Prune, Relocate and Propagate), Saves and Settings. The game shows rather than tells:
+Shop, Garden (Prune, Relocate, Propagate and Feed), Saves and Settings. The game shows rather than tells:
 
 - Picking a tool (the Editor's brush, Prune, Relocate, Propagate) plays a short ghost animation of how it's used in
   the middle of the tank; a press in the tank stops it. While something bought waits to go in, the tank's frame
   glows and, until the pointer comes over the tank, a ghost pointer brings it in from below and taps it down.
-- Over the tank, the cursor and a mark show what a press would do: a hand over a bug, or over a plant, vine or
+- Over the tank, the cursor and a mark show what a press would do: a hand over a bug or fish, or over a plant, vine or
   grass you can pull about; a blinking red notch where a tap would cut a stem, stick or vine (a line where it
   would mow grass), with scissors over a stick or with Prune; an arrow over a plant Relocate would lift.
 - Prices turn red when you can't afford them, the coin count hops when it changes, a save flashes when it's just
@@ -36,6 +36,15 @@ Shop, Garden (Prune, Relocate and Propagate), Saves and Settings. The game shows
 - Drag a bug to pick it up; tap it to inspect it (its picture, name, and bars for hunger, speed, size, laziness
   and groove). From the card you can release the bug.
 - Bugs climb anything that touches the ground or each other: the starting stick and whatever you buy.
+- Fish: guppies, each with its own genome. Males are small and bright, with big tails (delta, fan, round, spade, veil,
+  sword, double sword or lyre) in patterns; females are bigger and plainer; some are metallic and a rare few albino.
+  Let one go in the water and it swims; on dry land it flops about, hopping toward the nearest water, until it's
+  back in. They shoal loosely in the upper water, graze and rest by the plants, come begging at the pointer when
+  they're hungry and bold, dart off when you tap the glass or sweep the pointer through the water (the fright
+  rippling through the shoal), and the males court the females with a quivering S-shaped display. Tap one to
+  inspect it (hunger, speed, size, boldness and shoaling), drag one to move it. Feed (Garden) sprinkles flakes on
+  the water above them; they float a while, then sink, and the fish race for them. Between feedings they eat
+  crumbs that fall in.
 - Drag a plant, vine or grass to pull it about, a bit like Aqua Box: it bends toward the pointer and springs back
   when you let go.
 - Tap a branch, stick or plant to prune it there; whatever stood on a cut-off piece comes down with it. The Prune
@@ -45,8 +54,8 @@ Shop, Garden (Prune, Relocate and Propagate), Saves and Settings. The game shows
 - Propagate (Gardening): fully grown flowering plants get a blinking green plus. Tap one, then tap where a seedling
   of the same species should go; the parent is cut back to a seedling too, so both grow again. Tap the plant again
   or press Esc to cancel.
-- Shop: four bugs, four plants, four sticks and four wallpapers on show, each with a picture and a price (rarer
-  ones cost more), plus fountains. Pick one and tap the tank to put it in; Reroll fills the shop with new ones.
+- Shop: four bugs, four fish, four plants, four sticks and four wallpapers on show, each with a picture and a price
+  (rarer ones cost more), plus fountains. Pick one and tap the tank to put it in; Reroll fills the shop with new ones.
   Plants and sticks stand on whatever is below where you tap, terrain included. Wallpaper goes up on the back of
   the tank as soon as you buy it, replacing the last one. A fountain is a little block that goes exactly where you
   tap, even in mid-air, and pours out water forever, like Powder Game's clone; erase it in the Editor. The only
@@ -77,6 +86,8 @@ Shop, Garden (Prune, Relocate and Propagate), Saves and Settings. The game shows
 - `src/sim.js` – world, surfaces and junctions, bugs (kicked tripod steps with feet planted in the world, crawling
   round corners at junctions, quirks), decorations, plants growing node by node, spreading grass, vines as swaying
   ropes, pruning, the shop and coins. Pure logic, no DOM.
+- `src/fish.js` – guppies: their genome, price and names, and how they live: cruising and shoaling, food and
+  grazing, resting, begging, fleeing, courting, and flopping when stranded. Pure logic, no DOM.
 - `src/terrain.js` – the falling-sand grid (stone, sandstone, wood, dirt, sand, water, fountains): painting,
   stepping, and its skyline, which `sim.js` turns into walkable surfaces.
 - `src/decor.js` – random sticks (with their own foliage), wallpapers, and the plant genomes: flowering

@@ -19,7 +19,7 @@ export const drawThumb = (canvas, offer) => {
   const w = Math.min(W, Math.ceil(box.x1)) - x0;
   const h = Math.min(H, Math.ceil(box.y1)) - y0;
   // Square it up so every card shows its item at a sensible size.
-  const side = Math.max(w, h, 40);
+  const side = Math.max(w, h, offer.kind === 'fish' ? 28 : 40);
   canvas.width = side;
   canvas.height = side;
   const ctx = canvas.getContext('2d');
@@ -27,9 +27,10 @@ export const drawThumb = (canvas, offer) => {
   ctx.fillStyle = '#000';
   ctx.fillRect(0, 0, side, side);
   // Hanging plants hang from a line along the top of their picture, like the ground line everything else
-  // stands on at the bottom.
+  // stands on at the bottom. Fish swim in the middle.
   const hanging = offer.type === 'vine';
-  ctx.drawImage(scratch, x0, y0, w, h, Math.floor((side - w) / 2), hanging ? 0 : side - h, w, h);
+  const top = hanging ? 0 : offer.kind === 'fish' ? Math.floor((side - h) / 2) : side - h;
+  ctx.drawImage(scratch, x0, y0, w, h, Math.floor((side - w) / 2), top, w, h);
   if (hanging) {
     ctx.fillStyle = '#6b4a2b';
     ctx.fillRect(0, 0, side, 1);

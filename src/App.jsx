@@ -10,8 +10,9 @@ import {
   cancelPlacing,
   command,
   createWorld,
+  feedFish,
   importWorld,
-  releaseBug,
+  release,
   rerollGenes,
   setBrush,
   setTool,
@@ -71,6 +72,7 @@ const GARDEN_TOOLS = [
 // Shop rows: four of each, rerolled on demand.
 const SHOWCASE = [
   ['bug', 'Bugs'],
+  ['fish', 'Fish'],
   ['plant', 'Plants'],
   ['stick', 'Sticks'],
   ['wallpaper', 'Wallpapers'],
@@ -206,27 +208,47 @@ function Save({ save, flash, onLoad, onOverwrite, onExport, onDelete }) {
 const share = (key, v) => clamp((v - SLIDER[key].min) / (SLIDER[key].max - SLIDER[key].min), 0, 1);
 const speedOf = (t) => (t.stride * t.size) / t.stepTicks;
 
-// The selected bug: its picture and a few of its traits as bars, plus what you can do with it.
-function Inspector({ bug, onRelease, onClose }) {
-  const { t } = bug;
-  const canvas = useRef(null);
-  useEffect(() => {
-    drawThumb(canvas.current, { kind: 'bug', genes: bug.genes, seed: 1 });
-  }, [bug.genes]);
-  // Speed is a step's length over its time, so it's halfway at the default and full at four times that.
-  const stats = [
-    ['Hunger', bug.hunger],
+// A few of a bug's or fish's traits as bars. A bug's speed is a step's length over its time, so it's halfway at the
+// default and full at four times that; a fish's genes already run 0..1.
+const statsOf = (who) => {
+  if (who.kind === 'fish') {
+    const g = who.genome;
+    return [
+      ['Hunger', who.hunger],
+      ['Speed', g.speed],
+      ['Size', g.size],
+      ['Boldness', g.boldness],
+      ['Shoaling', g.sociability],
+    ];
+  }
+  const { t } = who;
+  return [
+    ['Hunger', who.hunger],
     ['Speed', clamp(0.5 + Math.log2(speedOf(t) / speedOf(DEFAULTS)) / 4, 0, 1)],
     ['Size', share('size', t.size)],
     ['Laziness', share('restChance', t.restChance)],
     ['Groove', share('danceTempo', t.danceTempo)],
   ];
+};
+
+// The selected bug or fish: its picture and a few of its traits as bars, plus what you can do with it.
+function Inspector({ who, onRelease, onClose }) {
+  const canvas = useRef(null);
+  const genes = who.genes ?? who.genome;
+  useEffect(() => {
+    drawThumb(canvas.current, { kind: who.kind, genes: who.genes, genome: who.genome, seed: 1 });
+  }, [genes]);
+  const stats = statsOf(who);
+  const sex = who.kind === 'fish' ? (who.genome.male ? ' \u2642' : ' \u2640') : '';
   return (
-    <section className="card" aria-label="Selected bug">
+    <section className="card" aria-label={`Selected ${who.kind}`}>
       <canvas ref={canvas} className="portrait" aria-hidden="true" />
       <div className="about">
         <header>
-          <h2>{bug.name}</h2>
+          <h2>
+            {who.name}
+            {sex}
+          </h2>
           <button type="button" onClick={onClose} aria-label="Deselect">
             ×
           </button>
@@ -347,7 +369,7 @@ export default function App() {
     setSnap(snapshot(w));
   };
 
-  // Same, for the selected bug (which may have gone since the panel last looked).
+  // Same, for the selected bug or fish (which may have gone since the panel last looked).
   const withSelected = (fn) => act((w) => w.selected && fn(w, w.selected));
 
   // The Editor tab paints terrain with the pointer; the others pick up bugs and place things until a Gardening
@@ -458,8 +480,8 @@ export default function App() {
 
       {snap?.selected && (
         <Inspector
-          bug={snap.selected}
-          onRelease={withSelected(releaseBug)}
+          who={snap.selected}
+          onRelease={withSelected(release)}
           onClose={act((w) => (w.selected = null))}
         />
       )}
@@ -577,6 +599,10 @@ export default function App() {
               {label}
             </button>
           ))}
+          <button type="button" className="stack" disabled={!snap?.fish} onClick={act(feedFish)}>
+            <Icon name="feed" scale={3} />
+            Feed
+          </button>
         </section>
       )}
 

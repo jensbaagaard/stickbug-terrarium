@@ -51,6 +51,9 @@ import {
   stepTerrain,
   WATER,
 } from './terrain.js';
+import { feedFish, fishAt, fishShape, guppyName, guppyPrice, makeGuppy, newFish, startle, stepFish } from './fish.js';
+
+export { feedFish };
 
 const GRAB_RADIUS = 16;
 const PRESS_SLOP = 3; // a press on a bug that moves further than this picks it up; otherwise it selects it
@@ -84,7 +87,7 @@ const CURRENT = 0.0015; // how hard the water rocks a stem, radians per tick per
 const VINE_CURRENT = 0.04; // and a vine's nodes, px per tick per tick
 const FLEX = 0.15; // how hard pulled grass springs back
 export const PRICES = { fountain: 15 }; // fixed prices for anything not showcased; showcased kinds are priced per offer
-const SHOP_KINDS = ['bug', 'plant', 'stick', 'wallpaper']; // showcased in the shop, OFFERS of each
+const SHOP_KINDS = ['bug', 'fish', 'plant', 'stick', 'wallpaper']; // showcased in the shop, OFFERS of each
 const OFFERS = 4;
 
 const dirOf = (a) => ({ x: Math.cos(a), y: Math.sin(a) });
@@ -466,6 +469,8 @@ export const createWorld = (W, H, { seed = Date.now(), scene = true } = {}) => {
     branches: [], // every surface but the ground: sticks and the terrain's outline
     objects: [], // sticks (owning some of those surfaces) and plants
     bugs: [],
+    fish: [],
+    flakes: [], // fish food
     junctions: [],
     time: 0,
     rand: mulberry32(seed),
@@ -637,6 +642,7 @@ const rebuildSkyline = (world) => {
 const build = (world, kind, seed, x, y, genes) => {
   const rand = mulberry32(seed);
   if (kind === 'bug') return { kind, base: { x, y }, genes };
+  if (kind === 'fish') return { kind, base: { x, y }, genome: genes }; // let go where you tap, in water or not
   // A fountain goes where you tap, mid-air or not; base is under the middle of the block.
   if (kind === 'fountain') {
     const box = fountainAt(world.terrain, x, y);
@@ -689,7 +695,7 @@ const standAt = (world, x, y) => {
 // The item being placed, following the pointer (or, for its how-to, wherever that is).
 export const previewAt = (world, x = world.pointer.x, y = world.pointer.y) => {
   const pl = world.placing;
-  return pl && build(world, pl.kind, pl.seed, x, y, pl.offer?.genes);
+  return pl && build(world, pl.kind, pl.seed, x, y, pl.offer?.genes ?? pl.offer?.genome);
 };
 
 const addDecor = (world, spec) => {
@@ -770,12 +776,14 @@ export const buyWallpaper = (world, offer) => {
 
 const placeItem = (world, x, y) => {
   const { kind, seed, offer, price } = world.placing;
-  const decor = kind !== 'bug' && kind !== 'fountain' && build(world, kind, seed, x, y);
+  const decor = kind !== 'bug' && kind !== 'fish' && kind !== 'fountain' && build(world, kind, seed, x, y);
   if (decor === null) return; // nothing to stand on near there: keep holding it
   world.placing = null;
   if (world.coins < price || offer?.sold) return;
   if (kind === 'bug') {
     if (!addBug(world, x, y, offer.genes, offer.name)) return; // the tank is full
+  } else if (kind === 'fish') {
+    world.fish.push(newFish(world, x, y, offer.genome, offer.name));
   } else if (kind === 'fountain') {
     placeFountain(world.terrain, x, y, world.rand);
   } else {
@@ -792,6 +800,10 @@ const makeOffer = (world, kind) => {
     const genes = randomGenes(world.rand, params.variety);
     const rarity = GENES.reduce((n, g) => n + Math.abs(genes[g.key]) / g.spread, 0) / GENES.length;
     return { ...offer, genes, name: randomName(world.rand), price: 10 + Math.round(rarity * 60) };
+  }
+  if (kind === 'fish') {
+    const genome = makeGuppy(mulberry32(offer.seed));
+    return { ...offer, genome, name: guppyName(world.rand), price: guppyPrice(genome) };
   }
   if (kind === 'plant') {
     // Plants come in three types, each with its own genome: flowering plants, grass and hanging vines.
@@ -869,6 +881,13 @@ export const stageOffer = (world, offer) => {
     const reach = bug.t.antenna * bug.t.size;
     const b = box([...bug.pts, ...bug.legs.map((l) => l.foot).filter(Boolean)], 3);
     return { x0: b.x0 - reach, x1: b.x1 + reach, y0: b.y0 - reach * 0.5, y1: world.ground.y0 + 2 };
+  }
+  if (offer.kind === 'fish') {
+    // Side on, facing right, mid-stroke.
+    const fish = Object.assign(newFish(world, x, world.H / 2, offer.genome), { facing: 1, tail: 1 });
+    world.fish.push(fish);
+    const { len, tail, spread, dorsal } = fishShape(offer.genome);
+    return { x0: x - len / 2 - tail - 2, x1: x + len / 2 + 2, y0: fish.y - spread - dorsal, y1: fish.y + spread + 1 };
   }
   if (offer.kind === 'wallpaper') {
     world.wallpaper = makeWallpaper(mulberry32(offer.seed));
@@ -1356,10 +1375,16 @@ const bugAt = (world, x, y) => {
   for (const bug of world.bugs) {
     for (let i = 0; i < SEGMENTS; i++) {
       const d2 = (bug.pts[i].x - x) ** 2 + (bug.pts[i].y - y) ** 2;
-      if (d2 < best) [best, hit] = [d2, { bug, i }];
+      if (d2 < best) [best, hit] = [d2, { bug, i, d: Math.sqrt(d2) }];
     }
   }
   return hit;
+};
+
+// The bug or fish nearest (x, y), within reach.
+const creatureAt = (world, x, y) => {
+  const [bug, fish] = [bugAt(world, x, y), fishAt(world, x, y)];
+  return bug && (!fish || bug.d <= fish.d) ? bug : fish;
 };
 
 export const pointerDown = (world, x, y) => {
@@ -1396,9 +1421,10 @@ export const pointerDown = (world, x, y) => {
     world.cut = { x0: x, y0: y, x1: x, y1: y };
     return;
   }
-  const hit = bugAt(world, x, y);
+  const hit = creatureAt(world, x, y);
   if (hit) world.press = { ...hit, x, y };
   else world.touch = { x, y, hit: prunableAt(world, x, y, true) }; // a plant there, to pull if it's dragged
+  if (!hit?.fish) startle(world, x, y); // a tap on the glass
 };
 
 // Take hold of a plant, vine or grass where it was pressed (hit, as prunableAt gives it), to pull it about: a
@@ -1422,8 +1448,12 @@ export const pointerMove = (world, x, y) => {
   const press = world.press;
   if (press && Math.hypot(x - press.x, y - press.y) > PRESS_SLOP) {
     world.press = null;
-    detach(press.bug, 'held');
-    world.held = { bug: press.bug, i: press.i };
+    if (press.fish) {
+      world.held = { fish: press.fish };
+    } else {
+      detach(press.bug, 'held');
+      world.held = { bug: press.bug, i: press.i };
+    }
   }
   const touch = world.touch;
   if (touch?.hit && Math.hypot(x - touch.x, y - touch.y) > PRESS_SLOP) {
@@ -1448,14 +1478,15 @@ export const pointerUp = (world, x, y) => {
     return;
   }
   if (world.press) {
-    world.selected = world.press.bug;
+    world.selected = world.press.bug ?? world.press.fish;
     world.press = null;
     return;
   }
   if (world.held) {
-    const bug = world.held.bug;
+    const { bug, fish } = world.held;
     world.held = null;
-    setState(bug, 'fall', 0);
+    if (bug) setState(bug, 'fall', 0);
+    if (fish) Object.assign(fish, { fear: 40, fearDelay: 0, from: { x, y: y - 5 } }); // let go, it shoots off
   }
   if (world.pull) {
     world.pull = null; // let go, it springs back
@@ -1474,18 +1505,19 @@ export const pointerUp = (world, x, y) => {
 };
 
 export const pointerCancel = (world) => {
-  if (world.held) setState(world.held.bug, 'fall', 0);
+  if (world.held?.bug) setState(world.held.bug, 'fall', 0);
   Object.assign(world, { held: null, press: null, touch: null, pull: null, cut: null, painting: false, moving: null });
 };
 
-// What a press at the pointer would do, to show it before it's done: grab a bug, cut something there (hit, as
+// What a press at the pointer would do, to show it before it's done: grab a bug or fish, cut something there (hit, as
 // prunableAt gives it), lift a plant to move it, pick a plant to take a cutting from, or put down the plant
 // lifted or picked. Null if nothing, or the pointer isn't over the tank.
 export const aimAt = (world) => {
   if (!world.hover || world.placing || world.held || world.pull || world.cut || world.painting) return null;
   const { x, y } = world.pointer;
   const tool = world.tool;
-  if (tool === 'hand' && bugAt(world, x, y)) return { kind: 'bug' };
+  const who = tool === 'hand' && creatureAt(world, x, y);
+  if (who) return { kind: who.bug ? 'bug' : 'fish' };
   if (tool === 'hand' || tool === 'prune') {
     const hit = prunableAt(world, x, y);
     return hit && { kind: 'cut', hit };
@@ -1599,6 +1631,7 @@ export const step = (world) => {
     else simulateLoose(world, bug);
   }
   matchDancers(world);
+  stepFish(world);
   stepCrumbs(world);
   stepDebris(world);
   world.popups = world.popups.filter((p) => {
@@ -1968,7 +2001,7 @@ const stepCrumbs = (world) => {
     c.life--;
     if (!c.landed) {
       const y0 = c.y;
-      c.vy = Math.min(c.vy + 0.03, 0.6);
+      c.vy = Math.min(c.vy + 0.03, wetAt(world.terrain, c) ? 0.12 : 0.6); // they sink slowly in water
       c.x += c.vx + 0.15 * Math.sin(world.time * 0.2 + c.seed);
       c.y += c.vy;
       c.vx *= 0.97;
@@ -2058,16 +2091,19 @@ export const rerollGenes = (world, bug) => {
   bug.t = traitsOf(bug.genes);
 };
 
-export const releaseBug = (world, bug) => {
-  if (bug.partner) bug.partner.partner = null;
-  world.bugs = world.bugs.filter((b) => b !== bug);
-  if (world.held?.bug === bug) world.held = null;
-  if (world.selected === bug) world.selected = null;
+// Let a bug or fish go: it leaves the tank.
+export const release = (world, who) => {
+  if (who.partner) who.partner.partner = null;
+  world.bugs = world.bugs.filter((b) => b !== who);
+  world.fish = world.fish.filter((f) => f !== who);
+  if (world.held?.bug === who || world.held?.fish === who) world.held = null;
+  if (world.selected === who) world.selected = null;
 };
 
-// What the panel shows: coins, the shop and tool state, and the selected bug.
+// What the panel shows: coins, the shop and tool state, and the selected bug or fish.
 export const snapshot = (world) => {
   const bug = world.bugs.includes(world.selected) ? world.selected : null;
+  const fish = world.fish.includes(world.selected) ? world.selected : null;
   return {
     coins: world.coins,
     rerollCost: rerollCost(world),
@@ -2079,12 +2115,10 @@ export const snapshot = (world) => {
     brush: { ...world.brush },
     bugs: world.bugs.length,
     full: world.bugs.length >= params.maxBugs,
-    selected: bug && {
-      name: bug.name,
-      hunger: bug.hunger,
-      genes: bug.genes,
-      t: bug.t,
-    },
+    fish: world.fish.length,
+    selected:
+      (bug && { kind: 'bug', name: bug.name, hunger: bug.hunger, genes: bug.genes, t: bug.t }) ||
+      (fish && { kind: 'fish', name: fish.name, hunger: fish.hunger, genome: fish.genome }),
   };
 };
 
@@ -2158,6 +2192,7 @@ export const exportWorld = (world) => ({
     standing: !!bug.surf,
     facing: bug.surf ? Math.sign(segDir(bug.surf).x * bug.dir) || 1 : 1,
   })),
+  fish: world.fish.map((f) => ({ name: f.name, genome: f.genome, at: { x: f.x, y: f.y }, hunger: f.hunger })),
 });
 
 // Build a tank from saved data, at this tank's size. Everything is kept on the floor: if the tank is taller or
@@ -2175,6 +2210,8 @@ export const importWorld = (data, W, H) => {
     shop: data.shop,
     offers: data.offers,
   });
+  // Saved before there were fish: stock some.
+  if (world.shop) world.shop.fish ??= Array.from({ length: OFFERS }, () => makeOffer(world, 'fish'));
   const t = data.terrain;
   const n = t.cols * t.rows;
   const saved = { cols: t.cols, rows: t.rows, cells: unrle(t.cells, n), tint: unrle(t.tint, n) };
@@ -2224,6 +2261,10 @@ export const importWorld = (data, W, H) => {
       ? placeBug(world, near.g, project(near.g, p.x, p.y), Math.sign(segDir(near.g).x || 1) * b.facing, b.genes)
       : addBug(world, p.x, p.y - 10, b.genes);
     if (bug) Object.assign(bug, { name: b.name, hunger: b.hunger });
+  }
+  for (const f of data.fish ?? []) {
+    const { x, y } = at(f.at);
+    world.fish.push(Object.assign(newFish(world, x, y, f.genome, f.name), { hunger: f.hunger }));
   }
   return world;
 };

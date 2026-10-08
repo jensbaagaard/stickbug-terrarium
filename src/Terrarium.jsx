@@ -23,7 +23,7 @@ const GUTTER = 38; // css px beside the tank: the page's padding and the tank's 
 const TICK_MS = 1000 / 60;
 
 // The cursor says what a press would do there.
-const AIM_CURSORS = { bug: 'grab', cut: SCISSORS_CURSOR, lift: 'grab', pick: 'pointer', drop: 'copy' };
+const AIM_CURSORS = { bug: 'grab', fish: 'grab', cut: SCISSORS_CURSOR, lift: 'grab', pick: 'pointer', drop: 'copy' };
 const cursorOf = (world) => {
   if (world.held || world.pull || (world.moving && world.tool === 'move')) return 'grabbing';
   if (world.tool === 'paint') return 'crosshair';
