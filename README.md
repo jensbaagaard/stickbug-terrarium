@@ -109,10 +109,10 @@ Shop, Garden (Prune, Relocate, Propagate and Feed), Saves and Settings. The game
   the water a while and sink, and the fish nibble them. Fireflies hang about over the plants, blinking, and over a
   minute or two fall into step until they flash together. Whatever grows under water gives off bubbles that pop at
   the surface, light glints along the water, rings spread where something lands on it, and dust drifts in the air.
-- Saves: save the tank (terrain, plants, sticks, bugs, coins and the shop) into a new slot, each shown with a
-  little photo of the tank; tap the photo to load one, or save over, export or delete it (delete asks twice).
-  Autosave, on unless you switch it off, saves into its own slot every 10 seconds and when you leave (its photo is
-  retaken once a minute, as that's most of a save's cost), and the tank comes back as it was next visit.
+- Saves: save the tank (terrain, plants, sticks, bugs, coins and the shop) into a new slot, each shown with a little
+  photo of the tank; load one (its Load button, or tap its photo), or save over, export or delete it (delete asks
+  twice). Autosave, on unless you switch it off, saves into its own slot every 10 seconds and when you leave (its
+  photo is retaken once a minute, as that's most of a save's cost), and the tank comes back as it was next visit.
   Loading another save first puts the tank you had into the autosave. Saves live in the browser's localStorage;
   Export downloads one as a `.stickbug.json` file (name, photo and tank) and Import adds such a file back as a new
   save, to keep a tank safe or move it to another browser.
