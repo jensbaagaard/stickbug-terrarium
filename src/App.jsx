@@ -193,6 +193,10 @@ function Save({ save, flash, onLoad, onOverwrite, onExport, onDelete }) {
           </span>
         </span>
         <div className="actions">
+          <button type="button" className="stack" onClick={onLoad}>
+            <Icon name="load" />
+            Load
+          </button>
           {save.id !== AUTO && (
             <button type="button" className="stack" onClick={onOverwrite}>
               <Icon name="saves" />

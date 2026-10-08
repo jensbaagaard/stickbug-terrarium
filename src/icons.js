@@ -135,6 +135,16 @@ export const ICONS = {
     '.#..#..#.',
     '#..#..#..',
   ],
+  // Load a save: the same play arrow that shows over its picture.
+  load: [
+    '#......',
+    '###....',
+    '#####..',
+    '#######',
+    '#####..',
+    '###....',
+    '#......',
+  ],
   import: [
     '...#...',
     '..###..',
