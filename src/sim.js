@@ -1,7 +1,7 @@
 // Stickbug terrarium simulation: world, surfaces, bugs and their behaviour, decorations and the shop.
 // Everything here is pure data + functions; rendering lives in render.js.
 import { GENES, params } from './tuning.js';
-import { randomGenes, randomName, traitsOf } from './genome.js';
+import { patternRarity, randomGenes, randomName, traitsOf } from './genome.js';
 import {
   FOOT_CLEAR,
   MID,
@@ -33,6 +33,7 @@ import {
   DEFAULT_FOLIAGE,
   makeClump,
   makeGrass,
+  rarePrice,
   makeSpecies,
   makeStick,
   makeVine,
@@ -543,6 +544,7 @@ const seedScene = (world) => {
       { a: j1, b: up(0.14, 0.13), parent: 0, depth: 1 },
       { a: j2, b: up(0.18, 0.26), parent: 1, depth: 1 },
     ],
+    style: 'branch',
     wood: { name: 'Oak', h: 28, s: 38, l: 27 },
     foliage: DEFAULT_FOLIAGE,
   });
@@ -743,7 +745,7 @@ export const previewAt = (world, x = world.pointer.x, y = world.pointer.y) => {
 const addDecor = (world, spec) => {
   const obj = { kind: spec.kind, base: spec.base, on: spec.on, hold: spec.hold };
   if (spec.kind === 'stick') {
-    Object.assign(obj, { wood: spec.wood, foliage: spec.foliage });
+    Object.assign(obj, { style: spec.style ?? 'branch', wood: spec.wood, foliage: spec.foliage });
     const segs = [];
     for (const p of spec.pieces) {
       segs.push(makeSeg(world, p.a, p.b, { kind: 'stick', obj, parent: segs[p.parent] ?? null, depth: p.depth }));
@@ -841,7 +843,8 @@ const makeOffer = (world, kind) => {
   if (kind === 'bug') {
     const genes = randomGenes(world.rand, params.variety);
     const rarity = GENES.reduce((n, g) => n + Math.abs(genes[g.key]) / g.spread, 0) / GENES.length;
-    return { ...offer, genes, name: randomName(world.rand), price: 10 + Math.round(rarity * 60) };
+    const pattern = [0, 15, 40][patternRarity(genes)]; // a rare pattern, or a rarer one
+    return { ...offer, genes, name: randomName(world.rand), price: 10 + Math.round(rarity * 60) + pattern };
   }
   if (kind === 'fish') {
     const genome = makeGuppy(mulberry32(offer.seed));
@@ -862,17 +865,17 @@ const makeOffer = (world, kind) => {
     if (type < 0.65) {
       const sp = makeClump(mulberry32(offer.seed));
       const showy = sp.form === 'strelitzia' ? 8 : sp.flower ? 4 : 0;
-      return { ...offer, type: 'clump', name: sp.name, price: 8 + Math.round(sp.leafLen / 4) + showy };
+      return { ...offer, type: 'clump', name: sp.name, price: 8 + Math.round(sp.leafLen / 4) + showy + rarePrice(sp) };
     }
     const sp = makeSpecies(mulberry32(offer.seed));
-    return { ...offer, name: sp.name, price: 6 + sp.maxNodes + Math.round(sp.flower.size * 3) };
+    return { ...offer, name: sp.name, price: 6 + sp.maxNodes + Math.round(sp.flower.size * 3) + rarePrice(sp) };
   }
   if (kind === 'wallpaper') {
     const wp = makeWallpaper(mulberry32(offer.seed));
-    return { ...offer, name: wp.name, price: 6 + 2 * wp.detail };
+    return { ...offer, name: wp.name, price: 6 + 2 * wp.detail + (wp.vivid ? 15 : 0) };
   }
-  const stick = makeStick(mulberry32(offer.seed), { x: world.W / 2, y: world.ground.y0 }, world.W, world.H);
-  return { ...offer, name: stick.wood.name, price: 4 + 2 * stick.pieces.length };
+  const stick = makeStick(mulberry32(offer.seed), { x: world.W, y: world.ground.y0 }, 2 * world.W, world.H); // whole
+  return { ...offer, name: stick.name, price: 4 + 2 * Math.min(stick.pieces.length, 12) };
 };
 
 // Fill the showcase with fresh offers.
@@ -2416,6 +2419,7 @@ export const snapshot = (world) => {
   const bug = world.bugs.includes(world.selected) ? world.selected : null;
   const fish = world.fish.includes(world.selected) ? world.selected : null;
   return {
+    W: world.W, // which size of tank it is
     coins: world.coins,
     rerollCost: rerollCost(world),
     rerollWait: freeRerollIn(world) / FREE_REROLL_TICKS, // share of the minute left until rerolling is free
@@ -2464,7 +2468,7 @@ const exportObject = (obj) => {
       depth: g.depth,
       leaves: g.leaves,
     }));
-    return { kind, base, hold: obj.hold, wood: obj.wood, foliage: obj.foliage, segs };
+    return { kind, base, hold: obj.hold, style: obj.style, wood: obj.wood, foliage: obj.foliage, segs };
   }
   if (kind === 'plant') {
     const stems = obj.stems.map(({ parent, ...st }) => ({ ...st, parent: obj.stems.indexOf(parent) }));
@@ -2506,12 +2510,21 @@ export const exportWorld = (world) => ({
   fish: world.fish.map((f) => ({ name: f.name, genome: f.genome, at: { x: f.x, y: f.y }, hunger: f.hunger })),
 });
 
-// Build a tank from saved data, at this tank's size. Everything is kept on the floor: if the tank is taller or
-// shorter than when it was saved, things move down or up with it.
+// The sizes a tank comes in, world px wide and tall, and which of them W by H is (null if none).
+export const TANK_SIZES = { small: [256, 341], medium: [320, 427], large: [384, 512] };
+export const tankSize = (W, H) => {
+  const [key] = Object.entries(TANK_SIZES).find(([, [w, h]]) => w === W && h === H) ?? [null];
+  return key;
+};
+
+// Build a tank from saved data, at this tank's size. Everything is kept on the floor and in the middle: if the tank
+// is taller or shorter than when it was saved, things move down or up with it, and wider or narrower, they keep to
+// the middle (and what no longer fits is lost).
 export const importWorld = (data, W, H) => {
   const world = createWorld(W, H, { scene: false });
   const dy = world.ground.y0 - (data.H - 6);
-  const at = (p) => ({ x: clamp(p.x, 0, W - 1), y: p.y + dy });
+  const dx = Math.round((W - data.W) / 2 / CELL) * CELL; // whole cells, so the terrain moves with everything else
+  const at = (p) => ({ x: clamp(p.x + dx, 0, W - 1), y: p.y + dy });
   Object.assign(world, {
     time: data.time,
     coins: data.coins,
@@ -2526,12 +2539,12 @@ export const importWorld = (data, W, H) => {
   const t = data.terrain;
   const n = t.cols * t.rows;
   const saved = { cols: t.cols, rows: t.rows, cells: unrle(t.cells, n), tint: unrle(t.tint, n) };
-  world.terrain = resizeTerrain(saved, W, world.ground.y0);
+  world.terrain = resizeTerrain(saved, W, world.ground.y0, dx / CELL);
   for (const o of data.objects) {
     const obj = { kind: o.kind, base: at(o.base) };
     if (o.kind === 'stick' || o.kind === 'plant') obj.hold = o.hold && at(o.hold); // standing on the terrain
     if (o.kind === 'stick') {
-      Object.assign(obj, { wood: o.wood, foliage: o.foliage, segs: [] });
+      Object.assign(obj, { style: o.style ?? 'branch', wood: o.wood, foliage: o.foliage, segs: [] });
       for (const g of o.segs) {
         const extra = { kind: 'stick', obj, parent: obj.segs[g.parent] ?? null, depth: g.depth };
         obj.segs.push(Object.assign(makeSeg(world, at(g.root), at(g.tip), extra), { leaves: g.leaves }));
@@ -2545,7 +2558,7 @@ export const importWorld = (data, W, H) => {
     } else if (o.kind === 'grass') {
       Object.assign(obj, { genome: o.genome, tufts: o.tufts.map((tuft) => ({ ...tuft, ...at(tuft) })) });
     } else if (o.kind === 'vine') {
-      const nodes = o.nodes.map((p) => ({ ...at(p), px: p.px, py: p.py + dy }));
+      const nodes = o.nodes.map((p) => ({ ...at(p), px: p.px + dx, py: p.py + dy }));
       Object.assign(obj, { genome: o.genome, hold: o.hold && at(o.hold), nodes, growth: o.growth });
     }
     world.objects.push(obj);

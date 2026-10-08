@@ -5,7 +5,9 @@
 // Groups marked genes are carried per bug: a bug's value is the slider value plus its own genetic
 // offset (clamped to the slider range), so moving a slider shifts every bug while they stay individuals.
 
-export const PATTERNS = ['speckle', 'bands', 'plain', 'spots', 'tipped'];
+// Plain in the middle, the commoner patterns either side of it, and out at the ends the rare ones (tiger, piebald)
+// and rarer still (rainbow, starry), which genes seldom stray far enough to reach (see randomGenes).
+export const PATTERNS = ['rainbow', 'tiger', 'speckle', 'bands', 'plain', 'spots', 'tipped', 'piebald', 'starry'];
 
 export const GROUPS = [
   {
@@ -35,7 +37,7 @@ export const GROUPS = [
       ['light', 'Lightness', 52, 30, 1],
       ['tailHue', 'Tail hue', 0, 90, 1], // gradient: how far the hue turns from head to tail
       ['tailLight', 'Tail light', 0, 30, 1],
-      ['pattern', 'Pattern', 2, 2, 1, PATTERNS],
+      ['pattern', 'Pattern', 4, 4, 1, PATTERNS],
       ['patternHue', 'Pattern hue', 0, 180, 1], // relative to the body
       ['patternLight', 'Pattern light', -20, 40, 1],
       ['patternScale', 'Pattern size', 4, 3, 0.5], // px

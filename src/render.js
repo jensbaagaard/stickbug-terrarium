@@ -25,10 +25,11 @@ import {
   smoothstep,
 } from './geom.js';
 import { FAR_SHADE, bodyHex, patternHex, patternOf, traitsOf } from './genome.js';
-import { CELL, DIRT, EMPTY, FOUNTAIN, MATERIALS, SAND, SANDSTONE, STONE, WATER, WOOD } from './terrain.js';
+import { stickWidth } from './decor.js';
+import { CELL, DIRT, EMPTY, FOUNTAIN, ICE, MATERIALS, SAND, SANDSTONE, SNOW, STONE, WATER, WOOD } from './terrain.js';
 import { aimAt, floorBelow, previewAt, propagatable, relocationAt } from './sim.js';
 import { facingNow, fishShape } from './fish.js';
-import { RIPPLE_TICKS, wind } from './life.js';
+import { RIPPLE_TICKS, snowing, wind } from './life.js';
 import { params } from './tuning.js';
 
 const NOTE = ['..#.', '..##', '..#.', '..#.', '###.', '##..'];
@@ -101,10 +102,10 @@ const woodColors = (w) => ({
   knot: hslHex(w.h, w.s, w.l - 10),
 });
 const MOSS = ['#5f8f3a', '#7aa84a'];
-const STICK_WIDTH = [4, 3, 2]; // main limb, twigs, twigs off twigs
 
 // A stick's branches hang below their surface line, lit along the top, maybe with knots and patches of moss.
-const drawBranch = (ctx, g, colors, width, look) => {
+// Bamboo is ringed at its nodes, and a cholla skeleton is full of holes.
+const drawBranch = (ctx, g, colors, width, look, style) => {
   const n = segNormal(g);
   const a = { x: g.x0, y: g.y0 };
   const b = { x: g.x1, y: g.y1 };
@@ -124,6 +125,15 @@ const drawBranch = (ctx, g, colors, width, look) => {
       ctx.fillStyle = MOSS[hash(seed, i, 4) < 0.5 ? 0 : 1];
       plot(ctx, p.x + n.x * 0.5, p.y + n.y * 0.5, 1);
     }
+    if (style === 'cholla' && i % 3 === 0) {
+      ctx.fillStyle = colors.knot;
+      const across = (i / 3) % 2 ? 0.35 : 0.65;
+      plot(ctx, p.x - n.x * width * across, p.y - n.y * width * across, 1);
+    }
+  }
+  if (style === 'bamboo' && g.parent) {
+    ctx.fillStyle = colors.knot;
+    line(ctx, add(a, n, -0.5), add(a, n, 0.5 - width), 1);
   }
 };
 
@@ -137,10 +147,37 @@ const LEAF_FORMS = {
   pearl: { len: 0.6, width: (f, s) => 1 + 2.6 * s * Math.sin(Math.PI * f) }, // round beads
 };
 
-// One leaf reaching len along axis from base, filled to its form's width, with a darker vein in big ones.
-const leafShape = (ctx, base, axis, len, form, s, fill, vein) => {
+// The pale parts of a mutant's leaf, where it has no chlorophyll, along a leaf of length len from base along axis,
+// widthAt(f) across f of the way along. m is the mutation ({mark, color, amount}) and this leaf's seed and side.
+// Marbled patches and speckles cover more of some leaves than others; half-moon leaves are pale down one side
+// (now and then all over, or not at all); a rim edges the leaf.
+const paleMarks = (ctx, base, axis, len, widthAt, m) => {
+  const n = { x: -axis.y, y: axis.x };
+  const share = m.amount * (0.3 + 1.2 * hash(m.seed, 1));
+  const whole = hash(m.seed, 2);
+  ctx.fillStyle = hslHex(m.color.h, m.color.s, m.color.l);
+  for (let i = 0; i <= len; i++) {
+    const w = widthAt(i / len);
+    const at = (k, size) => plot(ctx, base.x + axis.x * i + n.x * k, base.y + axis.y * i + n.y * k, Math.max(1, size));
+    if (m.mark === 'half') {
+      if (whole < 0.15) at(0, w);
+      else if (whole < 0.85) at(m.side * w * 0.25, w * 0.5);
+    } else if (m.mark === 'rim') {
+      if (w >= 2) for (const k of [-1, 1]) at(k * (w * 0.5 - 0.5), 1);
+    } else if (m.mark === 'speckle') {
+      for (let k = Math.round(-w / 2); k <= w / 2; k++) if (hash(m.seed, i, k) < share * 0.6) at(k, 1);
+    } else if (hash(m.seed, Math.floor(i / 2), 3) < share) {
+      at((hash(m.seed, i, 4) - 0.5) * w * 0.5, w * (0.4 + 0.5 * hash(m.seed, Math.floor(i / 2), 5))); // marbled
+    }
+  }
+};
+
+// One leaf reaching len along axis from base, filled to its form's width, with a darker vein in big ones, and a
+// mutant's pale marks (mark, see paleMarks).
+const leafShape = (ctx, base, axis, len, form, s, fill, vein, mark = null) => {
   ctx.fillStyle = fill;
   for (let i = 0; i <= len; i++) plot(ctx, base.x + axis.x * i, base.y + axis.y * i, form.width(i / len, s));
+  if (mark) paleMarks(ctx, base, axis, len, (f) => form.width(f, s), mark);
   if (len < 6 || form === LEAF_FORMS.needle) return;
   ctx.fillStyle = vein;
   for (let i = 1; i < len * 0.75; i++) plot(ctx, base.x + axis.x * i, base.y + axis.y * i, 1);
@@ -265,7 +302,8 @@ const drawPlant = (ctx, plant) => {
       const [h, s, l] = agedLeaf({ ...sp.leaf, l: sp.leaf.l + leaf.side * 4 }, fade);
       const len = (1.5 + 4 * leaf.size) * sp.leafSize * form.len;
       const at = lerp(st.root, st.tip, leaf.at);
-      leafShape(ctx, at, dirOf(a), len, form, leaf.size * sp.leafSize, hslHex(h, s, l), hslHex(h, s, l - 9));
+      const mark = sp.mutation && { ...sp.mutation, seed: st.angle * 1000 + leaf.at * 31 + leaf.side, side: leaf.side };
+      leafShape(ctx, at, dirOf(a), len, form, leaf.size * sp.leafSize, hslHex(h, s, l), hslHex(h, s, l - 9), mark);
     }
   }
   for (const st of plant.stems) {
@@ -396,6 +434,7 @@ const drawClumpLeaf = (ctx, sp, chain, back) => {
     stamp(null, (w) => w * 2);
     ctx.fillStyle = hex(4);
     stamp(null, (w) => w, root.side * 0.5); // the lit half
+    if (sp.mutation) clumpMarks(ctx, sp.mutation, pts, widths, root);
     ctx.fillStyle = hslHex(sp.stem.h, sp.stem.s, sp.stem.l + 12);
     stamp(null, (w) => (w > 0 ? 1 : 0));
     return;
@@ -419,6 +458,29 @@ const drawClumpLeaf = (ctx, sp, chain, back) => {
     ctx.fillStyle = hslHex(sp.stripe.h, sp.stripe.s, sp.stripe.l);
     stamp(null, (w) => (w > 0.8 ? Math.max(1, w * 0.7) : 0));
   }
+  if (sp.mutation) clumpMarks(ctx, sp.mutation, pts, widths, root);
+};
+
+// A mutant clump leaf's pale parts, as paleMarks does for other leaves: along its points pts, half widths across.
+const clumpMarks = (ctx, m, pts, widths, root) => {
+  const share = m.amount * (0.3 + 1.2 * hash(root.seed, 1));
+  const whole = hash(root.seed, 2);
+  ctx.fillStyle = hslHex(m.color.h, m.color.s, m.color.l);
+  pts.forEach((p, i) => {
+    const w = widths[i];
+    if (w <= 0) return;
+    const at = (k, size) => plot(ctx, p.x + p.n.x * k, p.y + p.n.y * k, Math.max(1, size));
+    if (m.mark === 'half') {
+      if (whole < 0.15) at(0, w * 2);
+      else if (whole < 0.85) at(root.side * w * 0.5, w);
+    } else if (m.mark === 'rim') {
+      if (w >= 1) for (const k of [-1, 1]) at(k * (w - 0.5), 1);
+    } else if (m.mark === 'speckle') {
+      for (let k = Math.round(-w); k <= w; k++) if (hash(root.seed + i, k, 6) < share * 0.6) at(k, 1);
+    } else if (hash(root.seed, Math.floor(p.along / 2.5), 3) < share) {
+      at((hash(root.seed, i, 4) - 0.5) * w, w * (0.8 + hash(root.seed, Math.floor(p.along / 2.5), 5))); // marbled
+    }
+  });
 };
 
 const rotate = (v, a) => ({ x: v.x * Math.cos(a) - v.y * Math.sin(a), y: v.x * Math.sin(a) + v.y * Math.cos(a) });
@@ -742,7 +804,7 @@ const drawPreview = (ctx, world, spec, alpha = 1) => {
   ctx.globalAlpha = 0.55 * alpha;
   if (spec.kind === 'stick') {
     ctx.fillStyle = woodColors(spec.wood).light;
-    for (const p of spec.pieces) line(ctx, p.a, p.b, STICK_WIDTH[p.depth] ?? 2);
+    for (const p of spec.pieces) line(ctx, p.a, p.b, stickWidth(spec.style, p.depth));
     const hi = spec.pieces.flatMap((p) => [p.a, p.b]).reduce((a, p) => (p.y < a.y ? p : a));
     [ax, top] = [hi.x, hi.y - 2];
   } else if (spec.kind === 'fountain') {
@@ -812,6 +874,25 @@ const painter = (t, seed) => {
           return part === 'body' && u % (t.patternScale * 2.5) < 1.5 ? mark() : base;
         case 'tipped':
           return (part === 'body' ? along < 0.1 || along > 0.9 : u / len > 0.7) ? mark() : base;
+        case 'tiger': {
+          // Dark stripes, unevenly spaced and of uneven width.
+          const k = u / t.patternScale;
+          return Math.sin(k * 2.2 + Math.sin(k * 0.9 + seed) * 1.5) > 0.45 ? patternHex(t, along, dark + 12) : base;
+        }
+        case 'piebald': {
+          // Big patches of the pattern colour by turns, with ragged edges, legs and all.
+          const at = part === 'body' ? u : f * 40;
+          const patch = Math.floor((at + Math.sin(at * 0.4 + seed) * t.patternScale) / (t.patternScale * 2.5));
+          return (patch + Math.floor(seed)) % 2 ? mark() : base;
+        }
+        case 'rainbow':
+          // The hue goes right round the wheel from head to tail.
+          return hslHex(t.hue + along * 300, Math.max(t.sat, 55), clamp(t.light, 40, 70) - dark);
+        case 'starry':
+          // A night sky: dark all over, scattered with little stars.
+          return hash(seed, Math.floor(u), salt + 11) < 0.12
+            ? hslHex(t.hue + t.patternHue, 35, 88 - dark)
+            : bodyHex(t, along, dark + 28);
         default:
           return base;
       }
@@ -966,6 +1047,8 @@ export const MATERIAL_COLORS = {
   // Plain, grain line, light streak, dim streak: all within a few percent, so the grain is felt more than seen.
   [WOOD]: [0, -3, 1, -1].map((d) => hslHex(28, 26, 36 + d)),
   [SANDSTONE]: shades(33, 48, 56, [-4, 3]),
+  [SNOW]: shades(205, 30, 91, [-3, 3]),
+  [ICE]: shades(195, 50, 68, [-4, 12]), // plain, shadowed, glinting
 };
 const mod3 = (n) => ((n % 3) + 3) % 3;
 // How many wood cells run on from (r, c) in direction (dr, dc), up to 10.
@@ -1025,6 +1108,11 @@ const woodShade = (dir, x, y) => {
 };
 // Sandstone's layers, two cells thick and gently sloping, in three shades.
 const sandstoneShade = (r, c) => mod3(Math.floor((r + Math.round(Math.sin(c * 0.08) * 2)) / 2));
+// Ice: glinting streaks slanting across it, here and there, and a shadowy cell now and then.
+const iceShade = (r, c, tint) => {
+  if ((r + c * 2) % 9 === 0 && hash(Math.floor(c / 4), Math.floor(r / 3)) < 0.6) return 2;
+  return tint === 1 ? 1 : 0;
+};
 const WATER_TOP = '#7fb2ee';
 const WATER_ALPHA = 0.6;
 
@@ -1040,6 +1128,7 @@ const dotColor = (ter, water, scale, x, y, grain) => {
   if (water && (r === 0 || ter.cells[i - ter.cols] !== WATER)) return WATER_TOP;
   if (m === WOOD) return MATERIAL_COLORS[WOOD][grain[(i * CELL + (y % CELL)) * CELL + (x % CELL)]];
   if (m === SANDSTONE) return MATERIAL_COLORS[SANDSTONE][sandstoneShade(r, c)];
+  if (m === ICE) return MATERIAL_COLORS[ICE][iceShade(r, c, ter.tint[i])];
   return MATERIAL_COLORS[m][ter.tint[i]];
 };
 
@@ -1164,14 +1253,17 @@ const drawWater = (ctx, world) => {
 };
 
 const MOTE = '#fff3d6';
+const SNOWFLAKE = '#eef4ff';
 const FIREFLY = '#e2ff7a';
 
 // What's in the air: dust catching the light, brighter higher up, and fireflies, glowing faintly between flashes.
 const drawAir = (ctx, world) => {
   const t = world.time;
-  ctx.fillStyle = MOTE;
+  const snow = snowing(world);
+  ctx.fillStyle = snow ? SNOWFLAKE : MOTE;
   for (const m of world.motes) {
-    ctx.globalAlpha = (0.08 + 0.3 * (1 - m.y / world.ground.y0)) * (0.6 + 0.4 * Math.sin(t * 0.04 + m.seed));
+    const dust = (0.08 + 0.3 * (1 - m.y / world.ground.y0)) * (0.6 + 0.4 * Math.sin(t * 0.04 + m.seed));
+    ctx.globalAlpha = snow ? 0.75 : dust;
     ctx.fillRect(Math.round(m.x), Math.round(m.y), 1, 1);
   }
   ctx.fillStyle = FIREFLY;
@@ -1213,22 +1305,230 @@ const RANGES = [
   [0.18, 0.06, 8, 21],
 ];
 
-// A wallpaper's inks: its base, its accent, a brighter accent, stars, and a shade darker than the base.
+// A wallpaper's inks: its base, its accent, a brighter accent, stars, a shade darker than the base, and a glow (a
+// moon or sun, lit windows, a planet).
 const wallpaperInks = (wp) => {
   const { base: b, accent: a } = wp;
+  const g = wp.glow ?? { h: a.h, s: 60, l: 50 };
   return [
     hslHex(b.h, b.s, b.l),
     hslHex(a.h, a.s, a.l),
     hslHex(a.h, a.s, a.l + 5),
     hslHex(a.h, 25, 60),
     hslHex(b.h, b.s, b.l - 4),
+    hslHex(g.h, g.s, g.l),
   ].map(rgb);
+};
+const [BASE, ACCENT, BRIGHT, STAR, DARK, GLOW] = [0, 1, 2, 3, 4, 5];
+
+// A dusk sky: dark overhead, brightening toward the horizon in dithered steps (up to ink top), with a few stars
+// up high.
+const skyInk = (wp, x, y, floor, top = BRIGHT, stars = 0.004) => {
+  const f = y / floor;
+  if (f < 0.6 && hash(wp.seed, x, y) < stars) return STAR;
+  return Math.min(top, Math.floor(f * f * (top + 0.5) + BAYER[(y % 4) * 4 + (x % 4)] / 16));
+};
+
+// Where the top of a rolling range of hills is at x (its y), range k of the seed's ranges.
+const hillTop = (wp, k, x, floor, [height, roll, f1, f2]) => {
+  const u = x / floor;
+  const phase = (j) => hash(wp.seed, k, j) * Math.PI * 2;
+  const wave = 0.6 * Math.sin(u * f1 + phase(1)) + 0.4 * Math.sin(u * f2 + phase(2));
+  return floor * (1 - height - roll * wave);
+};
+
+// Is (x, y) in one of a row of pines standing on ground (y), spaced about sp apart and heights lo..hi tall? Each
+// is a stack of tiers, narrowing to the top, on a stub of trunk.
+const inPines = (wp, row, x, y, ground, sp, lo, hi) => {
+  const j0 = Math.floor(x / sp);
+  for (let j = j0 - 1; j <= j0 + 1; j++) {
+    const cx = (j + 0.5 + (hash(wp.seed, row, j) - 0.5) * 0.6) * sp;
+    const h = lo + (hi - lo) * hash(wp.seed, row, j + 99);
+    const top = ground(cx) - h;
+    if (y < top || y > ground(cx)) continue;
+    const down = y - top;
+    if (down > h * 0.9) {
+      if (Math.abs(x - cx) < 1) return true;
+      continue;
+    }
+    const tier = (down % (h / 4)) / (h / 4); // each tier flares out toward its bottom
+    if (Math.abs(x - cx) <= 0.5 + down * 0.22 + tier * h * 0.06) return true;
+  }
+  return false;
+};
+
+// Is (x, y) in a building of a skyline standing on floor, in px from the left: widths 6..18, heights lo..hi.
+// Returns the building's left edge and width, or null.
+const buildingAt = (wp, row, x, y, floor, lo, hi) => {
+  for (let left = -Math.floor(hash(wp.seed, row, 0) * 10), i = 1; left < x + 1; i++) {
+    const w = 6 + Math.floor(hash(wp.seed, row, i) * 13);
+    const h = lo + (hi - lo) * hash(wp.seed, row, i + 500);
+    if (x >= left && x < left + w) return y >= floor - h ? { left, w, top: Math.floor(floor - h) } : null;
+    left += w + (hash(wp.seed, row, i + 900) < 0.3 ? 2 : 0);
+  }
+  return null;
 };
 
 // Which ink goes at (x, y). floor is the dirt line, for the styles with a sky.
 const wallpaperInk = (wp, x, y, floor) => {
   const n = wp.size;
   switch (wp.style) {
+    case 'diagonal':
+      return (x + y) % (n * 2) < n ? ACCENT : BASE;
+    case 'scales': {
+      // Rows of overlapping arcs, each row half a scale over from the one above.
+      const rowH = n / 2;
+      for (const r of [Math.floor(y / rowH), Math.floor(y / rowH) - 1]) {
+        const off = (r % 2) * (n / 2);
+        const cx = Math.round((x - off) / n) * n + off;
+        const d = Math.hypot(x - cx, y - r * rowH);
+        if (y >= r * rowH && Math.abs(d - n / 2) < 0.6) return ACCENT;
+      }
+      return BASE;
+    }
+    case 'plaid': {
+      const [bx, by] = [x % (n * 3) < n, y % (n * 3) < n];
+      if (x % (n * 3) === n * 2 || y % (n * 3) === n * 2) return BRIGHT; // a thin bright line through each square
+      return bx && by ? BRIGHT : bx || by ? ACCENT : BASE;
+    }
+    case 'argyle': {
+      // A checkerboard of diamonds, with dashed lines running through them.
+      const u = x / n + y / (n * 1.5);
+      const v = x / n - y / (n * 1.5);
+      const edge = (t) => t - Math.floor(t) < 0.12;
+      if ((edge(u) || edge(v)) && Math.floor((x + y) / 2) % 2) return BRIGHT;
+      return (Math.floor(u) + Math.floor(v)) % 2 ? ACCENT : DARK;
+    }
+    case 'herringbone': {
+      // Columns of short slanting lines, slanting the other way in each next column.
+      const dir = Math.floor(x / n) % 2 ? 1 : -1;
+      return (((y + dir * x) % n) + n) % n < 2 ? ACCENT : BASE;
+    }
+    case 'winter': {
+      // Snow falling on snowy hills under a night sky, a few dark pines along the far one.
+      if (hash(wp.seed, x, y) < 0.008) return STAR;
+      const near = hillTop(wp, 1, x, floor, RANGES[1]);
+      if (y >= near) return BRIGHT;
+      const far = (cx) => hillTop(wp, 0, cx, floor, RANGES[0]);
+      if (inPines(wp, 0, x, y, far, 13, floor * 0.05, floor * 0.1)) return DARK;
+      if (y >= far(x)) return ACCENT;
+      return skyInk(wp, x, y, floor, BASE, 0);
+    }
+    case 'forest': {
+      // A moon over two rows of pines, the nearer row darker.
+      const [mx, my, mr] = [floor * 0.55, floor * 0.22, floor * 0.04];
+      if (inPines(wp, 1, x, y, () => floor, 15, floor * 0.14, floor * 0.3)) return DARK;
+      if (inPines(wp, 0, x, y, () => floor * 0.94, 9, floor * 0.28, floor * 0.5)) return BASE;
+      if (Math.hypot(x - mx, y - my) < mr) return GLOW;
+      return skyInk(wp, x, y, floor, BRIGHT, 0.002);
+    }
+    case 'mountains': {
+      // Jagged snow-capped peaks, a lower dark range in front.
+      // Peaks and saddles by turns, straight-sided between, with a little roughness.
+      const ridge = (k, seg, lo, hi) => {
+        const i = Math.floor(x / seg);
+        const at = (j) => floor * (1 - lo - (hi - lo) * (j % 2 ? 0.1 : 0.55 + 0.45 * hash(wp.seed, k, j)));
+        const t = x / seg - i;
+        return at(i) + (at(i + 1) - at(i)) * t + (hash(wp.seed, k, x) - 0.5) * 2;
+      };
+      const front = ridge(2, floor * 0.12, 0.12, 0.22);
+      if (y >= front) return DARK;
+      const back = ridge(1, floor * 0.16, 0.2, 0.62);
+      if (y >= back) return y < back + floor * 0.06 && back < floor * 0.58 ? BRIGHT : BASE;
+      return skyInk(wp, x, y, floor, ACCENT);
+    }
+    case 'desert': {
+      // Dunes in three ridges under a big low moon, each ridge lit along its crest.
+      for (const [k, h, roll, ink] of [
+        [2, 0.1, 0.04, DARK],
+        [1, 0.2, 0.06, BASE],
+        [0, 0.3, 0.07, ACCENT],
+      ]) {
+        const top = hillTop(wp, k, x, floor, [h, roll, 4 + k * 3, 9 + k * 4]);
+        if (y >= top) return y < top + 1.5 && ink !== ACCENT ? BRIGHT : ink;
+      }
+      if (Math.hypot(x - floor * 0.5, y - floor * 0.4) < floor * 0.07) return GLOW;
+      return skyInk(wp, x, y, floor, BRIGHT);
+    }
+    case 'ocean': {
+      // Light from above fading with depth, rays slanting down, kelp swaying up from the bottom, and bubbles.
+      const f = y / floor;
+      for (let j = Math.floor(x / 12) - 1; j <= Math.floor(x / 12) + 1; j++) {
+        const h = floor * (0.25 + 0.45 * hash(wp.seed, 5, j));
+        const cx = (j + 0.5) * 12 + Math.sin(y * 0.07 + j) * 3;
+        if (y > floor - h && Math.abs(x - cx) < 1.3 * (0.4 + (y - floor + h) / h)) return DARK;
+      }
+      const cell = [Math.floor(x / 9), Math.floor(y / 9)];
+      if (hash(wp.seed, ...cell) < 0.06) {
+        const r = 1 + Math.floor(hash(wp.seed, cell[0], cell[1] + 7) * 2);
+        if (Math.abs(Math.hypot(x - cell[0] * 9 - 4, y - cell[1] * 9 - 4) - r) < 0.5) return STAR;
+      }
+      const depth = [BRIGHT, ACCENT, BASE, DARK][Math.min(3, Math.floor(f * 3.2 + BAYER[(y % 4) * 4 + (x % 4)] / 16))];
+      const ray = f < 0.65 && ((x + y * 0.4) % 23) < 3 + 3 * hash(wp.seed, Math.floor((x + y * 0.4) / 23), 6);
+      return ray ? [BRIGHT, BRIGHT, ACCENT, BASE, BASE, ACCENT][depth] : depth;
+    }
+    case 'aurora': {
+      // Curtains of light hanging in the night sky over a dark horizon.
+      if (y >= hillTop(wp, 0, x, floor, [0.08, 0.03, 6, 15])) return DARK;
+      for (const k of [0, 1]) {
+        const phase = hash(wp.seed, 8, k) * 6.28;
+        const sway = Math.sin(x * 0.05 + phase) * 0.04 + Math.sin(x * 0.013 + phase) * 0.07;
+        const top = floor * (0.18 + 0.12 * k + sway);
+        const len = floor * (0.1 + 0.08 * (0.5 + 0.5 * Math.sin(x * 0.031 + phase * 2)));
+        const d = (y - top) / len;
+        if (d >= 0 && d < 1 && hash(wp.seed, x, 3) > d * 0.8) return d < 0.35 ? BRIGHT : ACCENT;
+      }
+      if (hash(wp.seed, x, y) < 0.005) return STAR;
+      return y / floor + BAYER[(y % 4) * 4 + (x % 4)] / 32 < 0.5 ? DARK : BASE;
+    }
+    case 'city': {
+      // A skyline of lit windows at dusk, the nearer buildings darker.
+      const near = buildingAt(wp, 1, x, y, floor, floor * 0.08, floor * 0.28);
+      const b = near ?? buildingAt(wp, 0, x, y, floor, floor * 0.2, floor * 0.5);
+      if (b) {
+        const [wx, wy] = [x - b.left, y - b.top];
+        const window = wx > 1 && wx < b.w - 1 && wx % 3 === 1 && wy > 2 && wy % 4 === 2;
+        if (window && hash(wp.seed, x, y + (near ? 1 : 0)) < (near ? 0.4 : 0.25)) return near ? GLOW : ACCENT;
+        return near ? DARK : BASE;
+      }
+      return skyInk(wp, x, y, floor, BRIGHT, 0.002);
+    }
+    case 'space': {
+      // Stars and a nebula, and a ringed planet.
+      const [px, py, pr] = [floor * 0.25, floor * 0.3, floor * 0.1];
+      const [dx, dy] = [x - px, y - py];
+      const ring = Math.abs((dx / (pr * 2)) ** 2 + (dy / (pr * 0.45)) ** 2 - 1) < 0.07;
+      const inPlanet = Math.hypot(dx, dy) < pr;
+      if (ring && (!inPlanet || dy > 0)) return BRIGHT;
+      if (inPlanet) return dx + dy < pr * 0.3 + (BAYER[(y % 4) * 4 + (x % 4)] / 16 - 0.5) * pr * 0.5 ? GLOW : BASE;
+      if (hash(wp.seed, x, y) < 0.01) return STAR;
+      const cloud = Math.sin(x * 0.04 + hash(wp.seed, 1, 1) * 6) * Math.sin(y * 0.05) + Math.sin((x + y) * 0.025);
+      return cloud + BAYER[(y % 4) * 4 + (x % 4)] / 16 > 1.3 ? ACCENT : y / floor > 0.5 ? BASE : DARK;
+    }
+    case 'jungle': {
+      // Big leaves in layers, the nearest darkest, each with a paler midrib, over dappled light.
+      for (const [layer, cell, ink, rib] of [
+        [2, 30, DARK, BASE],
+        [1, 24, BASE, ACCENT],
+        [0, 18, ACCENT, BRIGHT],
+      ]) {
+        const [ci, cj] = [Math.floor(x / cell), Math.floor(y / cell)];
+        for (let i = ci - 1; i <= ci + 1; i++) {
+          for (let j = cj - 1; j <= cj + 1; j++) {
+            if (hash(wp.seed, layer * 1000 + i, j) < 0.35) continue;
+            const cx = (i + hash(wp.seed, i, j + layer)) * cell;
+            const cy = (j + hash(wp.seed, j, i + layer)) * cell;
+            const a = hash(wp.seed, i * 3 + layer, j) * Math.PI;
+            const u = (x - cx) * Math.cos(a) + (y - cy) * Math.sin(a); // along the leaf
+            const v = (y - cy) * Math.cos(a) - (x - cx) * Math.sin(a); // across it
+            const [len, wide] = [cell * 0.75, cell * 0.32];
+            const inLeaf = (u / len) ** 2 + (v / (wide * (1 - (u / len) ** 2 * 0.3))) ** 2 <= 1;
+            if (inLeaf) return Math.abs(v) < 0.6 ? rib : ink;
+          }
+        }
+      }
+      return BAYER[(y % 4) * 4 + (x % 4)] / 16 < 0.5 + 0.3 * Math.sin(x * 0.07) * Math.sin(y * 0.05) ? BRIGHT : ACCENT;
+    }
     case 'stripes':
       return x % (n * 2) < n ? 1 : 0;
     case 'dots': {
@@ -1245,18 +1545,9 @@ const wallpaperInk = (wp, x, y, floor) => {
     }
     case 'hills':
       // Two ranges in front of a dusk sky, the nearer one darker.
-      for (const k of [1, 0]) {
-        const [height, roll, f1, f2] = RANGES[k];
-        const u = x / floor;
-        const phase = (j) => hash(wp.seed, k, j) * Math.PI * 2;
-        const wave = 0.6 * Math.sin(u * f1 + phase(1)) + 0.4 * Math.sin(u * f2 + phase(2));
-        if (y >= floor * (1 - height - roll * wave)) return k ? 4 : 0;
-      }
+      for (const k of [1, 0]) if (y >= hillTop(wp, k, x, floor, RANGES[k])) return k ? DARK : BASE;
   }
-  // Dusk: dark overhead, brightening toward the horizon in dithered steps, with a few stars up high.
-  const f = y / floor;
-  if (f < 0.6 && hash(wp.seed, x, y) < 0.004) return 3;
-  return Math.min(2, Math.floor(f * f * 2.5 + BAYER[(y % 4) * 4 + (x % 4)] / 16));
+  return skyInk(wp, x, y, floor); // dusk
 };
 
 // Like the terrain, a wallpaper is drawn once into an image the size of the tank above the dirt, and again
@@ -1659,7 +1950,9 @@ export const drawWorld = (ctx, world) => {
 
   for (const obj of world.objects) if (obj.kind === 'plant') drawPlant(ctx, obj);
   const sticks = world.branches.filter((g) => g.kind === 'stick');
-  for (const g of sticks) drawBranch(ctx, g, woodColors(g.obj.wood), STICK_WIDTH[g.depth] ?? 2, g.obj.foliage);
+  for (const g of sticks) {
+    drawBranch(ctx, g, woodColors(g.obj.wood), stickWidth(g.obj.style, g.depth), g.obj.foliage, g.obj.style);
+  }
   for (const g of sticks) for (const leaf of g.leaves) drawLeaf(ctx, g, leaf, g.obj.foliage);
   drawTerrain(ctx, world, false);
   drawGrass(ctx, world, world.objects.filter((obj) => obj.kind === 'grass'));

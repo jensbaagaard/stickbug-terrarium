@@ -1,5 +1,6 @@
 import { useLayoutEffect, useRef } from 'react';
 import {
+  TANK_SIZES,
   aimAt,
   createWorld,
   previewAt,
@@ -12,12 +13,11 @@ import {
 import { drawWorld } from './render.js';
 import { SCISSORS_CURSOR } from './icons.js';
 
-// The tank is always this many world pixels, shown a whole number of screen pixels to each so they all come out
-// the same size: the most that fits, up to MAX_WIDTH css px wide and HEIGHT_SHARE of the window's height (leaving
+// The tank is one of a few sizes in world pixels (TANK_SIZES; size picks which to start with, and the world
+// swapped in later may be another), shown a whole number of screen pixels to each so they all come out the same
+// size: the most that fits, up to MAX_SCALE css px to a world pixel and HEIGHT_SHARE of the window's height (leaving
 // room for the panel). Resizing the window leaves it be until it no longer fits, or the next size up does.
-const W = 256;
-const H = 341;
-const MAX_WIDTH = 512;
+const MAX_SCALE = 2;
 const HEIGHT_SHARE = 0.7;
 const GUTTER = 38; // css px beside the tank: the page's padding and the tank's frame
 const TICK_MS = 1000 / 60;
@@ -35,21 +35,26 @@ const cursorOf = (world) => {
 
 // The world lives in worldRef, and everything here reads it from there, so the parent can swap in another world,
 // a loaded save say, at any time.
-export default function Terrarium({ worldRef: ref }) {
+export default function Terrarium({ worldRef: ref, size = 'small' }) {
   const canvasRef = useRef(null);
 
   useLayoutEffect(() => {
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
 
-    ref.current = createWorld(W, H);
+    ref.current = createWorld(...TANK_SIZES[size]);
 
-    // The page's column is as wide as the tank, so the panel under it lines up.
+    // The canvas matches the world, and the page's column is as wide as the tank, so the panel under it lines up.
     const fit = () => {
+      const { W, H } = ref.current;
+      [canvas.width, canvas.height] = [W, H];
       const dpr = window.devicePixelRatio || 1;
       const across = document.documentElement.clientWidth - GUTTER;
-      const room = Math.min(MAX_WIDTH, across, (innerHeight * HEIGHT_SHARE * W) / H);
-      const k = Math.max(1, Math.floor((room * dpr) / W));
+      const room = Math.min(W * MAX_SCALE, across, (innerHeight * HEIGHT_SHARE * W) / H);
+      // Whole screen pixels to a world pixel, unless that's just the one with room for half as much again (on a
+      // low-resolution screen, a big tank): then as many as fit, pixels a little uneven rather than a tank too small.
+      const fits = (room * dpr) / W;
+      const k = fits >= 1.5 && fits < 2 ? fits : Math.max(1, Math.floor(fits));
       const [w, h] = [(W * k) / dpr, (H * k) / dpr];
       Object.assign(canvas.style, { width: `${w}px`, height: `${h}px` });
       document.documentElement.style.setProperty('--tank-width', `${w}px`);
@@ -94,6 +99,7 @@ export default function Terrarium({ worldRef: ref }) {
       acc = Math.min(acc + now - last, 100);
       last = now;
       const world = ref.current;
+      if (world.W !== canvas.width || world.H !== canvas.height) fit(); // a tank of another size swapped in
       while (acc >= TICK_MS) {
         step(world);
         acc -= TICK_MS;
@@ -113,8 +119,6 @@ export default function Terrarium({ worldRef: ref }) {
   return (
     <canvas
       ref={canvasRef}
-      width={W}
-      height={H}
       style={{
         display: 'block',
         touchAction: 'none',

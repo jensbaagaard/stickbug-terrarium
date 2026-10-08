@@ -4,9 +4,20 @@ import { GENES, PATTERNS, params } from './tuning.js';
 import { clamp, hslHex, pick } from './geom.js';
 
 // Random offsets: variety 0 makes clones of the sliders, 1 lets a gene land anywhere in its range. Two
-// dice make middling bugs common and extreme ones rare.
-export const randomGenes = (rand, variety) =>
-  Object.fromEntries(GENES.map((g) => [g.key, (rand() + rand() - 1) * variety * g.spread]));
+// dice make middling bugs common and extreme ones rare. Then, now and then (if bugs vary at all), a bug is born
+// with a rare pattern, and very rarely a rarer one: out at the ends of the Pattern slider, where the usual spread
+// of genes seldom or never reaches.
+const RARE_PATTERN = 0.05;
+const RARER_PATTERN = 0.01;
+export const randomGenes = (rand, variety) => {
+  const genes = Object.fromEntries(GENES.map((g) => [g.key, (rand() + rand() - 1) * variety * g.spread]));
+  const roll = rand();
+  if (variety > 0 && roll < RARE_PATTERN) genes.pattern = (rand() < 0.5 ? -1 : 1) * (roll < RARER_PATTERN ? 4 : 3);
+  return genes;
+};
+
+// How rare a bug's pattern is: 0 for the usual ones, 1 rare, 2 rarer.
+export const patternRarity = (genes) => Math.max(0, Math.round(Math.abs(genes.pattern ?? 0)) - 2);
 
 export const traitsOf = (genes) => {
   const t = {};

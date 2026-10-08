@@ -14,6 +14,8 @@ const FIREFLY_SPEED = 0.25; // px a tick at the most: a lazy drift
 const MAX_BUBBLES = 40;
 const BUBBLE_TICKS = 15;
 const MOTES = 10;
+const SNOWFLAKES = 45; // with the snowy wallpaper up, the dust is snow
+const SNOW_SPEED = 0.2; // px a tick a snowflake falls
 export const RIPPLE_TICKS = 40;
 
 // How hard the breeze blows at x now, + to the right: a lazy swell back and forth, within about 0.4 either way, and
@@ -156,23 +158,35 @@ const stepBubbles = (world) => {
 // ---------- dust ----------
 
 // A few specks of dust adrift in the air, wandering on the breeze. One that settles into the terrain or the water
-// is gone, and another is somewhere else.
+// is gone, and another is somewhere else. Under a snowy sky (the winter wallpaper) they're snowflakes instead,
+// more of them, drifting down from the top and swaying, gone where they land.
+export const snowing = (world) => world.wallpaper?.style === 'winter';
 const stepMotes = (world) => {
+  const snow = snowing(world);
   const somewhere = () => {
     for (let k = 0; k < 5; k++) {
-      const [x, y] = [world.lifeRand() * world.W, world.lifeRand() * world.ground.y0];
+      const x = world.lifeRand() * world.W;
+      // Snow comes in at the top, once there's enough of it about to begin with.
+      const top = snow && world.motes.length >= SNOWFLAKES / 2;
+      const y = world.lifeRand() * (top ? 4 : world.ground.y0);
       if (open(world, x, y)) return { x, y, vx: 0, vy: 0, seed: world.lifeRand() * 6 };
     }
     return null;
   };
-  while (world.motes.length < MOTES) {
+  while (world.motes.length < (snow ? SNOWFLAKES : MOTES)) {
     const m = somewhere();
     if (!m) break;
     world.motes.push(m);
   }
+  if (!snow && world.motes.length > MOTES) world.motes.length = MOTES;
   world.motes = world.motes.filter((m) => {
-    m.vx = (m.vx + (world.lifeRand() - 0.5) * 0.004 + wind(world, m.x) * 0.0006) * 0.99;
-    m.vy = (m.vy + (world.lifeRand() - 0.5) * 0.004) * 0.99;
+    if (snow) {
+      m.vx = wind(world, m.x) * 0.15 + Math.sin(world.time * 0.03 + m.seed) * 0.08;
+      m.vy = SNOW_SPEED * (0.8 + 0.4 * Math.sin(m.seed * 9));
+    } else {
+      m.vx = (m.vx + (world.lifeRand() - 0.5) * 0.004 + wind(world, m.x) * 0.0006) * 0.99;
+      m.vy = (m.vy + (world.lifeRand() - 0.5) * 0.004) * 0.99;
+    }
     m.x += m.vx;
     m.y += m.vy;
     return m.x >= 0 && m.x < world.W && m.y >= 0 && open(world, m.x, m.y);

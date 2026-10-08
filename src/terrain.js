@@ -1,8 +1,9 @@
-// Falling-sand terrain, a little like Powder Game: a grid of cells of stone, sandstone, wood, dirt, sand or water
-// sitting on the tank floor. Stone, sandstone and wood stay where they're drawn, sand pours and slides into
-// slopes, dirt falls straight down and stacks up, and water runs, levels out and spills out of the sides of the
-// tank. Sand and dirt sink through water. Fountains (bought, not drawn) sit still like stone and keep pouring out
-// water, like Powder Game's clone. Pure data + functions.
+// Falling-sand terrain, a little like Powder Game: a grid of cells of stone, sandstone, wood, ice, dirt, sand, snow
+// or water sitting on the tank floor. Stone, sandstone, wood and ice stay where they're drawn, sand pours and
+// slides into slopes, dirt falls straight down and stacks up, snow drifts down slowly and piles up softly, and
+// water runs, levels out and spills out of the sides of the tank. Sand and dirt sink through water; snow melts into
+// it, and ice freezes the top of any water touching it, so a pond ices over from the surface. Fountains (bought,
+// not drawn) sit still like stone and keep pouring out water, like Powder Game's clone. Pure data + functions.
 
 export const CELL = 2; // world px per cell
 export const EMPTY = 0;
@@ -13,14 +14,18 @@ export const WATER = 4;
 export const FOUNTAIN = 5;
 export const WOOD = 6;
 export const SANDSTONE = 7;
+export const SNOW = 8;
+export const ICE = 9;
 
 // [key, label, cell value] for the editor palette.
 export const MATERIALS = [
   ['stone', 'Stone', STONE],
   ['sandstone', 'Sandstone', SANDSTONE],
   ['wood', 'Wood', WOOD],
+  ['ice', 'Ice', ICE],
   ['dirt', 'Dirt', DIRT],
   ['sand', 'Sand', SAND],
+  ['snow', 'Snow', SNOW],
   ['water', 'Water', WATER],
   ['erase', 'Erase', EMPTY],
 ];
@@ -29,7 +34,13 @@ const VALUE = Object.fromEntries(MATERIALS.map(([key, , v]) => [key, v]));
 const WATER_FLOW = 4; // cells water can run sideways in a tick
 const FOUNTAIN_SIZE = 3; // cells across a fountain
 const FOUNTAIN_RATE = 0.03; // chance a fountain fills each empty cell beside it in a tick: a trickle
-const SOLID = (m) => m === STONE || m === SANDSTONE || m === WOOD || m === FOUNTAIN; // never moves
+const SNOW_FALL = 0.45; // chance a snowflake moves at all in a tick: it drifts down slowly
+const SNOW_DRIFT = 0.25; // chance a falling snowflake drifts sideways as it falls
+const SNOW_SLIDE = 0.3; // chance it slips sideways off a pile (sand always does, dirt never)
+const SNOW_MELT = 0.02; // chance a tick that snow touching water melts into it
+const FREEZE = 0.004; // chance a tick that the top of water touching ice freezes
+const ICE_DEPTH = 2; // cells: how thick a pond's ice gets; the water under it stays water
+const SOLID = (m) => m === STONE || m === SANDSTONE || m === WOOD || m === ICE || m === FOUNTAIN; // never moves
 
 // The grid is bottom-aligned to the floor: row r's top edge is at top + r * CELL.
 export const makeTerrain = (W, floor) => {
@@ -51,13 +62,13 @@ export const makeTerrain = (W, floor) => {
   };
 };
 
-// A new grid for a resized tank, keeping what fits, aligned to the floor.
-export const resizeTerrain = (old, W, floor) => {
+// A new grid for a resized tank, keeping what fits, aligned to the floor and shifted dc columns to the right.
+export const resizeTerrain = (old, W, floor, dc = 0) => {
   const ter = makeTerrain(W, floor);
   for (let r = 0; r < Math.min(old.rows, ter.rows); r++) {
-    for (let c = 0; c < Math.min(old.cols, ter.cols); c++) {
+    for (let c = Math.max(0, -dc); c < Math.min(old.cols, ter.cols - dc); c++) {
       const i = (old.rows - 1 - r) * old.cols + c;
-      const j = (ter.rows - 1 - r) * ter.cols + c;
+      const j = (ter.rows - 1 - r) * ter.cols + c + dc;
       ter.cells[j] = old.cells[i];
       ter.tint[j] = old.tint[i];
     }
@@ -134,7 +145,7 @@ export const stepTerrain = (ter, rand, tick) => {
   done.fill(0);
   let moved = false;
   let solidMoved = false; // something other than water moved
-  let pouring = false; // a fountain has room to pour, so keep going even if this tick it didn't
+  let pouring = false; // something may yet change (a fountain pours, ice freezes, snow melts or falls): keep going
   const move = (i, j) => {
     const m = cells[i];
     cells[i] = cells[j];
@@ -164,17 +175,56 @@ export const stepTerrain = (ter, rand, tick) => {
         }
         continue;
       }
+      const near = [r > 0 ? i - cols : -1, r + 1 < rows ? i + cols : -1, c > 0 ? i - 1 : -1, c < cols - 1 ? i + 1 : -1];
+      if (m === ICE) {
+        // Freeze the top of the water it touches: water with open air over it, or at most ICE_DEPTH - 1 cells of
+        // ice and then air.
+        const surface = (j) => {
+          let k = j - cols;
+          for (let d = 1; d < ICE_DEPTH && k >= 0 && cells[k] === ICE; d++) k -= cols;
+          return k < 0 || cells[k] === EMPTY;
+        };
+        for (const j of near) {
+          if (j < 0 || cells[j] !== WATER || !surface(j)) continue;
+          pouring = true;
+          if (rand() >= FREEZE) continue;
+          cells[j] = ICE;
+          tint[j] = Math.floor(rand() * 3);
+          done[j] = 1;
+          moved = solidMoved = ter.skyDirty = true;
+        }
+        continue;
+      }
       if (m === EMPTY || SOLID(m) || done[i]) continue;
-      // Can m go into cell j? Into empty space, and powders sink through water.
-      const into = (j) => cells[j] === EMPTY || (m !== WATER && cells[j] === WATER);
+      // Can m go into cell j? Into empty space, and sand and dirt sink through water (snow floats, and melts).
+      const into = (j) => cells[j] === EMPTY || (m !== WATER && m !== SNOW && cells[j] === WATER);
+      if (m === SNOW) {
+        if (near.some((j) => j >= 0 && cells[j] === WATER)) {
+          pouring = true; // keep going till it's melted
+          if (rand() < SNOW_MELT) {
+            cells[i] = WATER;
+            moved = solidMoved = ter.skyDirty = true;
+            continue;
+          }
+        }
+        if (rand() >= SNOW_FALL) {
+          // Waiting its turn to move: keep going if it has somewhere to go.
+          const below = i + cols;
+          if (r + 1 < rows && [0, -1, 1].some((dx) => c + dx >= 0 && c + dx < cols && into(below + dx))) pouring = true;
+          continue;
+        }
+      }
       if (r + 1 < rows) {
         const below = i + cols;
         if (into(below)) {
-          move(i, below);
+          // Snow drifts a little to one side as it falls, where there's room.
+          const dx = m === SNOW && rand() < SNOW_DRIFT ? (rand() < 0.5 ? -1 : 1) : 0;
+          const ok = dx && c + dx >= 0 && c + dx < cols && into(below + dx) && !SOLID(cells[i + dx]);
+          move(i, ok ? below + dx : below);
           continue;
         }
-        // Sand and water slide off piles; dirt only ever falls straight down.
-        if (m !== DIRT) {
+        // Sand and water slide off piles, snow sometimes; dirt only ever falls straight down.
+        if (m !== DIRT && (m !== SNOW || rand() < SNOW_SLIDE)) {
           const side = rand() < 0.5 ? -1 : 1;
           let slid = false;
           for (const dx of [side, -side]) {

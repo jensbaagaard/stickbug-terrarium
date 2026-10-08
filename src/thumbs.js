@@ -9,14 +9,17 @@ const PAPER = 64; // wallpapers are shown hung in a little square tank of their 
 let scratch = null;
 
 export const drawThumb = (canvas, offer) => {
-  const size = offer.kind === 'wallpaper' ? [PAPER, PAPER] : [W, H];
+  // Sticks in a tank twice as wide, so even a long one leaning out from the middle doesn't meet the glass.
+  const size = offer.kind === 'wallpaper' ? [PAPER, PAPER] : offer.kind === 'stick' ? [2 * W, H] : [W, H];
   const world = createWorld(...size, { seed: offer.seed, scene: false });
   const box = stageOffer(world, offer);
-  scratch ??= Object.assign(document.createElement('canvas'), { width: W, height: H });
+  scratch ??= document.createElement('canvas');
+  if (scratch.width !== world.W) scratch.width = world.W;
+  scratch.height = H;
   drawWorld(scratch.getContext('2d'), world);
   const x0 = Math.max(0, Math.floor(box.x0));
   const y0 = Math.max(0, Math.floor(box.y0));
-  const w = Math.min(W, Math.ceil(box.x1)) - x0;
+  const w = Math.min(world.W, Math.ceil(box.x1)) - x0;
   const h = Math.min(H, Math.ceil(box.y1)) - y0;
   // Square it up so every card shows its item at a sensible size.
   const side = Math.max(w, h, offer.kind === 'fish' ? 60 : 40); // fish in a bigger square, so they look small

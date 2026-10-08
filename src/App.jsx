@@ -5,11 +5,13 @@ import { GROUPS, SLIDERS, params } from './tuning.js';
 import { clamp } from './geom.js';
 import {
   PRICES,
+  TANK_SIZES,
   buyReroll,
   buyWallpaper,
   cancelPlacing,
   command,
   createWorld,
+  exportWorld,
   feedFish,
   importWorld,
   release,
@@ -18,6 +20,7 @@ import {
   setTool,
   snapshot,
   startPlacing,
+  tankSize,
 } from './sim.js';
 import { drawThumb } from './thumbs.js';
 import { MATERIALS } from './terrain.js';
@@ -281,19 +284,33 @@ export default function App() {
   const [saveNote, setSaveNote] = useState(''); // only for what went wrong; what went right shows by itself
   const [flash, setFlash] = useState(null); // the save just saved, loaded or imported
   const [debug, setDebugState] = useState(() => getSetting('debug', false));
+  const [size, setSizeState] = useState(() => getSetting('tankSize', 'small'));
   const world = useRef(null);
   const tabRef = useRef(tab);
   tabRef.current = tab;
 
-  // Swap in another tank, the same size as the one on screen, with the current tab's tool: a saved one, or
-  // a fresh one.
-  const swap = (make) => {
-    const w = world.current;
-    world.current = make(w.W, w.H);
+  // Swap in another tank, with the current tab's tool: a saved one, or a fresh one, the same size as the one on
+  // screen unless dims ([W, H]) says otherwise.
+  const swap = (make, dims = [world.current.W, world.current.H]) => {
+    world.current = make(...dims);
     setTool(world.current, TOOL_FOR_TAB[tabRef.current] ?? 'hand');
     setSnap(snapshot(world.current));
   };
-  const load = (data) => swap((W, H) => importWorld(data, W, H));
+  const chooseSize = (key) => {
+    setSetting('tankSize', key);
+    setSizeState(key);
+  };
+  // A save comes back at the size it was saved at, if that's one of the sizes, so nothing's cut off.
+  const load = (data) => {
+    const key = tankSize(data.W, data.H);
+    swap((W, H) => importWorld(data, W, H), key ? TANK_SIZES[key] : undefined);
+    if (key) chooseSize(key);
+  };
+  // Move the tank into another size of tank, everything kept to the middle and the floor.
+  const resize = (key) => {
+    swap((W, H) => importWorld(exportWorld(world.current), W, H), TANK_SIZES[key]);
+    chooseSize(key);
+  };
   // Debug: the sample tank that comes with the game, fetched only when it's asked for.
   const loadSample = async () => load((await import('./samples/tank-1.stickbug.json')).default.tank);
 
@@ -475,7 +492,7 @@ export default function App() {
   return (
     <>
       <div className={snap?.placing ? 'tank placing' : 'tank'}>
-        <Terrarium worldRef={world} />
+        <Terrarium worldRef={world} size={size} />
       </div>
 
       {snap?.selected && (
@@ -578,7 +595,7 @@ export default function App() {
               onClick={act(buyReroll)}
             >
               <Icon name="reroll" />
-              Reroll
+              Reroll shop
               {rerollCost > 0 && <Price n={rerollCost} short={coins < rerollCost} />}
             </button>
           </div>
@@ -650,6 +667,30 @@ export default function App() {
               <input type="checkbox" checked={debug} onChange={(e) => toggleDebug(e.target.checked)} />
               Debug mode
             </label>
+          </div>
+          {/* A smaller tank cuts off what doesn't fit, so that asks first. */}
+          <div className="bar sizes-bar" role="group" aria-label="Tank size">
+            {Object.entries(TANK_SIZES).map(([key, [w]]) => {
+              const label = key[0].toUpperCase() + key.slice(1);
+              const current = snap?.W ?? TANK_SIZES[size][0];
+              if (w < current) {
+                return (
+                  <ConfirmButton key={key} onConfirm={() => resize(key)} confirm="Shrink?">
+                    {label}
+                  </ConfirmButton>
+                );
+              }
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  aria-pressed={w === current}
+                  onClick={() => w !== current && resize(key)}
+                >
+                  {label}
+                </button>
+              );
+            })}
           </div>
         </section>
       )}

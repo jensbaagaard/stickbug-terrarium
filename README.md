@@ -1,8 +1,8 @@
 # Stickbug Terrarium
 
 A tiny pixel-art terrarium of stick insects that walk, climb, eat leaves, dance and do odd stick insect things, and
-guppies that shoal in its water, each with its own genome. Paint the landscape in stone, sandstone, wood, dirt, sand
-and water, decorate it from the shop, and tune everything.
+guppies that shoal in its water, each with its own genome. Paint the landscape in stone, sandstone, wood, ice, dirt,
+sand, snow and water, decorate it from the shop, and tune everything.
 
 ## Run
 
@@ -10,7 +10,7 @@ and water, decorate it from the shop, and tune everything.
 npm install
 npm run dev     # local dev server
 npm run build   # static build in dist/
-npm run check   # checks the pointer's marks, pulling plants, flowering under water, the fish, bugs' footing, and the tank's life
+npm run check   # checks the pointer's marks, pulling plants, flowering under water, clump plants, the fish, bugs' footing, and the tank's life
 npm run stress  # times the simulation on a tank packed with everything (`node src/stress.js 3`: 3x the plants)
 ```
 
@@ -31,15 +31,20 @@ Shop, Garden (Prune, Relocate, Propagate and Feed), Saves and Settings. The game
   been saved, loaded or imported, and the reroll button fills up until rerolling is free again. Only errors are
   written out.
 
-- Editor: pick stone, sandstone, wood, dirt, sand or water (or erase) and a brush size, and draw in the tank; hold
-  still to keep pouring. Stone, sandstone (in soft layers) and wood (with its grain running along it) stay where
-  they're drawn, sand slides into slopes, dirt falls straight down and stacks up, and water runs, fills hollows and
-  spills out of the sides of the tank (wall them with stone to keep it in). Bugs walk over the terrain and climb its
+- Editor: pick stone, sandstone, wood, ice, dirt, sand, snow or water (or erase) and a brush size, and draw in the
+  tank; hold still to keep pouring. Stone, sandstone (in soft layers), wood (with its grain running along it) and ice
+  stay where they're drawn, sand slides into slopes, dirt falls straight down and stacks up, snow drifts down slowly
+  and piles up, and water runs, fills hollows and spills out of the sides of the tank (wall them with stone to keep
+  it in). Snow that touches water melts into it, and ice freezes the top of any water touching it, so a pond slowly
+  ices over (bugs can walk across) while the water under the ice stays water. Bugs walk over the terrain and climb its
   walls, along ledges and through caves (never through it, or on air), and wade through shallow water; in deeper
   water they float, paddling for the nearest bank, and climb out. Anything you plant can stand on the terrain.
 - Drag a bug to pick it up; tap it to inspect it (its picture, name, and bars for hunger, speed, size, laziness
   and groove). From the card you can release the bug.
 - Bugs climb anything that touches the ground or each other: the starting stick and whatever you buy.
+- Bugs come in patterns: plain, bands or spots mostly, speckled or tipped less often, and now and then (dearer in the
+  shop) a rare one: tiger stripes or piebald patches, or rarer still, a rainbow running head to tail or a starry
+  night sky.
 - Fish: guppies, each with its own genome. Males are small and bright, with big tails (delta, fan, round, spade, veil,
   sword, double sword or lyre) in patterns; females are bigger and plainer; some are metallic and a rare few albino.
   Let one go in the water and it swims; on dry land it flops about, hopping toward the nearest water, until it's
@@ -63,9 +68,16 @@ Shop, Garden (Prune, Relocate, Propagate and Feed), Saves and Settings. The game
   of the same species should go; the parent is cut back to a seedling too, so both grow again. Tap the plant again
   or press Esc to cancel.
 - Shop: four bugs, four fish, four plants, four sticks and four wallpapers on show, each with a picture and a price
-  (rarer ones cost more), plus fountains. Pick one and tap the tank to put it in; Reroll fills the shop with new ones.
-  Plants and sticks stand on whatever is below where you tap, terrain included. Wallpaper goes up on the back of
-  the tank as soon as you buy it, replacing the last one. A fountain is a little block that goes exactly where you
+  (rarer ones cost more), plus fountains. Pick one and tap the tank to put it in; Reroll shop fills the shop with new
+  ones. Plants and sticks stand on whatever is below where you tap, terrain included. Sticks come in eight styles: a
+  crooked branch, a fork, an arch to walk over, a low driftwood log, twisty red manzanita, bamboo canes ringed at
+  their nodes, a fan of spiderwood roots and a holey cholla skeleton, in a dozen woods. A stick keeps its shape as you
+  carry it about; one that would poke out of the tank is cut off where it meets the glass, like a stick leaning
+  against it. Wallpaper goes up on the back of the tank as soon as you buy it, replacing the last one: patterns
+  (stripes, dots, diagonals, gingham, waves, scales, brick, plaid, argyle, herringbone) or scenes (dusk, hills, a
+  snowy night, a pine forest, mountains, desert dunes, under the sea, an aurora, city lights, a ringed planet, a
+  jungle), kept dim so the tank stands out, except now and then a rare vivid one in intense colours (and dearer).
+  Under the snowy night it snows in the tank too. A fountain is a little block that goes exactly where you
   tap, even in mid-air, and pours out water forever, like Powder Game's clone; erase it in the Editor. The only
   way to earn coins is to grow plants and sell the clippings.
 - Plants come in four types, each with its own genome: flowering plants that grow node by node; clump plants, a
@@ -79,7 +91,10 @@ Shop, Garden (Prune, Relocate, Propagate and Feed), Saves and Settings. The game
   say), or else from a hook at the top of the tank; they sway and drape onto the floor. Plants and vines sway more
   under water, rocked by the current, and only flower out of it. Tap grass to mow it or a vine to cut it back; both
   grow back, and the clippings sell. Trim a clump plant's leaf and the stump stays until a new leaf comes up to
-  replace it.
+  replace it. Now and then a plant comes with leaves of an unusual colour (purple, black, golden, silver, copper or
+  pink); more rarely, and for a lot more coins, a mutant missing chlorophyll from all or part of its leaves: marbled
+  white (albo), half white (half-moon), splashed pink (pink princess), speckled (constellation), pale-rimmed
+  (marginata), all golden (aurea) or nearly white all over (ghost).
 - The tank lives on its own. A breeze sways the plants, grass and vines in the air, and now and then a gust rolls
   across the tank, leaning everything over as it passes. Old plant leaves yellow, droop and drop, one at a time, and
   the node grows a new one: fallen leaves flutter down and lie browning on the ground until they're gone, or float on
@@ -93,7 +108,10 @@ Shop, Garden (Prune, Relocate, Propagate and Feed), Saves and Settings. The game
   Loading another save first puts the tank you had into the autosave. Saves live in the browser's localStorage;
   Export downloads one as a `.stickbug.json` file (name, photo and tank) and Import adds such a file back as a new
   save, to keep a tank safe or move it to another browser.
-- Settings: Reset tank (asks twice) starts over with a fresh tank; saves are kept. Debug mode (off to start,
+- Settings: Reset tank (asks twice) starts over with a fresh tank; saves are kept. Tank size: small, medium or
+  large (256 by 341, 320 by 427 or 384 by 512 pixels), shown as big as fits; the tank moves into the new size with
+  everything kept to the middle and the floor, and going smaller asks first, as whatever doesn't fit is lost. A save
+  comes back at the size it was saved at. Debug mode (off to start,
   remembered) shows Load sample tank (asks twice; swaps in the tank in `src/samples/`), buttons that make every bug
   idle, walk, eat, dance, wave its front legs, pose as a twig or groom at once, and all the tuning sliders.
 
@@ -101,20 +119,22 @@ Shop, Garden (Prune, Relocate, Propagate and Feed), Saves and Settings. The game
 
 - `src/tuning.js` – every slider: `[key, label, default, spread, step]`, so each default sits mid-range. Gene groups
   are carried per bug.
-- `src/genome.js` – random genes (Variety sets how far they stray from the sliders), traits, colours, names.
+- `src/genome.js` – random genes (Variety sets how far they stray from the sliders; now and then a rare pattern),
+  traits, colours, names.
 - `src/anatomy.js` – body and leg geometry shared by the simulation and the renderer.
 - `src/sim.js` – world, surfaces and junctions, bugs (kicked tripod steps with feet planted in the world, crawling
   round corners at junctions, quirks), decorations, plants growing node by node (their leaves ageing and dropping),
   fallen leaves, spreading grass, vines as swaying ropes, pruning, the shop and coins. Pure logic, no DOM.
 - `src/life.js` – the tank's ambient life: the breeze (a function of time alone, read by the sim and the drawing),
-  fireflies, bubbles, dust and ripples. It draws from its own random numbers, so it never changes what else happens.
-  Pure logic, no DOM.
+  fireflies, bubbles, dust (snow, under a snowy sky) and ripples. It draws from its own random numbers, so it never
+  changes what else happens. Pure logic, no DOM.
 - `src/fish.js` – guppies: their genome, price and names, and how they live: cruising and shoaling, food and
   grazing, resting, begging, fleeing, courting, and flopping when stranded. Pure logic, no DOM.
-- `src/terrain.js` – the falling-sand grid (stone, sandstone, wood, dirt, sand, water, fountains): painting and
-  stepping. `sim.js` traces its outline (and the open floor's) into the surfaces bugs walk on.
-- `src/decor.js` – random sticks (with their own foliage), wallpapers, and the plant genomes: flowering
-  species with a flower genome (form, petals, colours, size), clump plants (four forms), grasses and hanging vines.
+- `src/terrain.js` – the falling-sand grid (stone, sandstone, wood, ice, dirt, sand, snow, water, fountains):
+  painting and stepping. `sim.js` traces its outline (and the open floor's) into the surfaces bugs walk on.
+- `src/decor.js` – random sticks (eight styles, with their own foliage), wallpapers (patterns and themed scenes, now
+  and then vivid), and the plant genomes: flowering species with a flower genome (form, petals, colours, size), clump
+  plants (four forms), grasses and hanging vines, the plants now and then with rare leaves.
 - `src/geom.js` – maths, segment and colour helpers.
 - `src/render.js` – canvas drawing (scenery, flowers, ageing and fallen leaves, light on the water, fireflies and
   dust, genome colours and patterns, quirk poses, previews, coin popups, the marks under the pointer and the tools'
