@@ -14,7 +14,7 @@ export const FLASH = 0.12; // the share of that it's lit
 const SYNC = 0.08; // how far a flash nearby pulls a firefly's clock on: enough to fall into step in a minute or two
 const SYNC_REACH = 70; // px
 const MAX_BUBBLES = 40;
-const BUBBLE_CHANCE = 0.01; // per wet stem tip, vine node or tuft, every BUBBLE_TICKS
+const BUBBLE_CHANCE = 0.005; // per wet stem tip, vine node or tuft, every BUBBLE_TICKS
 const BUBBLE_TICKS = 15;
 const MOTES = 10;
 export const RIPPLE_TICKS = 40;
@@ -122,7 +122,7 @@ const stepBubbles = (world) => {
     const r = world.lifeRand;
     const puff = (p) => {
       if (world.bubbles.length >= MAX_BUBBLES || r() >= BUBBLE_CHANCE || cellOf(world, p.x, p.y) !== WATER) return;
-      world.bubbles.push({ x: p.x, y: p.y - 1, vy: -0.1 - r() * 0.1, seed: r() * 6, big: r() < 0.25 });
+      world.bubbles.push({ x: p.x, y: p.y - 1, vy: -0.05 - r() * 0.05, seed: r() * 6, big: r() < 0.25 });
     };
     for (const o of world.objects) {
       if (o.kind === 'plant') for (const st of o.stems) puff(st.tip);
@@ -131,7 +131,7 @@ const stepBubbles = (world) => {
     }
   }
   world.bubbles = world.bubbles.filter((b) => {
-    b.vy = Math.max(b.vy - 0.004, -0.5);
+    b.vy = Math.max(b.vy - 0.002, -0.25);
     b.x += Math.sin(world.time * 0.15 + b.seed) * 0.12;
     b.y += b.vy;
     const here = cellOf(world, b.x, b.y);
