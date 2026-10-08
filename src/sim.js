@@ -468,6 +468,7 @@ export const createWorld = (W, H, { seed = Date.now(), scene = true } = {}) => {
     held: null,
     press: null,
     pointer: { x: 0, y: 0 },
+    hover: false, // the pointer is over the tank, so what's under it can be marked
     touch: null, // where a press on empty space started, to tell taps from drags
     cut: null,
     shop: null, // the showcased offers, by kind
@@ -479,7 +480,7 @@ export const createWorld = (W, H, { seed = Date.now(), scene = true } = {}) => {
     placing: null, // the shop item waiting to be put down: {kind, seed}
     tool: 'hand', // or 'paint', 'prune' or 'move'
     moving: null, // the plant being dragged somewhere else, and where it was grabbed: {obj, x, y}
-    pruneDemo: null, // when the prune tool was last picked, for its little how-to animation
+    demo: null, // the how-to animation for the tool just picked: {kind, at}
     selected: null,
     wallpaper: null, // the back of the tank: null for plain black
     terrain: makeTerrain(W, H - 6),
@@ -517,16 +518,6 @@ const seedScene = (world) => {
   // One bug to start with, always the plain default: no genetic offsets, so it is exactly the sliders.
   const starter = placeBug(world, world.ground, W * 0.62, -1, Object.fromEntries(GENES.map((g) => [g.key, 0])));
   starter.name = 'Stickbug';
-};
-
-export const resizeWorld = (world, W, H) => {
-  world.W = W;
-  world.H = H;
-  Object.assign(world.ground, { x0: 0, y0: H - 6, x1: W - 1, y1: H - 6 });
-  world.terrain = resizeTerrain(world.terrain, W, H - 6);
-  rebuildJunctions(world);
-  for (const bug of world.bugs) if (bug.surf) bug.s = clampS(bug.surf, bug.s, bug.t);
-  replan(world);
 };
 
 // ---------- terrain ----------
@@ -690,10 +681,10 @@ const standAt = (world, x, y) => {
   return best.on ? { base, on: best.on } : { base, on: null, hold: { x: gx, y: best.y + CELL / 2 } };
 };
 
-// The item being placed, following the pointer.
-export const previewAt = (world) => {
+// The item being placed, following the pointer (or, for its how-to, wherever that is).
+export const previewAt = (world, x = world.pointer.x, y = world.pointer.y) => {
   const pl = world.placing;
-  return pl && build(world, pl.kind, pl.seed, world.pointer.x, world.pointer.y, pl.offer?.genes);
+  return pl && build(world, pl.kind, pl.seed, x, y, pl.offer?.genes);
 };
 
 const addDecor = (world, spec) => {
@@ -748,8 +739,9 @@ export const startPlacing = (world, kind, offer = null) => {
   const same = world.placing?.kind === kind && world.placing.offer === offer;
   const full = kind === 'bug' && world.bugs.length >= params.maxBugs;
   const ok = !same && !full && !offer?.sold && world.coins >= price;
-  world.placing = ok ? { kind, offer, price, seed: offer?.seed ?? Math.floor(world.rand() * 2 ** 31) } : null;
-  if (world.placing) world.tool = 'hand';
+  const seed = offer?.seed ?? Math.floor(world.rand() * 2 ** 31);
+  world.placing = ok ? { kind, offer, price, seed, at: world.time } : null;
+  if (world.placing) Object.assign(world, { tool: 'hand', demo: null });
 };
 
 // Esc: put down whatever is waiting to go somewhere, a shop item or a plant picked to propagate.
@@ -758,7 +750,7 @@ export const cancelPlacing = (world) => {
 };
 
 export const setTool = (world, tool) => {
-  if (tool === 'prune' && world.tool !== 'prune') world.pruneDemo = world.time;
+  if (tool !== world.tool) world.demo = tool === 'hand' ? null : { kind: tool, at: world.time };
   Object.assign(world, { tool, placing: null, painting: false, moving: null });
 };
 
@@ -1309,6 +1301,7 @@ const bugAt = (world, x, y) => {
 
 export const pointerDown = (world, x, y) => {
   world.pointer = { x, y };
+  world.demo = null; // they've got the idea
   if (world.tool === 'paint') {
     world.painting = true;
     return paintAt(world, world.pointer);
@@ -1338,7 +1331,6 @@ export const pointerDown = (world, x, y) => {
   }
   if (world.tool === 'prune') {
     world.cut = { x0: x, y0: y, x1: x, y1: y };
-    world.pruneDemo = null; // they've got the idea
     return;
   }
   const hit = bugAt(world, x, y);
@@ -1403,6 +1395,25 @@ export const pointerUp = (world, x, y) => {
 export const pointerCancel = (world) => {
   if (world.held) setState(world.held.bug, 'fall', 0);
   Object.assign(world, { held: null, press: null, touch: null, cut: null, painting: false, moving: null });
+};
+
+// What a press at the pointer would do, to show it before it's done: grab a bug, cut something there (hit, as
+// prunableAt gives it), lift a plant to move it, pick a plant to take a cutting from, or put down the plant
+// lifted or picked. Null if nothing, or the pointer isn't over the tank.
+export const aimAt = (world) => {
+  if (!world.hover || world.placing || world.held || world.cut || world.painting) return null;
+  const { x, y } = world.pointer;
+  const tool = world.tool;
+  if (tool === 'hand' && bugAt(world, x, y)) return { kind: 'bug' };
+  if (tool === 'hand' || tool === 'prune') {
+    const hit = prunableAt(world, x, y);
+    return hit && { kind: 'cut', hit };
+  }
+  if (tool !== 'move' && tool !== 'propagate') return null;
+  if (world.moving) return { kind: 'drop' };
+  const hit = prunableAt(world, x, y, true);
+  if (tool === 'move' && hit) return { kind: 'lift', obj: hit.plant ?? hit.grass ?? hit.vine };
+  return hit?.plant && tool === 'propagate' && propagatable(hit.plant) ? { kind: 'pick', obj: hit.plant } : null;
 };
 
 // Tap something to prune it; tap empty space to deselect.
@@ -1979,7 +1990,7 @@ export const snapshot = (world) => {
   return {
     coins: world.coins,
     rerollCost: rerollCost(world),
-    freeRerollIn: freeRerollIn(world),
+    rerollWait: freeRerollIn(world) / FREE_REROLL_TICKS, // share of the minute left until rerolling is free
     placing: world.placing?.kind ?? null,
     placingOffer: world.placing?.offer?.id ?? null,
     shop: world.shop,
@@ -1989,8 +2000,8 @@ export const snapshot = (world) => {
     full: world.bugs.length >= params.maxBugs,
     selected: bug && {
       name: bug.name,
-      doing: bug.state === 'quirk' ? bug.quirk : bug.state,
       hunger: bug.hunger,
+      genes: bug.genes,
       t: bug.t,
     },
   };

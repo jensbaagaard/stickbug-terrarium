@@ -1,9 +1,31 @@
 import { useEffect, useRef } from 'react';
-import { createWorld, resizeWorld, step, pointerDown, pointerMove, pointerUp, pointerCancel } from './sim.js';
+import {
+  aimAt,
+  createWorld,
+  previewAt,
+  step,
+  pointerDown,
+  pointerMove,
+  pointerUp,
+  pointerCancel,
+} from './sim.js';
 import { drawWorld } from './render.js';
+import { SCISSORS_CURSOR } from './icons.js';
 
-const PIXEL_SCALE = 1.5; // screen pixels per world pixel (before devicePixelRatio)
+// The tank is always this many world pixels, scaled up to fit the page.
+const W = 256;
+const H = 341;
 const TICK_MS = 1000 / 60;
+
+// The cursor says what a press would do there.
+const AIM_CURSORS = { bug: 'grab', cut: SCISSORS_CURSOR, lift: 'grab', pick: 'pointer', drop: 'copy' };
+const cursorOf = (world) => {
+  if (world.held || (world.moving && world.tool === 'move')) return 'grabbing';
+  if (world.tool === 'paint') return 'crosshair';
+  if (world.placing) return previewAt(world) ? 'copy' : 'not-allowed';
+  const aim = aimAt(world);
+  return aim ? AIM_CURSORS[aim.kind] : world.tool === 'prune' ? 'crosshair' : 'default';
+};
 
 // The world lives in worldRef (or a ref of its own), and everything here reads it from there, so the parent can
 // swap in another world, a loaded save say, at any time.
@@ -16,18 +38,7 @@ export default function Terrarium({ className, style, worldRef }) {
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
 
-    const fit = () => {
-      const dpr = window.devicePixelRatio || 1;
-      const px = Math.max(1, Math.floor(dpr * PIXEL_SCALE));
-      const w = Math.max(32, Math.round((canvas.clientWidth * dpr) / px));
-      const h = Math.max(32, Math.round((canvas.clientHeight * dpr) / px));
-      if (w !== canvas.width || h !== canvas.height) [canvas.width, canvas.height] = [w, h];
-      return [w, h];
-    };
-
-    ref.current = createWorld(...fit());
-    const ro = new ResizeObserver(() => ref.current && resizeWorld(ref.current, ...fit()));
-    ro.observe(canvas);
+    ref.current = createWorld(W, H);
 
     const toWorld = (world, e) => {
       const r = canvas.getBoundingClientRect();
@@ -35,14 +46,28 @@ export default function Terrarium({ className, style, worldRef }) {
     };
     const abort = new AbortController();
     const on = (type, fn) =>
-      canvas.addEventListener(type, (e) => ref.current && fn(ref.current, e), { signal: abort.signal });
+      canvas.addEventListener(
+        type,
+        (e) => {
+          const world = ref.current;
+          if (!world) return;
+          fn(world, e);
+          canvas.style.cursor = cursorOf(world);
+        },
+        { signal: abort.signal },
+      );
     on('pointerdown', (world, e) => {
+      world.hover = true;
       pointerDown(world, ...toWorld(world, e));
       canvas.setPointerCapture(e.pointerId);
     });
-    on('pointermove', (world, e) => pointerMove(world, ...toWorld(world, e)));
+    on('pointermove', (world, e) => {
+      world.hover = true;
+      pointerMove(world, ...toWorld(world, e));
+    });
     on('pointerup', (world, e) => pointerUp(world, ...toWorld(world, e)));
     on('pointercancel', (world) => pointerCancel(world));
+    on('pointerleave', (world) => (world.hover = false));
 
     // Fixed-timestep loop, capped so a backgrounded tab doesn't fast-forward.
     let last = performance.now();
@@ -63,7 +88,6 @@ export default function Terrarium({ className, style, worldRef }) {
 
     return () => {
       cancelAnimationFrame(raf);
-      ro.disconnect();
       abort.abort();
       ref.current = null;
     };
@@ -72,14 +96,15 @@ export default function Terrarium({ className, style, worldRef }) {
   return (
     <canvas
       ref={canvasRef}
+      width={W}
+      height={H}
       className={className}
       style={{
         display: 'block',
         width: '100%',
-        aspectRatio: '3 / 4',
+        aspectRatio: `${W} / ${H}`,
         touchAction: 'none',
         imageRendering: 'pixelated',
-        cursor: 'grab',
         ...style,
       }}
     />

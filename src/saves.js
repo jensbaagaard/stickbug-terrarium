@@ -23,10 +23,11 @@ const write = (key, value) =>
 export const listSaves = () =>
   (read(INDEX) ?? []).sort((a, b) => (b.id === AUTO) - (a.id === AUTO) || b.savedAt - a.savedAt);
 
-// A small photo of the tank, without the brush, previews or selection marker.
+// A small photo of the tank, without the brush, previews, how-tos or marks.
 const photoOf = (world) => {
   const full = Object.assign(document.createElement('canvas'), { width: world.W, height: world.H });
-  const posed = { ...world, tool: 'hand', placing: null, selected: null, cut: null, moving: null, pruneDemo: null };
+  const marks = { tool: 'hand', placing: null, selected: null, cut: null, moving: null, demo: null, hover: false };
+  const posed = { ...world, ...marks };
   drawWorld(full.getContext('2d'), posed);
   const w = Math.round(world.W / 2);
   const h = Math.round(world.H / 2);

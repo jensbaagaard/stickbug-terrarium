@@ -10,19 +10,31 @@ shop, and tune everything.
 npm install
 npm run dev     # local dev server
 npm run build   # static build in dist/
+node src/aim.check.js   # checks what the pointer's marks say a press would do
 ```
 
 ## Interact
 
-The panel under the tank has five tabs: Editor (terrain), Shop, Gardening (Prune, Relocate and Propagate), Saves and
-Settings.
+The panel under the tank has five tabs, each a pixel icon over its name, with the coins beside them: Editor (terrain),
+Shop, Garden (Prune, Relocate and Propagate), Saves and Settings. The game shows rather than tells:
 
-- Editor: pick stone, sandstone, wood, dirt, sand or water (or erase) and draw in the tank; hold still to keep
-  pouring. Stone, sandstone (in soft layers) and wood (with its grain running along it) stay where they're drawn,
-  sand slides into slopes, dirt falls straight down and stacks up, and water runs, fills hollows and spills out of
-  the sides of the tank (wall them with stone to keep it in). Bugs walk over the terrain's outline and wade through
-  water, and anything you plant can stand on it.
-- Drag a bug to pick it up; tap it to inspect it (name, colours, traits). From the card you can release the bug.
+- Picking a tool (the Editor's brush, Prune, Relocate, Propagate) plays a short ghost animation of how it's used in
+  the middle of the tank; a press in the tank stops it. While something bought waits to go in, the tank's frame
+  glows and, until the pointer comes over the tank, a ghost pointer brings it in from below and taps it down.
+- Over the tank, the cursor and a mark show what a press would do: a hand over a bug, scissors and a blinking red
+  notch where a stem, stick or vine would be cut (a line where grass would be mown), an arrow over a plant
+  Relocate would lift.
+- Prices turn red when you can't afford them, the coin count hops when it changes, a save flashes when it's just
+  been saved, loaded or imported, and the reroll button fills up until rerolling is free again. Only errors are
+  written out.
+
+- Editor: pick stone, sandstone, wood, dirt, sand or water (or erase) and a brush size, and draw in the tank; hold
+  still to keep pouring. Stone, sandstone (in soft layers) and wood (with its grain running along it) stay where
+  they're drawn, sand slides into slopes, dirt falls straight down and stacks up, and water runs, fills hollows and
+  spills out of the sides of the tank (wall them with stone to keep it in). Bugs walk over the terrain's outline and
+  wade through water, and anything you plant can stand on it.
+- Drag a bug to pick it up; tap it to inspect it (its picture, name, and bars for hunger, speed, size, laziness
+  and groove). From the card you can release the bug.
 - Bugs climb anything that touches the ground or each other: the starting stick and whatever you buy.
 - Tap a branch, stick or plant to prune it there; whatever stood on a cut-off piece comes down with it. The Prune
   tool (Gardening) cuts along a dragged line instead. Plant clippings sell for coins.
@@ -44,9 +56,9 @@ Settings.
   a plant is with a little icon. Tap grass to mow it or a vine to cut it back; both grow back, and the clippings
   sell.
 - Saves: save the tank (terrain, plants, sticks, bugs, coins and the shop) into a new slot, each shown with a
-  little photo of the tank; load, overwrite or delete one (delete asks twice). Autosave, on unless you switch it
-  off, saves into its own slot every 10 seconds and when you leave (its photo is retaken once a minute, as that's
-  most of a save's cost), and the tank comes back as it was next visit.
+  little photo of the tank; tap the photo to load one, or save over, export or delete it (delete asks twice).
+  Autosave, on unless you switch it off, saves into its own slot every 10 seconds and when you leave (its photo is
+  retaken once a minute, as that's most of a save's cost), and the tank comes back as it was next visit.
   Loading another save first puts the tank you had into the autosave. Saves live in the browser's localStorage;
   Export downloads one as a `.stickbug.json` file (name, photo and tank) and Import adds such a file back as a new
   save, to keep a tank safe or move it to another browser.
@@ -69,13 +81,14 @@ Settings.
   species with a flower genome (form, petals, colours, size), grasses and hanging vines.
 - `src/geom.js` – maths, segment and colour helpers.
 - `src/render.js` – canvas drawing (scenery, flowers, genome colours and patterns, quirk poses, previews, coin
-  popups).
+  popups, the marks under the pointer and the tools' how-to animations).
+- `src/icons.js` – the panel's pixel icons, as rows of `#`, and the scissors cursor.
 - `src/thumbs.js` – shop pictures: each offer built in a scratch world, grown, drawn and cropped.
 - `src/saves.js` – save slots, the autosave and remembered settings in localStorage, and the save photos. The tank
-  itself is turned into plain data and back by `exportWorld` / `importWorld` in `sim.js`, which fit it to the
-  current tank size.
+  itself is turned into plain data and back by `exportWorld` / `importWorld` in `sim.js`, which fit saves made at
+  another size to the tank's.
 - `src/samples/tank-1.stickbug.json` – the sample tank, a save file like the ones Export writes.
-- `src/Terrarium.jsx` – canvas component: sizing, pointer input, fixed 60 Hz step loop. It reads the world from a
-  ref each frame, so a loaded or reset tank can be swapped in.
+- `src/Terrarium.jsx` – canvas component: a fixed 256×341 tank scaled up to fit the page, pointer input and cursor,
+  fixed 60 Hz step loop. It reads the world from a ref each frame, so a loaded or reset tank can be swapped in.
 - `src/App.jsx` – tank, bug inspector, and the Editor / Shop / Gardening / Saves / Settings tabs (sliders mutate
   `params` live).

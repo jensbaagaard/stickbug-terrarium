@@ -11,17 +11,20 @@ import {
   tangentAt,
   thighFor,
 } from './anatomy.js';
-import { add, hash, hslHex, lerp, normalize, pointAt, segDir, segLength, segNormal } from './geom.js';
+import { add, hash, hslHex, lerp, normalize, pointAt, segDir, segLength, segNormal, smoothstep } from './geom.js';
 import { FAR_SHADE, bodyHex, patternHex, patternOf, traitsOf } from './genome.js';
 import { DEFAULT_FOLIAGE } from './decor.js';
-import { CELL, DIRT, EMPTY, FOUNTAIN, SAND, SANDSTONE, STONE, WATER, WOOD } from './terrain.js';
-import { floorBelow, previewAt, propagatable, relocationAt } from './sim.js';
+import { CELL, DIRT, EMPTY, FOUNTAIN, MATERIALS, SAND, SANDSTONE, STONE, WATER, WOOD } from './terrain.js';
+import { aimAt, floorBelow, previewAt, propagatable, relocationAt } from './sim.js';
 
 const NOTE = ['..#.', '..##', '..#.', '..#.', '###.', '##..'];
 const ARROW = ['#####', '.###.', '..#..'];
+const LIFT = [...ARROW].reverse();
 const CRUMB_COLORS = ['#3f8f4f', '#7fbf5a'];
 const BRANCH = { dark: '#5a3d24', light: '#8a6440' };
 const COIN = '#f2c94c';
+const CUT = '#e04a3a';
+const POINTER = '#e3d3b5';
 // 3x5 digits for coin popups.
 const GLYPHS = {
   '+': ['...', '.#.', '###', '.#.', '...'],
@@ -336,16 +339,26 @@ const debrisColor = (look) => {
 // While propagating, a little blinking green plus over each plant that's grown enough to take a cutting from,
 // and a steady yellow one over the plant picked.
 const READY = ['.#.', '###', '.#.'];
+const READY_GREEN = '#9fe07a';
 const drawReady = (ctx, world) => {
   const picked = world.moving?.obj;
   for (const obj of world.objects) {
     if (!propagatable(obj)) continue;
     const top = obj.stems.reduce((a, st) => (st.tip.y < a.y ? st.tip : a), obj.base);
     ctx.globalAlpha = obj === picked ? 1 : 0.6 + 0.4 * Math.sin(world.time * 0.1);
-    ctx.fillStyle = obj === picked ? COIN : '#9fe07a';
+    ctx.fillStyle = obj === picked ? COIN : READY_GREEN;
     sprite(ctx, READY, top.x - 1, top.y - 8);
   }
   ctx.globalAlpha = 1;
+};
+
+// The top of a plant or grass patch, or where a vine hangs from: where arrows over it point.
+const topOf = (obj) => {
+  if (obj.kind === 'plant') return obj.stems.reduce((a, st) => (st.tip.y < a.y ? st.tip : a), obj.base);
+  if (obj.kind === 'grass') {
+    return { x: obj.base.x, y: Math.min(...obj.tufts.map((t) => t.y - obj.genome.height * t.size)) };
+  }
+  return obj.base;
 };
 
 // A plant being relocated: a ghost of it where it would land, with the arrow pointing at it.
@@ -362,15 +375,35 @@ const drawRelocation = (ctx, world, move) => {
   else if (obj.kind === 'grass') drawGrass(ctx, obj, world.time);
   else drawVine(ctx, obj);
   ctx.restore();
-  // The arrow over the top of the plant or grass, or over where a vine hangs from.
-  let [ax, top] = [move.base.x, move.base.y - 1];
-  if (obj.kind === 'plant') {
-    const hi = obj.stems.reduce((a, st) => (st.tip.y < a.y ? st.tip : a), obj.base);
-    [ax, top] = [hi.x + move.dx, hi.y + move.dy - 3];
-  } else if (obj.kind === 'grass') {
-    top = Math.min(...obj.tufts.map((t) => t.y - obj.genome.height * t.size)) + move.dy - 1;
+  const top = topOf(obj);
+  dropArrow(ctx, world, top.x + move.dx, top.y + move.dy - (obj.kind === 'plant' ? 3 : 1));
+};
+
+// What a press would do, marked where it would happen: a blinking red notch across the stem, stick or vine
+// it would cut (a line along grass it would mow), or an arrow lifting the plant it would pick up to move.
+const drawAim = (ctx, world, aim) => {
+  if (aim.kind === 'lift') {
+    const top = topOf(aim.obj);
+    ctx.fillStyle = POINTER;
+    sprite(ctx, LIFT, top.x - 2, top.y - 7 - (Math.floor(world.time / 15) % 2));
+    return;
   }
-  dropArrow(ctx, world, ax, top);
+  if (aim.kind !== 'cut') return;
+  const { hit } = aim;
+  ctx.globalAlpha = 0.75 + 0.25 * Math.sin(world.time * 0.2);
+  ctx.fillStyle = CUT;
+  if (hit.grass) {
+    for (let dx = -6; dx <= 6; dx += 2) plot(ctx, hit.p.x + dx, hit.p.y, 1);
+  } else {
+    // A vine is cut back to the node above, a stem or stick right there.
+    const nodes = hit.vine?.nodes;
+    const along = hit.stem ?? hit.seg;
+    const [a, b] = nodes ? [nodes[hit.at - 1], nodes[hit.at]] : [along.root, along.tip];
+    const p = nodes ? a : hit.p;
+    const n = normalize({ x: a.y - b.y, y: b.x - a.x });
+    line(ctx, add(p, n, -3), add(p, n, 3), 1);
+  }
+  ctx.globalAlpha = 1;
 };
 
 // The bobbing yellow arrow pointing down at something being put down, just above its top at x: always in the
@@ -381,9 +414,9 @@ const dropArrow = (ctx, world, x, top) => {
 };
 
 // A shop item following the pointer, before it's put down.
-const drawPreview = (ctx, world, spec) => {
+const drawPreview = (ctx, world, spec, alpha = 1) => {
   let [ax, top] = [spec.base.x, spec.base.y - 1]; // where the arrow points
-  ctx.globalAlpha = 0.55;
+  ctx.globalAlpha = 0.55 * alpha;
   if (spec.kind === 'stick') {
     ctx.fillStyle = woodColors(spec.wood).light;
     for (const p of spec.pieces) line(ctx, p.a, p.b, STICK_WIDTH[p.depth] ?? 2);
@@ -422,8 +455,9 @@ const drawPreview = (ctx, world, spec) => {
     plot(ctx, spec.base.x + 2, spec.base.y - 5, 2);
     top = spec.base.y - 6;
   }
-  ctx.globalAlpha = 1;
+  ctx.globalAlpha = alpha;
   dropArrow(ctx, world, ax, top);
+  ctx.globalAlpha = 1;
 };
 
 // ---------- bugs ----------
@@ -771,11 +805,9 @@ const drawTerrain = (ctx, world, water) => {
   ctx.globalAlpha = 1;
 };
 
-// The brush outline, dotted, while painting terrain.
-const drawBrush = (ctx, world) => {
-  const r = world.brush.size * CELL + 1;
-  const { x, y } = world.pointer;
-  ctx.fillStyle = '#e3d3b5';
+// The brush outline, dotted, radius r around (x, y).
+const drawBrush = (ctx, { x, y }, r) => {
+  ctx.fillStyle = POINTER;
   for (let a = 0; a < Math.PI * 2; a += 0.5 / r + 0.25) {
     ctx.fillRect(Math.round(x + Math.cos(a) * r), Math.round(y + Math.sin(a) * r), 1, 1);
   }
@@ -875,11 +907,13 @@ const drawWallpaper = (ctx, world) => {
   ctx.fillRect(0, 0, world.W, world.H);
 };
 
-// ---------- the prune tool's how-to ----------
+// ---------- how-tos ----------
 
-const DEMO_TICKS = 170;
-const DEMO_CUT = 55; // tick the line finishes crossing the stem and cuts it
-const DEMO_CUT_Y = -15; // px above the demo plant's base
+// Picking a tool shows how it's used: a little ghost animation in the middle of the tank, straight over whatever
+// is there, played once and stopped by a press in the tank. Each is drawn from its age in ticks, around (0, 0).
+
+const DEMO_HEIGHT = 25; // px from the demo plant's base to the top of its flower
+const SEEDLING = 0.36; // the share of that a seedling has
 
 // The demo plant, base at (0, 0): a stem with three pairs of leaves and a flower on top.
 const DEMO_PLANT = (() => {
@@ -896,43 +930,63 @@ const DEMO_PLANT = (() => {
 })();
 const COIN_DOT = ['.##.', '####', '####', '.##.'];
 
-// Picking the prune tool shows how it's used: in the middle of the tank, straight over whatever is there, a
-// red line is dragged across a plant, the top falls away and sells for a coin, then it all fades.
-const drawPruneDemo = (ctx, world) => {
-  const age = world.time - (world.pruneDemo ?? -Infinity);
-  if (!(age >= 0 && age < DEMO_TICKS)) return;
-  const fade = Math.min(1, age / 12, (DEMO_TICKS - age) / 30);
-  ctx.save();
-  ctx.translate(Math.round(world.W / 2), Math.round(world.H / 2 + 12)); // centred in the tank
+// How far through from..to age is, 0..1.
+const progress = (age, from, to) => Math.min(1, Math.max(0, (age - from) / (to - from)));
 
-  // The plant: what's below the cut stays put, the top tumbles away once it's cut.
-  const t = Math.max(0, age - DEMO_CUT);
+// The demo plant standing at x: the part of it from top down (all of it, by default).
+const drawDemoPlant = (ctx, x, alpha, top = -Infinity) => {
+  ctx.globalAlpha = alpha;
+  for (const p of DEMO_PLANT) {
+    if (p.y < top) continue;
+    ctx.fillStyle = p.c;
+    ctx.fillRect(Math.round(x) + p.x, p.y, 1, 1);
+  }
+};
+
+// Its top, above cutY, t ticks after it was cut off: tumbling away and fading.
+const drawFallingTop = (ctx, x, alpha, cutY, t) => {
+  ctx.globalAlpha = alpha * Math.max(0, 1 - t / 45);
+  if (!ctx.globalAlpha) return;
   const [cos, sin] = [Math.cos(t * 0.03), Math.sin(t * 0.03)];
   for (const p of DEMO_PLANT) {
-    const falling = t > 0 && p.y < DEMO_CUT_Y;
-    ctx.globalAlpha = fade * (falling ? Math.max(0, 1 - t / 45) : 1);
-    if (!ctx.globalAlpha) continue;
+    if (p.y >= cutY) continue;
+    const [rx, ry] = [p.x, p.y - cutY];
     ctx.fillStyle = p.c;
-    if (!falling) {
-      ctx.fillRect(p.x, p.y, 1, 1);
-      continue;
-    }
-    const [rx, ry] = [p.x, p.y - DEMO_CUT_Y];
-    plot(ctx, rx * cos - ry * sin + t * 0.15, rx * sin + ry * cos + DEMO_CUT_Y + 0.012 * t * t, 1);
+    plot(ctx, x + rx * cos - ry * sin + t * 0.15, rx * sin + ry * cos + cutY + 0.012 * t * t, 1);
   }
+};
+
+// The ghost pointer, and the ring a press with it leaves, spreading out and fading as t runs 0..1.
+const drawPointer = (ctx, p, alpha) => {
+  ctx.globalAlpha = alpha;
+  ctx.fillStyle = POINTER;
+  plot(ctx, p.x, p.y, 2);
+};
+const drawTap = (ctx, p, t, alpha) => {
+  if (t <= 0 || t >= 1) return;
+  ctx.globalAlpha = alpha * (1 - t);
+  ctx.fillStyle = POINTER;
+  const r = 2 + t * 4;
+  for (let a = 0; a < Math.PI * 2; a += Math.PI / 4) plot(ctx, p.x + Math.cos(a) * r, p.y + Math.sin(a) * r, 1);
+};
+
+// Prune: a red line is dragged across a plant, the top falls away and sells for a coin.
+const DEMO_CUT = 55; // tick the line finishes crossing the stem and cuts it
+const DEMO_CUT_Y = -15; // px above the demo plant's base
+const pruneDemo = (ctx, age, fade) => {
+  const t = Math.max(0, age - DEMO_CUT);
+  drawDemoPlant(ctx, 0, fade, t > 0 ? DEMO_CUT_Y : -Infinity);
+  if (t > 0) drawFallingTop(ctx, 0, fade, DEMO_CUT_Y, t);
 
   // The pruning line being dragged across, the pointer at its end, then fading after the cut.
-  const drag = Math.min(1, Math.max(0, (age - 15) / (DEMO_CUT - 15)));
+  const drag = progress(age, 15, DEMO_CUT);
   const [a, b] = [{ x: -12, y: DEMO_CUT_Y + 3 }, { x: 12, y: DEMO_CUT_Y - 3 }];
-  ctx.globalAlpha = fade * Math.min(1, Math.max(0, 1 - (age - DEMO_CUT - 10) / 25));
-  ctx.fillStyle = '#e04a3a';
+  ctx.globalAlpha = fade * (1 - progress(age, DEMO_CUT + 10, DEMO_CUT + 35));
+  ctx.fillStyle = CUT;
   for (let i = 0; i <= 24 * drag; i++) {
     if (!(Math.floor(i / 2) % 2)) plot(ctx, a.x + (b.x - a.x) * (i / 24), a.y + (b.y - a.y) * (i / 24), 1);
   }
-  if (age >= 15 && age < DEMO_CUT) {
-    ctx.fillStyle = '#e3d3b5';
-    plot(ctx, a.x + (b.x - a.x) * drag, a.y + (b.y - a.y) * drag, 2);
-  }
+  if (age >= 15 && age < DEMO_CUT) drawPointer(ctx, lerp(a, b, drag), fade);
 
   // The clipping sells: +1 and a coin float up from the cut.
   if (t > 3) {
@@ -942,7 +996,119 @@ const drawPruneDemo = (ctx, world) => {
     [...'+1'].forEach((ch, i) => sprite(ctx, GLYPHS[ch], 3 + i * 4, y));
     sprite(ctx, COIN_DOT, 11, y + 0.5);
   }
+};
+
+// Relocate: the pointer takes hold of a plant and drags it across, a ghost of it following under the arrow
+// that shows where it will land, and lets go: the plant moves there.
+const moveDemo = (ctx, age, fade, world) => {
+  const [from, to] = [-14, 14];
+  const grab = { x: from, y: -8 };
+  const dx = (to - from) * smoothstep(progress(age, 34, 100));
+  const dropped = age >= 108;
+  drawDemoPlant(ctx, dropped ? to : from, fade);
+  if (age >= 34 && !dropped) {
+    drawDemoPlant(ctx, from + dx, fade * 0.55);
+    ctx.globalAlpha = fade;
+    dropArrow(ctx, world, from + dx, -DEMO_HEIGHT - 2);
+  }
+  const p = age < 34 ? lerp({ x: 2, y: 8 }, grab, smoothstep(progress(age, 0, 24))) : { x: grab.x + dx, y: grab.y };
+  drawPointer(ctx, p, fade * Math.min(1, age / 8) * (1 - progress(age, 110, 130)));
+  drawTap(ctx, grab, progress(age, 26, 42), fade);
+};
+
+// Propagate: the pointer picks a flowering plant (its blinking green plus turns yellow) and taps where its
+// cutting goes: a seedling goes in there, the plant is cut back to one too, and both grow again.
+const PROPAGATE_AT = 100; // tick the seedling goes in
+const propagateDemo = (ctx, age, fade, world) => {
+  const [from, to] = [-12, 12];
+  const pick = { x: from, y: -12 };
+  const spot = { x: to, y: -4 };
+  const picked = age >= 32;
+  const t = Math.max(0, age - PROPAGATE_AT);
+  const seedling = -DEMO_HEIGHT * SEEDLING;
+  const p =
+    age < 32
+      ? lerp({ x: 0, y: 8 }, pick, smoothstep(progress(age, 0, 24)))
+      : lerp(pick, spot, smoothstep(progress(age, 44, 88)));
+  if (t > 0) {
+    const regrown = -DEMO_HEIGHT * (SEEDLING + 0.4 * smoothstep(progress(age, PROPAGATE_AT + 30, 230)));
+    drawDemoPlant(ctx, from, fade, regrown);
+    drawFallingTop(ctx, from, fade, seedling, t);
+    drawDemoPlant(ctx, to, fade, regrown);
+  } else {
+    drawDemoPlant(ctx, from, fade);
+    ctx.globalAlpha = fade * (picked ? 1 : 0.6 + 0.4 * Math.sin(age * 0.1));
+    ctx.fillStyle = picked ? COIN : READY_GREEN;
+    sprite(ctx, READY, from - 1, -DEMO_HEIGHT - 8);
+    if (age >= 44) {
+      // The seedling to be, following the pointer.
+      drawDemoPlant(ctx, p.x, fade * 0.55, seedling);
+      ctx.globalAlpha = fade;
+      dropArrow(ctx, world, p.x, seedling - 2);
+    }
+  }
+  drawPointer(ctx, p, fade * Math.min(1, age / 8) * (1 - progress(age, PROPAGATE_AT + 10, PROPAGATE_AT + 34)));
+  drawTap(ctx, pick, progress(age, 26, 42), fade);
+  drawTap(ctx, spot, progress(age, PROPAGATE_AT - 6, PROPAGATE_AT + 10), fade);
+};
+
+// The Editor: the brush is drawn across, leaving a stroke of the material picked.
+const paintDemo = (ctx, age, fade, world) => {
+  const colors = MATERIAL_COLORS[MATERIALS.find(([key]) => key === world.brush.material)?.[2]];
+  if (!colors) return; // erasing: nothing to show
+  const along = (u) => ({ x: -18 + 36 * u, y: -6 + 4 * Math.sin(u * Math.PI * 1.5) });
+  const drawn = smoothstep(progress(age, 16, 96));
+  const r = world.brush.size * CELL;
+  if (age >= 16) {
+    const pts = Array.from({ length: 25 }, (_, i) => along((i / 24) * drawn));
+    ctx.globalAlpha = fade;
+    for (let y = -10 - r; y <= r; y += CELL) {
+      for (let x = -18 - r; x <= 18 + r; x += CELL) {
+        if (!pts.some((p) => (p.x - x) ** 2 + (p.y - y) ** 2 <= r * r)) continue;
+        ctx.fillStyle = colors[Math.floor(hash(x, y) * 3)];
+        ctx.fillRect(x, y, CELL, CELL);
+      }
+    }
+  }
+  const p = age < 16 ? lerp({ x: -8, y: 12 }, along(0), smoothstep(progress(age, 0, 16))) : along(drawn);
+  ctx.globalAlpha = fade * Math.min(1, age / 8) * (1 - progress(age, 100, 120));
+  drawBrush(ctx, p, r + 1);
+};
+
+// Each tool's how-to: how long it runs, in ticks, and how it's drawn.
+const DEMOS = {
+  prune: [170, pruneDemo],
+  move: [200, moveDemo],
+  propagate: [260, propagateDemo],
+  paint: [140, paintDemo],
+};
+
+// The how-to for the tool just picked, while that tool is still in hand.
+const drawDemo = (ctx, world) => {
+  const { kind, at } = world.demo ?? {};
+  const [ticks, draw] = (kind === world.tool && DEMOS[kind]) || [];
+  const age = world.time - at;
+  if (!(age >= 0 && age < ticks)) return;
+  ctx.save();
+  ctx.translate(Math.round(world.W / 2), Math.round(world.H / 2 + 12)); // centred in the tank
+  draw(ctx, age, Math.min(1, age / 12, (ticks - age) / 30), world);
   ctx.restore();
+};
+
+// A shop item waiting to go in: until the pointer comes over the tank, a ghost pointer brings it up from the
+// shop below, the item following it as the real one would, and taps it down, over and over.
+const PLACE_TICKS = 150;
+const drawPlaceDemo = (ctx, world) => {
+  const pl = world.placing;
+  const age = (world.time - pl.at) % PLACE_TICKS;
+  const to = { x: world.W / 2, y: pl.kind === 'vine' ? world.H * 0.3 : world.ground.y0 - 24 };
+  const p = lerp({ x: world.W / 2 + 12, y: world.H + 4 }, to, smoothstep(progress(age, 0, 70)));
+  const fade = Math.min(1, age / 10, (PLACE_TICKS - age) / 20);
+  const spec = previewAt(world, p.x, p.y);
+  if (spec) drawPreview(ctx, world, spec, fade);
+  drawPointer(ctx, p, fade);
+  drawTap(ctx, to, progress(age, 72, 90), fade);
+  ctx.globalAlpha = 1;
 };
 
 // ---------- the world ----------
@@ -971,7 +1137,8 @@ export const drawWorld = (ctx, world) => {
 
   const move = relocationAt(world);
   if (move) drawRelocation(ctx, world, move);
-  const preview = previewAt(world);
+  if (world.placing && !world.hover) drawPlaceDemo(ctx, world);
+  const preview = world.hover && previewAt(world);
   if (preview) drawPreview(ctx, world, preview);
 
   for (const bug of world.bugs) drawBug(ctx, world, bug);
@@ -992,12 +1159,15 @@ export const drawWorld = (ctx, world) => {
   if (cut) {
     // The pruning line: dashed red.
     const len = Math.hypot(cut.x1 - cut.x0, cut.y1 - cut.y0);
-    ctx.fillStyle = '#e04a3a';
+    ctx.fillStyle = CUT;
     for (let i = 0; i <= len; i++) {
       if (Math.floor(i / 2) % 2) continue;
       plot(ctx, cut.x0 + ((cut.x1 - cut.x0) * i) / (len || 1), cut.y0 + ((cut.y1 - cut.y0) * i) / (len || 1), 1);
     }
   }
+
+  const aim = aimAt(world);
+  if (aim) drawAim(ctx, world, aim);
 
   ctx.fillStyle = COIN;
   for (const p of world.popups) {
@@ -1005,6 +1175,6 @@ export const drawWorld = (ctx, world) => {
     [...p.text].forEach((ch, i) => sprite(ctx, GLYPHS[ch], p.x - 4 + i * 4, p.y));
   }
   ctx.globalAlpha = 1;
-  drawPruneDemo(ctx, world);
-  if (world.tool === 'paint') drawBrush(ctx, world);
+  drawDemo(ctx, world);
+  if (world.tool === 'paint' && world.hover) drawBrush(ctx, world.pointer, world.brush.size * CELL + 1);
 };

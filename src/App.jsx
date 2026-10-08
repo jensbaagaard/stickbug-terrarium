@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from 'react';
 import Terrarium from './Terrarium.jsx';
 import { GROUPS, SLIDERS, params } from './tuning.js';
-import { bodyHex, patternHex, patternOf } from './genome.js';
+import { clamp } from './geom.js';
 import {
   PRICES,
   buyReroll,
@@ -21,6 +21,7 @@ import {
 import { drawThumb } from './thumbs.js';
 import { MATERIALS } from './terrain.js';
 import { MATERIAL_COLORS } from './render.js';
+import { ICONS, pixelPath } from './icons.js';
 import {
   AUTO,
   autosaveOn,
@@ -34,10 +35,11 @@ import {
   setSetting,
 } from './saves.js';
 
+// Tabs: [key, label], each shown by the icon of the same name over its label.
 const TABS = [
   ['editor', 'Editor'],
   ['shop', 'Shop'],
-  ['garden', 'Gardening'],
+  ['garden', 'Garden'],
   ['saves', 'Saves'],
   ['settings', 'Settings'],
 ];
@@ -59,7 +61,7 @@ const COMMANDS = [
   ['twig', 'Twig'],
   ['groom', 'Groom'],
 ];
-// Gardening tools: [tool, label].
+// Gardening tools: [tool, label], each shown by its icon.
 const GARDEN_TOOLS = [
   ['prune', 'Prune'],
   ['move', 'Relocate'],
@@ -74,19 +76,45 @@ const SHOWCASE = [
   ['wallpaper', 'Wallpapers'],
 ];
 
-const round = (v, digits = 2) => Number(v.toFixed(digits));
+const BRUSH_SIZES = [1, 2, 3, 4, 5];
 
-// A showcased offer: its picture (drawn once), name and price.
-function Offer({ offer, active, blocked, onPick }) {
+// A pixel-art icon in the text colour, scale screen px per pixel.
+function Icon({ name, scale = 2 }) {
+  const rows = ICONS[name];
+  const [w, h] = [rows[0].length, rows.length];
+  return (
+    <svg className="icon" viewBox={`0 0 ${w} ${h}`} width={w * scale} height={h * scale} aria-hidden="true">
+      <path d={pixelPath(rows)} fill="currentColor" shapeRendering="crispEdges" />
+    </svg>
+  );
+}
+
+// A price in coins, red when there aren't enough.
+const Price = ({ n, short }) => (
+  <span className={short ? 'price short' : 'price'}>
+    <Icon name="coin" />
+    {n}
+  </span>
+);
+
+// A showcased offer: its picture (drawn once), name and price; sold, just the picture, faded.
+function Offer({ offer, active, short, blocked, onPick }) {
   const canvas = useRef(null);
   useEffect(() => {
     drawThumb(canvas.current, offer);
   }, [offer]);
   return (
-    <button type="button" className="offer" aria-pressed={active} disabled={!active && blocked} onClick={onPick}>
+    <button
+      type="button"
+      className="offer"
+      title={offer.name}
+      aria-pressed={active}
+      disabled={!active && (blocked || short)}
+      onClick={onPick}
+    >
       <canvas ref={canvas} aria-hidden="true" />
       <span className="name">{offer.name}</span>
-      <span className="price">{offer.sold ? 'Sold' : `${offer.price}c`}</span>
+      {!offer.sold && <Price n={offer.price} short={short} />}
     </button>
   );
 }
@@ -100,91 +128,121 @@ const ago = (t) => {
   return new Date(t).toLocaleDateString();
 };
 
-// A button for something that can't be undone: the first tap asks "Sure?", a second within a few seconds does it.
-function ConfirmButton({ onConfirm, children }) {
+// A button for something that can't be undone: the first tap turns it red and asks (confirm), a second within a
+// few seconds does it.
+function ConfirmButton({ onConfirm, confirm = 'Sure?', className = '', children, ...props }) {
   const [sure, setSure] = useState(false);
   useEffect(() => {
     if (!sure) return;
     const id = setTimeout(() => setSure(false), 3000);
     return () => clearTimeout(id);
   }, [sure]);
-  const confirm = () => {
+  const go = () => {
     setSure(false);
     onConfirm();
   };
   return (
-    <button type="button" className={sure ? 'danger' : ''} onClick={sure ? confirm : () => setSure(true)}>
-      {sure ? 'Sure?' : children}
+    <button
+      type="button"
+      className={`${className}${sure ? ' danger' : ''}`}
+      onClick={sure ? go : () => setSure(true)}
+      {...props}
+    >
+      {sure ? confirm : children}
     </button>
   );
 }
 
-// A save in the list: its photo, name and when, and what you can do with it.
-function Save({ save, onLoad, onOverwrite, onExport, onDelete }) {
+// A save in the list: its photo (tap it to load the save), name, when, its bugs and coins, and buttons to save
+// over it, export it and delete it. It flashes when it's just been saved, loaded or imported.
+function Save({ save, flash, onLoad, onOverwrite, onExport, onDelete }) {
   return (
-    <li className="save">
-      {save.photo ? <img src={save.photo} alt="" /> : <span className="photo" aria-hidden="true" />}
+    <li className={flash ? 'save flash' : 'save'}>
+      <button type="button" className="photo" onClick={onLoad} title="Load" aria-label={`Load ${save.name}`}>
+        {save.photo && <img src={save.photo} alt="" />}
+      </button>
       <div className="about">
         <span className="name">{save.name}</span>
         <span className="when">
-          {ago(save.savedAt)} · {save.bugs} {save.bugs === 1 ? 'bug' : 'bugs'} · {save.coins}c
+          {ago(save.savedAt)}
+          <span aria-label="Bugs">
+            <Icon name="bug" /> {save.bugs}
+          </span>
+          <span className="coin" aria-label="Coins">
+            <Icon name="coin" /> {save.coins}
+          </span>
         </span>
         <div className="actions">
-          <button type="button" onClick={onLoad}>
-            Load
-          </button>
           {save.id !== AUTO && (
-            <button type="button" onClick={onOverwrite}>
-              Overwrite
+            <button type="button" className="stack" onClick={onOverwrite}>
+              <Icon name="saves" />
+              Save over
             </button>
           )}
-          <button type="button" onClick={onExport}>
+          <button type="button" className="stack" onClick={onExport}>
+            <Icon name="export" />
             Export
           </button>
-          <ConfirmButton onConfirm={onDelete}>Delete</ConfirmButton>
+          <ConfirmButton
+            className="stack"
+            onConfirm={onDelete}
+            confirm={
+              <>
+                <Icon name="check" />
+                Sure?
+              </>
+            }
+          >
+            <Icon name="trash" />
+            Delete
+          </ConfirmButton>
         </div>
       </div>
     </li>
   );
 }
 
-// The selected bug: its colours and a few of its traits, plus what you can do with it.
+// Where a trait sits in its slider's range, 0..1, so the default is half way.
+const share = (key, v) => clamp((v - SLIDER[key].min) / (SLIDER[key].max - SLIDER[key].min), 0, 1);
+const speedOf = (t) => (t.stride * t.size) / t.stepTicks;
+
+// The selected bug: its picture and a few of its traits as bars, plus what you can do with it.
 function Inspector({ bug, onRelease, onClose }) {
   const { t } = bug;
-  const speed = ((2 * t.stride * t.size) / t.stepTicks) * 60;
+  const canvas = useRef(null);
+  useEffect(() => {
+    drawThumb(canvas.current, { kind: 'bug', genes: bug.genes, seed: 1 });
+  }, [bug.genes]);
+  // Speed is a step's length over its time, so it's halfway at the default and full at four times that.
   const stats = [
-    ['Doing', bug.doing],
-    ['Pattern', patternOf(t)],
-    ['Size', round(t.size)],
-    ['Speed', `${round(speed, 1)} px/s`],
-    ['Laziness', `${Math.round(t.restChance * 100)}%`],
-    ['Hunger', `${Math.round(bug.hunger * 100)}%`],
-    ['Groove', `${round(t.danceTempo)} / ${round(t.danceBops, 1)} bops`],
+    ['Hunger', bug.hunger],
+    ['Speed', clamp(0.5 + Math.log2(speedOf(t) / speedOf(DEFAULTS)) / 4, 0, 1)],
+    ['Size', share('size', t.size)],
+    ['Laziness', share('restChance', t.restChance)],
+    ['Groove', share('danceTempo', t.danceTempo)],
   ];
   return (
     <section className="card" aria-label="Selected bug">
-      <header>
-        <h2>{bug.name}</h2>
-        <div className="swatches" aria-hidden="true">
-          {[bodyHex(t, 0), bodyHex(t, 1), patternHex(t, 0.5)].map((c, i) => (
-            <span key={i} className="swatch" style={{ background: c }} />
+      <canvas ref={canvas} className="portrait" aria-hidden="true" />
+      <div className="about">
+        <header>
+          <h2>{bug.name}</h2>
+          <button type="button" onClick={onClose} aria-label="Deselect">
+            ×
+          </button>
+        </header>
+        <dl className="stats">
+          {stats.map(([k, v]) => (
+            <div key={k}>
+              <dt>{k}</dt>
+              <dd className="meter" role="meter" aria-valuenow={Math.round(v * 100)}>
+                <span style={{ width: `${v * 100}%` }} />
+              </dd>
+            </div>
           ))}
-        </div>
-      </header>
-      <dl className="stats">
-        {stats.map(([k, v]) => (
-          <div key={k}>
-            <dt>{k}</dt>
-            <dd>{v}</dd>
-          </div>
-        ))}
-      </dl>
-      <div className="actions">
+        </dl>
         <button type="button" onClick={onRelease}>
           Release
-        </button>
-        <button type="button" onClick={onClose} aria-label="Deselect">
-          ×
         </button>
       </div>
     </section>
@@ -198,7 +256,8 @@ export default function App() {
   const [tab, setTab] = useState('shop');
   const [saves, setSaves] = useState(listSaves);
   const [autosave, setAutosaveState] = useState(autosaveOn);
-  const [saveNote, setSaveNote] = useState('');
+  const [saveNote, setSaveNote] = useState(''); // only for what went wrong; what went right shows by itself
+  const [flash, setFlash] = useState(null); // the save just saved, loaded or imported
   const [debug, setDebugState] = useState(() => getSetting('debug', false));
   const world = useRef(null);
   const tabRef = useRef(tab);
@@ -229,6 +288,11 @@ export default function App() {
   };
   const saveRef = useRef(save);
   saveRef.current = save;
+  const flashSave = (id) => {
+    setSaveNote('');
+    setFlash(id);
+    setTimeout(() => setFlash((f) => (f === id ? null : f)), 1200);
+  };
 
   // Pick up where the last visit left off.
   useEffect(() => {
@@ -301,13 +365,12 @@ export default function App() {
   const toggleAutosave = (on) => {
     setSetting('autosave', on);
     setAutosaveState(on);
-    setSaveNote(on ? 'Autosave is on: the tank saves itself every 10 seconds and when you leave.' : 'Autosave is off.');
   };
   const saveNew = () => {
     const entry = save();
-    if (entry) setSaveNote(`Saved as ${entry.name}.`);
+    if (entry) flashSave(entry.id);
   };
-  const overwrite = (s) => () => save(s.id) && setSaveNote(`Saved over ${s.name}.`);
+  const overwrite = (s) => () => save(s.id) && flashSave(s.id);
   const loadSave = (s) => () => {
     const data = loadTank(s.id);
     if (!data) {
@@ -315,10 +378,10 @@ export default function App() {
       return;
     }
     // Loading another save keeps the tank you had in the autosave, so nothing is lost by accident.
-    const kept = autosave && s.id !== AUTO && save(AUTO);
+    if (autosave && s.id !== AUTO) save(AUTO);
     try {
       load(data);
-      setSaveNote(`Loaded ${s.name}.${kept ? ' The tank you had is in the autosave.' : ''}`);
+      flashSave(s.id);
     } catch (err) {
       console.warn(err);
       setSaveNote(`${s.name} could not be loaded.`);
@@ -335,7 +398,6 @@ export default function App() {
     const url = URL.createObjectURL(new Blob([file.text], { type: 'application/json' }));
     Object.assign(document.createElement('a'), { href: url, download: file.filename }).click();
     setTimeout(() => URL.revokeObjectURL(url), 60_000); // once the download has surely read it
-    setSaveNote(`Exported ${s.name} as ${file.filename}.`);
   };
   const importFile = async (e) => {
     const file = e.target.files?.[0];
@@ -351,7 +413,7 @@ export default function App() {
     try {
       const entry = importTank(text);
       setSaves(listSaves());
-      setSaveNote(`Imported ${entry.name}. Load it to play.`);
+      flashSave(entry.id);
     } catch (err) {
       setSaveNote(
         err instanceof SyntaxError
@@ -364,7 +426,6 @@ export default function App() {
   const remove = (s) => () => {
     deleteTank(s.id);
     setSaves(listSaves());
-    setSaveNote(`Deleted ${s.name}.`);
   };
 
   const update = (next) => {
@@ -384,43 +445,15 @@ export default function App() {
     );
 
   const coins = snap?.coins ?? 0;
-  const placing = snap?.placing;
-  const pruning = snap?.tool === 'prune';
   const brush = snap?.brush ?? { material: 'sand', size: 3 };
-  const cursor =
-    snap?.tool === 'paint' || pruning
-      ? 'crosshair'
-      : snap?.tool === 'move'
-        ? 'move'
-        : placing || snap?.tool === 'propagate'
-          ? 'copy'
-          : 'grab';
-  const offers = Object.values(snap?.shop ?? {}).flat();
-  const buying = offers.find((o) => o.id === snap?.placingOffer);
-  const status = buying?.kind === 'bug'
-    ? `Tap the tank to let ${buying.name} in. Esc or tap the card again to cancel.`
-    : placing === 'vine'
-      ? `Tap something to hang the ${buying.name.toLowerCase()} from, or empty space to hang it from the top.`
-      : placing === 'grass'
-        ? `Tap some dirt to sow the ${buying.name.toLowerCase()}; it spreads across dirt and the tank floor.`
-        : placing
-      ? `Tap the tank to put the ${buying ? buying.name.toLowerCase() + ' ' : ''}${placing} down. Esc to cancel.`
-      : `${snap?.bugs ?? 0} bugs${snap?.full ? ' (the tank is full)' : ''}. Tap a bug to inspect it.`;
-  const fixed = (kind, label) => (
-    <button
-      type="button"
-      aria-pressed={placing === kind && !buying}
-      disabled={!(placing === kind && !buying) && coins < PRICES[kind]}
-      onClick={act((w) => startPlacing(w, kind))}
-    >
-      {label} {PRICES[kind]}
-    </button>
-  );
+  const rerollCost = snap?.rerollCost ?? 0;
+  const color = (material) => MATERIAL_COLORS[MATERIALS.find(([key]) => key === material)[2]]?.[0];
+  const brushColor = color(brush.material);
 
   return (
     <>
-      <div className="tank">
-        <Terrarium worldRef={world} style={{ cursor }} />
+      <div className={snap?.placing ? 'tank placing' : 'tank'}>
+        <Terrarium worldRef={world} />
       </div>
 
       {snap?.selected && (
@@ -431,95 +464,119 @@ export default function App() {
         />
       )}
 
-      <nav className="tabs" role="tablist" aria-label="Panels">
-        {TABS.map(([key, label]) => (
-          <button key={key} type="button" role="tab" aria-selected={tab === key} onClick={() => switchTab(key)}>
-            {label}
-          </button>
-        ))}
-      </nav>
+      <div className="panelbar">
+        <nav className="tabs" role="tablist" aria-label="Panels">
+          {TABS.map(([key, label]) => (
+            <button
+              key={key}
+              type="button"
+              role="tab"
+              className="stack"
+              aria-selected={tab === key}
+              onClick={() => switchTab(key)}
+            >
+              <Icon name={key} />
+              {label}
+            </button>
+          ))}
+        </nav>
+        <span className="coins" aria-label="Coins">
+          <Icon name="coin" />
+          <span key={coins} className="bump">
+            {coins}
+          </span>
+        </span>
+      </div>
 
       {tab === 'editor' && (
         <section className="editor" aria-label="Terrain editor">
           <div className="palette" role="group" aria-label="Material">
-            {MATERIALS.map(([key, label, value]) => (
+            {MATERIALS.map(([key, label]) => (
               <button
                 key={key}
                 type="button"
+                className="stack"
                 aria-pressed={brush.material === key}
                 onClick={act((w) => setBrush(w, { material: key }))}
               >
-                <span className="chip" style={{ background: MATERIAL_COLORS[value]?.[0] }} aria-hidden="true" />
+                <span className="chip" style={{ background: color(key) }} aria-hidden="true" />
                 {label}
               </button>
             ))}
           </div>
-          <label className="row">
-            <span>Brush size</span>
-            <input
-              type="range"
-              min={1}
-              max={5}
-              step={1}
-              value={brush.size}
-              onChange={(e) => act((w) => setBrush(w, { size: Number(e.target.value) }))()}
-            />
-            <output>{brush.size}</output>
-          </label>
+          <div className="sizes" role="group" aria-label="Brush size">
+            {BRUSH_SIZES.map((size) => (
+              <button
+                key={size}
+                type="button"
+                aria-label={`Size ${size}`}
+                aria-pressed={brush.size === size}
+                onClick={act((w) => setBrush(w, { size }))}
+              >
+                <span className="dot" style={{ '--size': size, background: brushColor }} aria-hidden="true" />
+              </button>
+            ))}
+          </div>
         </section>
       )}
 
       {tab === 'shop' && (
         <section className="shop" aria-label="Shop">
-          <div className="bar">
-            <span className="coins" aria-label="Coins">
-              {coins}c
-            </span>
-            {fixed('fountain', 'Fountain')}
-          </div>
-          <p className="status">{status}</p>
           {SHOWCASE.map(([kind, label]) => (
-            <div key={kind} className="showcase">
-              <h3>{label}</h3>
-              <div className="offers">
-                {snap?.shop?.[kind].map((offer) => (
-                  <Offer
-                    key={offer.id}
-                    offer={offer}
-                    active={snap.placingOffer === offer.id}
-                    blocked={offer.sold || coins < offer.price || (kind === 'bug' && snap.full)}
-                    onPick={act((w) => (kind === 'wallpaper' ? buyWallpaper(w, offer) : startPlacing(w, kind, offer)))}
-                  />
-                ))}
-              </div>
+            <div key={kind} className="offers" role="group" aria-label={label}>
+              {snap?.shop?.[kind].map((offer) => (
+                <Offer
+                  key={offer.id}
+                  offer={offer}
+                  active={snap.placingOffer === offer.id}
+                  short={coins < offer.price}
+                  blocked={offer.sold || (kind === 'bug' && snap.full)}
+                  onPick={act((w) => (kind === 'wallpaper' ? buyWallpaper(w, offer) : startPlacing(w, kind, offer)))}
+                />
+              ))}
             </div>
           ))}
-          <button
-            type="button"
-            className="reroll"
-            disabled={coins < (snap?.rerollCost ?? 0)}
-            onClick={act(buyReroll)}
-          >
-            Reroll the shop {snap?.rerollCost ? `${snap.rerollCost}c` : '(free)'}
-          </button>
-          {snap?.freeRerollIn > 0 && (
-            <p className="status">Free again in {Math.ceil(snap.freeRerollIn / 60)}s</p>
-          )}
+          <div className="bar">
+            <button
+              type="button"
+              aria-pressed={snap?.placing === 'fountain'}
+              disabled={snap?.placing !== 'fountain' && coins < PRICES.fountain}
+              onClick={act((w) => startPlacing(w, 'fountain'))}
+            >
+              <Icon name="fountain" />
+              Fountain
+              <Price n={PRICES.fountain} short={coins < PRICES.fountain} />
+            </button>
+            {/* Fills up over the minute until rerolling is free again. */}
+            <button
+              type="button"
+              className="reroll"
+              style={{ '--ready': 1 - (snap?.rerollWait ?? 0) }}
+              disabled={coins < rerollCost}
+              onClick={act(buyReroll)}
+            >
+              <Icon name="reroll" />
+              Reroll
+              {rerollCost > 0 && <Price n={rerollCost} short={coins < rerollCost} />}
+            </button>
+          </div>
         </section>
       )}
 
       {tab === 'garden' && (
-        <section className="garden" aria-label="Gardening">
-          <div className="bar">
-            <span className="coins" aria-label="Coins">
-              {coins}c
-            </span>
-            {GARDEN_TOOLS.map(([key, label]) => (
-              <button key={key} type="button" aria-pressed={snap?.tool === key} onClick={act((w) => setTool(w, key))}>
-                {label}
-              </button>
-            ))}
-          </div>
+        <section className="garden" role="group" aria-label="Gardening">
+          {GARDEN_TOOLS.map(([key, label]) => (
+            <button
+              key={key}
+              type="button"
+              className="stack"
+              aria-pressed={snap?.tool === key}
+              onClick={act((w) => setTool(w, w.tool === key ? 'hand' : key))}
+            >
+              <Icon name={key} scale={3} />
+              {label}
+            </button>
+          ))}
         </section>
       )}
 
@@ -527,9 +584,11 @@ export default function App() {
         <section className="saves" aria-label="Saves">
           <div className="bar">
             <button type="button" onClick={saveNew}>
-              Save tank
+              <Icon name="saves" />
+              Save
             </button>
             <button type="button" onClick={() => importInput.current.click()}>
+              <Icon name="import" />
               Import
             </button>
             <input ref={importInput} type="file" accept=".json,application/json" hidden onChange={importFile} />
@@ -545,6 +604,7 @@ export default function App() {
                 <Save
                   key={s.id}
                   save={s}
+                  flash={flash === s.id}
                   onLoad={loadSave(s)}
                   onOverwrite={overwrite(s)}
                   onExport={exportSave(s)}
