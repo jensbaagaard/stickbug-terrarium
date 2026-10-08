@@ -4,10 +4,10 @@ import { buyReroll, createWorld, pointerDown, pointerUp, startPlacing, step } fr
 import { paintTerrain } from './terrain.js';
 import { params } from './tuning.js';
 
-// A dirt bank on the left with grass, plants, sticks and bugs on it; a pond walled in stone on the right, topped up
-// by a fountain forever (so the terrain never rests), with plants, grass and fish in it; vines hanging over it all.
-// The tank's life turned all the way up: the most fireflies, and leaves dropping as fast as they can. crowd puts in
-// that many of every plant, grass and vine, side by side.
+// A dirt bank on the left with grass, plants, clump plants, sticks and bugs on it; a pond walled in stone on the
+// right, topped up by a fountain forever (so the terrain never rests), with plants, grass and fish in it; vines
+// hanging over it all. The tank's life turned all the way up: the most fireflies, and leaves dropping as fast as they
+// can. crowd puts in that many of every plant, clump plant, grass and vine, side by side.
 export const stressWorld = (crowd = 1, W = 256, H = 341) => {
   Object.assign(params, { fireflies: 12, leafLife: 0.1 });
   const world = createWorld(W, H, { seed: 7, scene: false });
@@ -33,6 +33,8 @@ export const stressWorld = (crowd = 1, W = 256, H = 341) => {
   for (let k = 0; k < crowd; k++) {
     for (const x of [15, 28, 40, 65, 82, 95]) place('plant', 'plant', x + k * 3, floor - 45);
     for (const x of [150, 190, 230]) place('plant', 'plant', x + k * 3, floor - 20);
+    for (const x of [48, 72]) place('plant', 'clump', x + k * 3, floor - 45);
+    place('plant', 'clump', 210 + k * 3, floor - 20);
     for (const x of [20, 80]) place('plant', 'grass', x + k * 5, floor - 45);
     place('plant', 'grass', 170 + k * 5, floor - 10);
     for (const x of [30, 100, 170, 220]) place('plant', 'vine', x + k * 6, 2);

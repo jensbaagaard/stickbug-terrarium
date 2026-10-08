@@ -31,6 +31,7 @@ import {
 } from './geom.js';
 import {
   DEFAULT_FOLIAGE,
+  makeClump,
   makeGrass,
   makeSpecies,
   makeStick,
@@ -75,6 +76,8 @@ const LEAF_FADE = 1200; // ticks an old leaf takes to yellow before it drops
 const LITTER_ROT = 1 / 3600; // how fast a fallen leaf lying on the ground browns and curls up, per tick
 const FLOAT_TICKS = 600; // a leaf fallen on the water floats this long before it sinks
 const SPROUT_TICKS = 120; // a pruned stem waits this long before sprouting new shoots
+const CHAIN_SEG = 5; // px per segment of a clump plant's leaf, flower stalk or runner
+const CROWN_CHANCE = 1 / 200; // chance a tick that a clump plant with room for it starts a new leaf, stalk or runner
 const QUIRKS = [
   ['wave', 0.4],
   ['twig', 0.33],
@@ -692,6 +695,7 @@ const build = (world, kind, seed, x, y, genes) => {
   if (!at) return null;
   if (kind === 'grass') return { kind, ...at, genome: makeGrass(rand) };
   if (kind === 'stick') return { kind, ...at, ...makeStick(rand, at.base, world.W, world.H) };
+  if (kind === 'clump') return { kind: 'plant', ...at, species: makeClump(rand) };
   return { kind, ...at, species: makeSpecies(rand) };
 };
 
@@ -755,7 +759,7 @@ const addDecor = (world, spec) => {
   } else {
     obj.species = spec.species;
     obj.stems = [];
-    obj.stems.push(newStem(world, obj, null, spec.base, -Math.PI / 2 + spec.species.lean));
+    obj.stems.push(seedling(world, obj));
   }
   world.objects.push(obj);
   if (obj.segs) {
@@ -844,15 +848,21 @@ const makeOffer = (world, kind) => {
     return { ...offer, genome, name: guppyName(world.rand), price: guppyPrice(genome) };
   }
   if (kind === 'plant') {
-    // Plants come in three types, each with its own genome: flowering plants, grass and hanging vines.
+    // Plants come in four types, each with its own genome: flowering plants, clump plants (a crown of leaves
+    // with flower stalks or runners), grass and hanging vines.
     const type = world.rand();
-    if (type < 0.25) {
+    if (type < 0.2) {
       const g = makeGrass(mulberry32(offer.seed));
       return { ...offer, type: 'grass', name: g.name, price: 6 + Math.round(g.height) + (g.blossom ? 3 : 0) };
     }
-    if (type < 0.5) {
+    if (type < 0.4) {
       const g = makeVine(mulberry32(offer.seed));
       return { ...offer, type: 'vine', name: g.name, price: 8 + Math.round(g.maxNodes / 3) + (g.flower ? 3 : 0) };
+    }
+    if (type < 0.65) {
+      const sp = makeClump(mulberry32(offer.seed));
+      const showy = sp.form === 'strelitzia' ? 8 : sp.flower ? 4 : 0;
+      return { ...offer, type: 'clump', name: sp.name, price: 8 + Math.round(sp.leafLen / 4) + showy };
     }
     const sp = makeSpecies(mulberry32(offer.seed));
     return { ...offer, name: sp.name, price: 6 + sp.maxNodes + Math.round(sp.flower.size * 3) };
@@ -948,10 +958,13 @@ export const stageOffer = (world, offer) => {
     return { ...box(tops, 4), y1: world.ground.y0 + 2 };
   }
   const obj = addDecor(world, build(world, kind, offer.seed, x, world.H));
-  if (kind === 'plant') {
-    const busy = () => obj.stems.some((st) => st.growing || st.sprout > 0 || (st.bud && st.flower < 1));
-    for (let i = 0; i < 20000 && busy(); i++) growPlant(world, obj, 4);
-    const b = box(obj.stems.flatMap((st) => [st.root, st.tip]), 8 + obj.species.flower.size * 6);
+  if (obj.kind === 'plant') {
+    const sp = obj.species;
+    const growing = () => obj.stems.some((st) => st.growing || st.sprout > 0 || (st.bud && st.flower < 1));
+    const busy = () => growing() || (sp.form && !crownFull(obj));
+    for (let i = 0; i < 20000 && busy(); i++) growPlant(world, obj, sp.form ? 10 : 4);
+    const pad = sp.form ? 3 + sp.leafWidth + 6 * (sp.flower?.size ?? 0) : 8 + sp.flower.size * 6;
+    const b = box(obj.stems.flatMap((st) => [st.root, st.tip]), pad);
     return { ...b, y1: world.ground.y0 + 2 };
   }
   const b = box(obj.segs.flatMap((g) => [g.root, g.tip]), 6 * obj.foliage.size);
@@ -994,6 +1007,7 @@ const sprout = (world, plant, stem, n) => {
 
 const growPlant = (world, plant, rate) => {
   const sp = plant.species;
+  if (sp.form) return growClump(world, plant, rate);
   for (const stem of [...plant.stems]) {
     for (const leaf of stem.leaves) leaf.size = Math.min(1, leaf.size + LEAF_GROWTH * 2 * rate);
     // Flowers only open in the air: under water they close up again, until it's gone.
@@ -1064,7 +1078,8 @@ const bendPlant = (world, plant) => {
   const pull = world.pull?.obj === plant && plant.stems.includes(world.pull.stem) ? world.pull : null;
   const goals = pull ? reachFor(plant, pull.stem, add(world.pointer, pull.off)) : null;
   for (const stem of plant.stems) {
-    const root = stem.parent ? stem.parent.tip : plant.base;
+    // A clump plant's leaves come up across its crown, dx either side of the middle.
+    const root = stem.parent ? stem.parent.tip : stem.dx ? { x: plant.base.x + stem.dx, y: plant.base.y } : plant.base;
     const rest = stem.angle + (stem.parent?.turn ?? 0); // the way it points unbent
     const goal = goals?.get(stem);
     if (goal) {
@@ -1111,27 +1126,134 @@ const stemDescendants = (plant, stem) => {
   return out;
 };
 
-// Cut a stem at p: everything above falls off and sells as clippings, and the stump bushes out again.
+// Cut a stem at p: everything above falls off and sells as clippings, and the stump bushes out again. On a clump
+// plant the stump of a leaf, stalk or runner stays as it is, trimmed, until the crown grows a new one to replace it.
 const prunePlant = (world, plant, stem, p) => {
+  const clump = !!plant.species.form;
+  const look = { kind: 'stem', plant, leaf: stem.role === 'leaf' };
   const doomed = stemDescendants(plant, stem);
   let clipped = dist(p, stem.tip);
   for (const s of doomed) {
     clipped += dist(s.root, s.tip);
-    fling(world, s.root, s.tip, { kind: 'stem', plant });
+    fling(world, s.root, s.tip, look);
   }
-  fling(world, p, stem.tip, { kind: 'stem', plant });
+  fling(world, p, stem.tip, look);
   const kept = dist(stem.root, p);
   if (kept < 2) {
     doomed.push(stem);
-    if (stem.parent) stem.parent.sprout = SPROUT_TICKS;
+    if (stem.parent && !clump) stem.parent.sprout = SPROUT_TICKS;
   } else {
     const was = dist(stem.root, stem.tip);
     stem.leaves = stem.leaves.filter((l) => l.at * was <= kept).map((l) => ({ ...l, at: (l.at * was) / kept }));
-    Object.assign(stem, { tip: p, len: kept, growing: false, bud: false, flower: 0, sprout: SPROUT_TICKS });
+    const sprout = clump ? 0 : SPROUT_TICKS;
+    Object.assign(stem, { tip: p, len: kept, growing: false, bud: false, flower: 0, sprout });
   }
+  if (clump) chainRoot(stem).trimmed = true;
   plant.stems = plant.stems.filter((s) => !doomed.includes(s));
   if (!plant.stems.length) world.objects = world.objects.filter((o) => o !== plant);
   earn(world, Math.max(1, Math.round(clipped / CLIPPING_LEN)), p.x, p.y);
+};
+
+// ---------- clump plants ----------
+
+// A plant's first shoot: a stem, or for a clump plant its first leaf.
+const seedling = (world, plant) =>
+  plant.species.form
+    ? newChain(world, plant, 'leaf')
+    : newStem(world, plant, null, plant.base, -Math.PI / 2 + plant.species.lean);
+
+const chainRoot = (stem) => {
+  let root = stem;
+  while (root.parent) root = root.parent;
+  return root;
+};
+
+// Start a new leaf, flower stalk or runner in a clump plant's crown: a chain of short stems, grown one after
+// another, each turned a little further (curl) toward hanging down on the side it leans to. Leaves fan out by the
+// golden ratio, so they spread evenly however many there are, the middle ones standing up and the outer ones
+// arching over; stalks come up nearer the middle, and runners lean well out.
+const newChain = (world, plant, role) => {
+  const sp = plant.species;
+  plant.chains = (plant.chains ?? 0) + 1;
+  const spread = ((plant.chains * 0.618034 + plant.base.x * 0.137) % 1) * 2 - 1;
+  const side = Math.sign(spread) || 1;
+  const lean =
+    role === 'runner' ? side * (0.9 + 0.3 * Math.abs(spread)) : spread * sp.fan * (role === 'stalk' ? 0.4 : 1);
+  const full = sp.leafLen * (role === 'leaf' ? 1 : sp.stalkLen) * (0.8 + 0.4 * world.rand());
+  const n = Math.max(2, Math.round(full / CHAIN_SEG));
+  return Object.assign(newStem(world, plant, null, plant.base, -Math.PI / 2 + lean), {
+    role,
+    left: n - 1, // stems still to grow after this one
+    curl: (role === 'leaf' ? sp.curl : sp.stalkCurl) * (role === 'runner' ? 1 : 0.3 + 0.7 * Math.abs(spread)),
+    side,
+    full, // px it'll be, grown
+    target: full / n,
+    seed: world.rand() * 1000,
+    dx: spread * sp.crown * (role === 'leaf' ? 1 : 0.5),
+  });
+};
+
+// A clump plant's crown: whole leaves and stalks (or runners), not counting trimmed stumps, and how many are still
+// growing.
+const crownOf = (plant) => {
+  const c = { leaves: 0, stalks: 0, growing: 0 };
+  for (const st of plant.stems) {
+    if (st.growing) c.growing++;
+    if (!st.parent && !st.trimmed) c[st.role === 'leaf' ? 'leaves' : 'stalks']++;
+  }
+  return c;
+};
+const crownFull = (plant) => {
+  const c = crownOf(plant);
+  return c.leaves >= plant.species.leaves && c.stalks >= plant.species.stalks;
+};
+
+// A trimmed stump drops off when a new leaf (or stalk) comes up to replace it.
+const dropChain = (world, plant, root) => {
+  const chain = [root, ...stemDescendants(plant, root)];
+  for (const s of chain) fling(world, s.root, s.tip, { kind: 'stem', plant, leaf: s.role === 'leaf' });
+  plant.stems = plant.stems.filter((s) => !chain.includes(s));
+};
+
+// A clump plant grows a few leaves at a time until its crown is full, then its flower stalks or runners. Each leaf
+// grows a stem at a time; a stalk flowers at its end. A runner arches out and hangs down, with a little flower
+// here and there, until it reaches its length or touches down, and grows a baby plant at its end.
+const growClump = (world, plant, rate) => {
+  const sp = plant.species;
+  const ter = world.terrain;
+  for (const stem of [...plant.stems]) {
+    if (stem.bud) stem.flower = clamp(stem.flower + (wetAt(ter, stem.tip) ? -0.01 : 0.002 * rate), 0, 1);
+    if (!stem.growing) continue;
+    stem.len += sp.speed * rate;
+    const { x, y } = stem.tip;
+    const roomy = y > 3 && x > 1 && x < world.W - 2;
+    // A runner lands once it's hanging lower than the crown it came from and touches something.
+    const low = stem.role === 'runner' && y > plant.base.y + 2;
+    const landed = low && (y >= world.ground.y0 - 1 || solidAt(ter, x, y + 1.5));
+    if (stem.len < stem.target && roomy && !landed) continue;
+    stem.growing = false;
+    if (stem.left > 0 && roomy && !landed) {
+      const toward = stem.side > 0 ? Math.PI / 2 : -1.5 * Math.PI; // straight down, coming round on its side
+      const next = newStem(world, plant, stem, stem.tip, stem.angle + (toward - stem.angle) * stem.curl);
+      const bloom = stem.role === 'runner' && world.rand() < 0.3;
+      const { role, curl, side, full, target, seed } = stem;
+      plant.stems.push(Object.assign(next, { role, left: stem.left - 1, curl, side, full, target, seed }));
+      Object.assign(next, { bud: bloom, sideBloom: bloom });
+    } else if (stem.role !== 'leaf') {
+      Object.assign(stem, { bud: true, sideBloom: false });
+    }
+  }
+  const c = crownOf(plant);
+  if (c.growing < Math.max(2, Math.ceil(sp.leaves / 5)) && world.rand() < CROWN_CHANCE * rate) {
+    const stalk = sp.flower?.kind === 'runner' ? 'runner' : 'stalk';
+    const role = c.leaves < sp.leaves ? 'leaf' : c.stalks < sp.stalks ? stalk : null;
+    if (role) {
+      const stump = plant.stems.find((st) => !st.parent && st.trimmed && (st.role === 'leaf') === (role === 'leaf'));
+      if (stump) dropChain(world, plant, stump);
+      plant.stems.push(newChain(world, plant, role));
+    }
+  }
+  bendPlant(world, plant);
 };
 
 // ---------- grass and vines ----------
@@ -1403,7 +1525,8 @@ const prunableAt = (world, x, y, plantsOnly = false) => {
     for (const stem of obj.stems) {
       const g = { x0: stem.root.x, y0: stem.root.y, x1: stem.tip.x, y1: stem.tip.y };
       const d = distToSeg(g, x, y);
-      if (d < 4) consider(d, { plant: obj, stem, p: pointAt(g, project(g, x, y)) });
+      const wide = stem.role === 'leaf' ? obj.species.leafWidth * 0.6 : 0; // a clump plant's broad leaves
+      if (d < 4 + wide) consider(d, { plant: obj, stem, p: pointAt(g, project(g, x, y)) });
     }
   }
   return best;
@@ -1656,17 +1779,20 @@ const relocate = (world, obj, to) => {
   Object.assign(obj, { base: to.base, on: to.on, hold: to.hold });
 };
 
-// A flowering plant that has finished growing: nothing still growing or about to sprout, and its flowers open.
-export const propagatable = (obj) =>
-  obj.kind === 'plant' &&
-  obj.stems.some((st) => st.flower >= 1) &&
-  obj.stems.every((st) => !st.growing && st.sprout <= 0 && (!st.bud || st.flower >= 1));
+// A flowering plant that has finished growing: nothing still growing or about to sprout, and its flowers open. A
+// clump plant once its crown is full, flowers (or baby plants) and all.
+export const propagatable = (obj) => {
+  if (obj.kind !== 'plant') return false;
+  const settled = obj.stems.every((st) => !st.growing && st.sprout <= 0 && (!st.bud || st.flower >= 1));
+  if (obj.species.form) return settled && crownFull(obj);
+  return settled && obj.stems.some((st) => st.flower >= 1);
+};
 
 // Take a cutting: a seedling of the same species goes in at to, and the parent is cut right back to a seedling
 // too, so both start again.
 const propagate = (world, plant, to) => {
-  for (const st of plant.stems) fling(world, st.root, st.tip, { kind: 'stem', plant });
-  plant.stems = [newStem(world, plant, null, plant.base, -Math.PI / 2 + plant.species.lean)];
+  for (const st of plant.stems) fling(world, st.root, st.tip, { kind: 'stem', plant, leaf: st.role === 'leaf' });
+  plant.stems = [seedling(world, plant)];
   addDecor(world, { kind: 'plant', base: to.base, on: to.on, species: structuredClone(plant.species) });
 };
 

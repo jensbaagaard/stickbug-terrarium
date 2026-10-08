@@ -135,8 +135,10 @@ const stepBubbles = (world) => {
       world.bubbles.push({ x: p.x, y: p.y - 1, vy, seed: r() * 6, big: r() < params.bigBubbles });
     };
     for (const o of world.objects) {
-      if (o.kind === 'plant') for (const st of o.stems) puff(st.tip);
-      else if (o.kind === 'vine') for (let i = 2; i < o.nodes.length; i += 2) puff(o.nodes[i]);
+      if (o.kind === 'plant') {
+        // A clump plant's leaves are many short stems: every third one, so a tussock doesn't fizz.
+        for (const st of o.stems) if (!o.species.form || st.depth % 3 === 2) puff(st.tip);
+      } else if (o.kind === 'vine') for (let i = 2; i < o.nodes.length; i += 2) puff(o.nodes[i]);
       else if (o.kind === 'grass') for (const t of o.tufts) if (t.wet) puff({ x: t.x, y: t.y - 2 });
     }
   }

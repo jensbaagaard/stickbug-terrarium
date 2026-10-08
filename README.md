@@ -68,12 +68,18 @@ Shop, Garden (Prune, Relocate, Propagate and Feed), Saves and Settings. The game
   the tank as soon as you buy it, replacing the last one. A fountain is a little block that goes exactly where you
   tap, even in mid-air, and pours out water forever, like Powder Game's clone; erase it in the Editor. The only
   way to earn coins is to grow plants and sell the clippings.
-- Plants come in three types, each with its own genome: flowering plants that grow node by node; grass that you sow
-  on dirt or sand (painted, or the tank floor) and that spreads tuft by tuft, withering if buried (under water it
-  grows on, swaying in the current, but doesn't blossom); and hanging vines that hang from the nearest branch,
-  stick, or underside or face of the terrain (a stone ledge, say), or else from a hook at the top of the tank; they
-  sway and drape onto the floor. Plants and vines sway more under water, rocked by the current, and only flower out
-  of it. Tap grass to mow it or a vine to cut it back; both grow back, and the clippings sell.
+- Plants come in four types, each with its own genome: flowering plants that grow node by node; clump plants, a
+  crown of leaves straight from the ground that grows a few leaves at a time until it's full, then its flower stalks
+  or runners (a bird of paradise with big paddle leaves and orange-crested flowers; a tall tussock of grass that
+  arches over like a fountain, with feathery plumes, and doesn't spread; a spider plant whose striped leaves arch
+  over and whose runners reach out and hang down, flowering, with a baby plant at the end, best put on a ledge; or a
+  snake plant of stiff banded swords); grass that you sow on dirt or sand (painted, or the tank floor) and that
+  spreads tuft by tuft, withering if buried (under water it grows on, swaying in the current, but doesn't blossom);
+  and hanging vines that hang from the nearest branch, stick, or underside or face of the terrain (a stone ledge,
+  say), or else from a hook at the top of the tank; they sway and drape onto the floor. Plants and vines sway more
+  under water, rocked by the current, and only flower out of it. Tap grass to mow it or a vine to cut it back; both
+  grow back, and the clippings sell. Trim a clump plant's leaf and the stump stays until a new leaf comes up to
+  replace it.
 - The tank lives on its own. A breeze sways the plants, grass and vines in the air, and now and then a gust rolls
   across the tank, leaning everything over as it passes. Old plant leaves yellow, droop and drop, one at a time, and
   the node grows a new one: fallen leaves flutter down and lie browning on the ground until they're gone, or float on
@@ -108,7 +114,7 @@ Shop, Garden (Prune, Relocate, Propagate and Feed), Saves and Settings. The game
 - `src/terrain.js` – the falling-sand grid (stone, sandstone, wood, dirt, sand, water, fountains): painting and
   stepping. `sim.js` traces its outline (and the open floor's) into the surfaces bugs walk on.
 - `src/decor.js` – random sticks (with their own foliage), wallpapers, and the plant genomes: flowering
-  species with a flower genome (form, petals, colours, size), grasses and hanging vines.
+  species with a flower genome (form, petals, colours, size), clump plants (four forms), grasses and hanging vines.
 - `src/geom.js` – maths, segment and colour helpers.
 - `src/render.js` – canvas drawing (scenery, flowers, ageing and fallen leaves, light on the water, fireflies and
   dust, genome colours and patterns, quirk poses, previews, coin popups, the marks under the pointer and the tools'

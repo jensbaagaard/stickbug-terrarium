@@ -254,6 +254,7 @@ const agedLeaf = ({ h, s, l }, fade, rot = 0) => {
 // A plant as the breeze has bent it, its old leaves yellowing and drooping.
 const drawPlant = (ctx, plant) => {
   const sp = plant.species;
+  if (sp.form) return drawClump(ctx, plant);
   ctx.fillStyle = hslHex(sp.stem.h, sp.stem.s, sp.stem.l);
   for (const st of plant.stems) line(ctx, st.root, st.tip, 1.2);
   const form = LEAF_FORMS[sp.shape];
@@ -271,6 +272,263 @@ const drawPlant = (ctx, plant) => {
     if (st.flower <= 0) continue;
     const turn = (st.angle * 1000) % 6.28; // not its position, which moves as it bends
     drawFlower(ctx, sp.flower, st.tip, st.flower, turn, st.sideBloom ? 0.55 : 1);
+  }
+};
+
+// ---------- clump plants ----------
+
+// A clump plant's chains (its leaves, flower stalks and runners), each as its stems from the crown out.
+const chainsOf = (plant) => {
+  const next = new Map();
+  for (const st of plant.stems) if (st.parent) next.set(st.parent, st);
+  return plant.stems
+    .filter((st) => !st.parent)
+    .map((root) => {
+      const chain = [root];
+      for (let s = next.get(root); s; s = next.get(s)) chain.push(s);
+      return chain;
+    });
+};
+
+// Points a pixel or so apart along a chain, from the crown out: where, the way across it (n), how far along it is
+// (along, px) and its share of the way (u, 0..1).
+const chainPoints = (chain) => {
+  const total = chain.reduce((sum, st) => sum + st.len, 0) || 1;
+  const pts = [];
+  let along = 0;
+  for (const st of chain) {
+    const { root: a, tip: b } = st;
+    const n = st.len > 0 ? { x: -(b.y - a.y) / st.len, y: (b.x - a.x) / st.len } : { x: 1, y: 0 };
+    const steps = Math.max(1, Math.ceil(Math.max(Math.abs(b.x - a.x), Math.abs(b.y - a.y))));
+    for (let k = pts.length ? 1 : 0; k <= steps; k++) {
+      const f = k / steps;
+      const at = along + st.len * f;
+      pts.push({ x: a.x + (b.x - a.x) * f, y: a.y + (b.y - a.y) * f, n, along: at, u: at / total });
+    }
+    along += st.len;
+  }
+  return { pts, total };
+};
+
+// Half the width of a clump plant's leaf u of the way along it, and grown (0..1) of its full length.
+const clumpWidth = (sp, u, grown) => {
+  const w = sp.leafWidth * (0.5 + 0.5 * grown);
+  switch (sp.shape) {
+    case 'paddle': {
+      if (u < sp.petiole) return 0; // the bare stalk
+      const v = (u - sp.petiole) / (1 - sp.petiole);
+      return w * Math.sin(Math.PI * Math.min(1, 0.08 + v * 0.92)) ** 0.7;
+    }
+    case 'strap':
+      return w * Math.min(1, (1 - u) * 3, 0.6 + u * 3);
+    case 'sword':
+      return w * Math.min(1, (1 - u) * 4, 0.75 + u * 2);
+    default: // blade: a grass leaf, tapering to a fine point
+      return w * (1 - 0.85 * u);
+  }
+};
+
+// Single pixels, put one after another, filled as runs: a row or a column of them is one rect, not many. flush()
+// fills what's left; do so before changing colour.
+const pixelRuns = (ctx) => {
+  let [x0, y0, w, h] = [0, 0, 0, 0];
+  const flush = () => {
+    if (w) ctx.fillRect(x0, y0, w, h);
+    w = 0;
+  };
+  const put = (x, y) => {
+    if (w) {
+      if (h === 1 && y === y0 && (x === x0 + w || x === x0 - 1)) {
+        x0 = Math.min(x0, x);
+        w++;
+        return;
+      }
+      if (w === 1 && x === x0 && (y === y0 + h || y === y0 - 1)) {
+        y0 = Math.min(y0, y);
+        h++;
+        return;
+      }
+      if (x >= x0 && x < x0 + w && y >= y0 && y < y0 + h) return;
+      ctx.fillRect(x0, y0, w, h);
+    }
+    [x0, y0, w, h] = [x, y, 1, 1];
+  };
+  return { put, flush };
+};
+
+// One leaf: shaded a little darker the further back (older) it is. Paddles are two-tone with a pale midrib on a bare
+// stalk; grass blades lighten toward the tip; stripes run down the middle or the edges; swords have wavy bands.
+const drawClumpLeaf = (ctx, sp, chain, back) => {
+  const root = chain[0];
+  const { pts, total } = chainPoints(chain);
+  const grown = Math.min(1, total / (root.full || total));
+  const l = sp.leaf.l + (hash(root.seed, 1) - 0.5) * 4 - back * 5;
+  const hex = (dl, ds = 0, c = sp.leaf) => hslHex(c.h, c.s + ds, l - sp.leaf.l + c.l + dl);
+  const widths = pts.map((p) => clumpWidth(sp, p.u, grown));
+  // Square dabs along the leaf, size(w, p) across; wide ones overlap plenty, so they're spaced out, and pixel-wide
+  // ones are filled as runs.
+  const runs = pixelRuns(ctx);
+  const stamp = (color, size, off = 0) => {
+    let last = -Infinity; // px along the leaf of the last dab
+    let fill = null;
+    for (let i = 0; i < pts.length; i++) {
+      const s = size(widths[i], pts[i], i);
+      if (s <= 0) continue;
+      const d = Math.max(1, s);
+      if (d >= 3 && pts[i].along - last < d * 0.4 && i < pts.length - 1) continue;
+      last = pts[i].along;
+      const c = typeof color === 'function' ? color(pts[i]) : null;
+      if (c && c !== fill) {
+        runs.flush();
+        ctx.fillStyle = fill = c;
+      }
+      const x = pts[i].x + pts[i].n.x * off * widths[i];
+      const y = pts[i].y + pts[i].n.y * off * widths[i];
+      if (d < 1.5) runs.put(Math.ceil(x - 0.5), Math.ceil(y - 0.5));
+      else plot(ctx, x, y, d);
+    }
+    runs.flush();
+  };
+  if (sp.shape === 'paddle') {
+    ctx.fillStyle = hslHex(sp.stem.h, sp.stem.s, sp.stem.l - back * 4);
+    stamp(null, (w, p) => (p.u < sp.petiole ? 1.4 : 0));
+    ctx.fillStyle = hex(-4);
+    stamp(null, (w) => w * 2);
+    ctx.fillStyle = hex(4);
+    stamp(null, (w) => w, root.side * 0.5); // the lit half
+    ctx.fillStyle = hslHex(sp.stem.h, sp.stem.s, sp.stem.l + 12);
+    stamp(null, (w) => (w > 0 ? 1 : 0));
+    return;
+  }
+  const edge = sp.stripe?.where === 'edge';
+  if (sp.shape === 'blade') stamp((p) => hex(Math.round(p.u * 3) * 2), (w) => w * 2);
+  else {
+    ctx.fillStyle = edge ? hslHex(sp.stripe.h, sp.stripe.s, sp.stripe.l) : hex(0);
+    stamp(null, (w) => w * 2);
+  }
+  if (edge) {
+    ctx.fillStyle = hex(0);
+    stamp(null, (w) => (w * 2 - 1.2 >= 1 ? w * 2 - 1.2 : 0));
+  }
+  if (sp.bands) {
+    ctx.fillStyle = hex(14, -12);
+    const band = (p) => Math.floor((p.along + Math.sin(p.x * 0.9 + root.seed) * 0.8) / 2.5) % 2 === 0;
+    stamp(null, (w, p) => (band(p) ? w * 1.5 : 0));
+  }
+  if (sp.stripe?.where === 'centre') {
+    ctx.fillStyle = hslHex(sp.stripe.h, sp.stripe.s, sp.stripe.l);
+    stamp(null, (w) => (w > 0.8 ? Math.max(1, w * 0.7) : 0));
+  }
+};
+
+const rotate = (v, a) => ({ x: v.x * Math.cos(a) - v.y * Math.sin(a), y: v.x * Math.sin(a) + v.y * Math.cos(a) });
+
+// A bird of paradise flower at the top of its stalk (c, the stalk heading up along d): a beak-like sheath lying
+// across the stalk, then as it opens a crest of orange petals standing up and back out of it, and a blue tongue.
+const drawBird = (ctx, f, c, d, bloom, side) => {
+  const s = f.size;
+  const beak = normalize({ x: -d.y * side + d.x * 0.3, y: d.x * side + d.y * 0.3 });
+  const len = (5 + 4 * bloom) * s;
+  ctx.fillStyle = hslHex(f.beak.h, f.beak.s, f.beak.l);
+  for (let k = 0; k <= len; k += 0.5) plot(ctx, c.x + beak.x * k, c.y + beak.y * k, (1.8 - 1.4 * (k / len)) * s);
+  ctx.fillStyle = hslHex(f.blush.h, f.blush.s, f.blush.l); // flushed along its underside
+  for (let k = 1; k <= len * 0.8; k += 0.5) plot(ctx, c.x + beak.x * k - d.x * 0.8, c.y + beak.y * k - d.y * 0.8, 1);
+  if (bloom < 0.2) return;
+  const open = Math.min(1, (bloom - 0.2) / 0.5);
+  const q = add(c, beak, len * 0.35);
+  const back = normalize({ x: d.x - beak.x * 0.6, y: d.y - beak.y * 0.6 });
+  for (const [a, reach] of [
+    [-0.45, 1],
+    [-0.1, 1.15],
+    [0.25, 0.9],
+  ]) {
+    const dir = rotate(back, a * side);
+    const L = 5.5 * s * reach * open;
+    for (let k = 0; k <= L; k += 0.5) {
+      ctx.fillStyle = hslHex(f.crest.h, f.crest.s, f.crest.l + 8 * (k / L));
+      plot(ctx, q.x + dir.x * k, q.y + dir.y * k, Math.max(1, 1.6 * s * (1 - k / L)));
+    }
+  }
+  if (bloom < 0.5) return;
+  const tongue = normalize({ x: d.x + beak.x * 0.9, y: d.y + beak.y * 0.9 });
+  ctx.fillStyle = hslHex(f.tongue.h, f.tongue.s, f.tongue.l);
+  const reach = 4 * s * Math.min(1, (bloom - 0.5) * 2);
+  for (let k = 0; k <= reach; k += 0.5) plot(ctx, q.x + tongue.x * k, q.y + tongue.y * k, 1);
+};
+
+// A feathery plume up the top of a grass stalk, fluffing out as it opens.
+const drawPlume = (ctx, f, pts, bloom, seed) => {
+  const len = Math.min(pts.length - 1, Math.round((6 + 6 * bloom) * f.size));
+  const { h, s, l } = f.color;
+  for (let i = 0; i <= len; i++) {
+    const p = pts[pts.length - 1 - i];
+    const v = 1 - i / len; // 0 at the bottom of the plume, 1 at its tip
+    const w = (0.5 + 1.6 * bloom) * f.size * Math.sin(Math.PI * Math.min(1, 0.15 + v * 0.85)) ** 0.8;
+    for (let k = -Math.round(w); k <= Math.round(w); k++) {
+      if (hash(seed + i, k, 3) > 0.75) continue;
+      ctx.fillStyle = hslHex(h, s, l + (hash(seed + i, k, 4) - 0.5) * 12);
+      ctx.fillRect(Math.round(p.x + p.n.x * k), Math.round(p.y + p.n.y * k), 1, 1);
+    }
+  }
+};
+
+// A baby spider plant at the end of a runner: a little rosette of arching leaves, and roots once it's grown.
+const drawPlantlet = (ctx, sp, c, bloom) => {
+  const s = sp.flower.size * (0.4 + 0.6 * bloom);
+  if (bloom > 0.6) {
+    ctx.fillStyle = hslHex(sp.stem.h, sp.stem.s - 10, sp.stem.l + 10);
+    plot(ctx, c.x, c.y + 1.5, 1);
+    plot(ctx, c.x + 1, c.y + 2.5, 1);
+  }
+  ctx.fillStyle = hslHex(sp.leaf.h, sp.leaf.s, sp.leaf.l + 4);
+  for (const a of [-1.2, -0.6, 0, 0.6, 1.2]) {
+    const L = (2.5 + 2 * Math.cos(a)) * s * 1.2;
+    for (let k = 0; k <= L; k += 0.5) {
+      plot(ctx, c.x + Math.sin(a) * k, c.y - Math.cos(a) * k + (k / L) ** 2 * Math.abs(a) * 1.5, 1); // drooping
+    }
+  }
+};
+
+// A clump plant: its leaves from the oldest (at the back) to the newest, then its flower stalks and runners.
+const drawClump = (ctx, plant) => {
+  const sp = plant.species;
+  const chains = chainsOf(plant);
+  const leaves = chains.filter((c) => c[0].role === 'leaf');
+  leaves.forEach((chain, i) => drawClumpLeaf(ctx, sp, chain, leaves.length > 1 ? 1 - i / (leaves.length - 1) : 0));
+  for (const chain of chains) {
+    const root = chain[0];
+    if (root.role === 'leaf') continue;
+    const { pts } = chainPoints(chain);
+    ctx.fillStyle = hslHex(sp.stem.h, sp.stem.s, sp.stem.l);
+    if (sp.flower.kind === 'bird') for (const p of pts) plot(ctx, p.x, p.y, 1.6);
+    else {
+      const runs = pixelRuns(ctx);
+      for (const p of pts) runs.put(Math.ceil(p.x - 0.5), Math.ceil(p.y - 0.5));
+      runs.flush();
+    }
+    const end = chain[chain.length - 1];
+    for (const st of chain) {
+      if (!st.bud || st.flower <= 0) continue;
+      if (st.sideBloom) {
+        // A little white flower along a runner.
+        if (st.flower < 0.3) continue;
+        const { h, s, l } = sp.flower.color;
+        ctx.fillStyle = hslHex(h, s, l);
+        const [x, y] = [Math.round(st.tip.x), Math.round(st.tip.y)];
+        for (const [dx, dy] of [[0, -1], [-1, 0], [1, 0]]) ctx.fillRect(x + dx, y + dy, 1, 1);
+        if (st.flower > 0.6) {
+          ctx.fillStyle = COIN;
+          ctx.fillRect(x, y, 1, 1);
+        }
+      } else if (st === end && sp.flower.kind === 'bird') {
+        const d = normalize({ x: end.tip.x - end.root.x, y: end.tip.y - end.root.y });
+        drawBird(ctx, sp.flower, end.tip, d, st.flower, root.side);
+      } else if (st === end && sp.flower.kind === 'plume') {
+        drawPlume(ctx, sp.flower, pts, st.flower, root.seed);
+      } else if (st === end) {
+        drawPlantlet(ctx, sp, end.tip, st.flower);
+      }
+    }
   }
 };
 
@@ -396,7 +654,8 @@ const drawVine = (ctx, vine) => {
 
 const debrisColor = (look) => {
   if (look.kind === 'stick') return woodColors(look.wood).light;
-  const { h, s, l } = look.kind === 'vine' ? look.vine.genome.stem : look.plant.species.stem;
+  const sp = look.plant?.species;
+  const { h, s, l } = look.kind === 'vine' ? look.vine.genome.stem : look.leaf ? sp.leaf : sp.stem;
   return hslHex(h, s, l);
 };
 
@@ -513,6 +772,12 @@ const drawPreview = (ctx, world, spec, alpha = 1) => {
     for (const dx of [-0.6, 0, 0.6]) {
       line(ctx, add(spec.base, { x: dx * half, y: 0 }), add(spec.base, { x: dx * half, y: 5 }));
     }
+  } else if (spec.species.form) {
+    // A clump plant's first few leaves.
+    const sp = spec.species;
+    ctx.fillStyle = hslHex(sp.leaf.h, sp.leaf.s, sp.leaf.l);
+    for (const dx of [-3, 0, 3]) line(ctx, spec.base, add(spec.base, { x: dx, y: dx ? -5 : -7 }), 1.2);
+    top = spec.base.y - 8;
   } else {
     const sp = spec.species;
     ctx.fillStyle = hslHex(sp.stem.h, sp.stem.s, sp.stem.l);

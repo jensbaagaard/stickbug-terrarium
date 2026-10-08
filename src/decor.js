@@ -141,6 +141,140 @@ export const makeSpecies = (rand) => {
   };
 };
 
+// Clump plants grow a crown of leaves straight from the base instead of up a stem, plus flower stalks or runners
+// once the crown is full. Each form has its own names, leaf shape and habit; colours and sizes vary within it.
+// Lengths are px; leafWidth is half a leaf's width at its widest; fan is how far (radians) the outer leaves lean
+// from upright; curl how much each few px of a leaf turns toward hanging down, so a leaf arches over; crown is how
+// far either side of the middle leaves come out of the ground.
+const CLUMP_FORMS = {
+  // Big paddle leaves on long stalks, and now and then a stalk with an orange-crested bird of a flower.
+  strelitzia: (rand) => ({
+    name: pick(rand, ['Strelitzia', 'Bird of paradise', 'Crane flower']),
+    leaf: { h: range(rand, 120, 150), s: range(rand, 25, 45), l: range(rand, 26, 34) },
+    stem: { h: range(rand, 95, 125), s: range(rand, 25, 40), l: range(rand, 30, 38) },
+    shape: 'paddle',
+    leaves: 5 + Math.floor(rand() * 4),
+    leafLen: range(rand, 38, 55),
+    leafWidth: range(rand, 3.6, 5),
+    petiole: range(rand, 0.4, 0.55),
+    fan: range(rand, 0.3, 0.5),
+    curl: range(rand, 0.01, 0.03),
+    crown: 2,
+    stripe: null,
+    bands: false,
+    stalks: 1 + Math.floor(rand() * 2),
+    stalkLen: range(rand, 0.95, 1.1), // of leafLen
+    stalkCurl: 0.01,
+    flower: {
+      kind: 'bird',
+      size: range(rand, 1.3, 1.8),
+      // Orange, or now and then yellow.
+      crest:
+        rand() < 0.15
+          ? { h: 50, s: 90, l: 60 }
+          : { h: range(rand, 22, 38), s: range(rand, 85, 95), l: range(rand, 52, 60) },
+      tongue: { h: range(rand, 220, 245), s: range(rand, 60, 80), l: range(rand, 45, 58) },
+      beak: { h: range(rand, 110, 140), s: range(rand, 25, 40), l: range(rand, 28, 36) },
+      blush: { h: range(rand, 330, 350), s: range(rand, 35, 55), l: range(rand, 32, 42) },
+    },
+  }),
+  // A tall tussock of grass that stays put (it doesn't spread), arching over like a fountain, with feathery plumes.
+  tussock: (rand) => {
+    const leaf = pick(rand, [
+      () => ({ h: range(rand, 80, 120), s: range(rand, 35, 55), l: range(rand, 30, 40) }), // green
+      () => ({ h: range(rand, 170, 200), s: range(rand, 12, 25), l: range(rand, 42, 50) }), // blue-grey
+      () => ({ h: range(rand, 345, 372), s: range(rand, 25, 40), l: range(rand, 26, 34) }), // burgundy
+      () => ({ h: range(rand, 45, 58), s: range(rand, 45, 60), l: range(rand, 40, 48) }), // golden
+    ])();
+    return {
+      name: pick(rand, ['Pampas grass', 'Fountain grass', 'Feather grass', 'Miscanthus', 'Muhly grass', 'Oat grass']),
+      leaf,
+      stem: { h: range(rand, 38, 50), s: range(rand, 25, 40), l: range(rand, 50, 60) },
+      shape: 'blade',
+      leaves: 14 + Math.floor(rand() * 9),
+      leafLen: range(rand, 35, 60),
+      leafWidth: range(rand, 0.5, 0.8),
+      petiole: 0,
+      fan: range(rand, 0.3, 0.55),
+      curl: range(rand, 0.025, 0.06),
+      crown: 3,
+      stripe: null,
+      bands: false,
+      stalks: 2 + Math.floor(rand() * 4),
+      stalkLen: range(rand, 1.1, 1.35),
+      stalkCurl: range(rand, 0.02, 0.05),
+      flower: {
+        kind: 'plume',
+        size: range(rand, 0.8, 1.3),
+        color: pick(rand, [
+          { h: 40, s: 40, l: 75 }, // buff
+          { h: 45, s: 30, l: 85 }, // cream
+          { h: 340, s: 45, l: 75 }, // pink
+          { h: 290, s: 30, l: 58 }, // purple
+          { h: 20, s: 45, l: 55 }, // rust
+        ]),
+      },
+    };
+  },
+  // A rosette of arching striped leaves that sends out runners: they arch out and hang down with little white
+  // flowers along them and a baby plant at the end.
+  spider: (rand) => {
+    const cream = { h: range(rand, 50, 60), s: range(rand, 35, 50), l: range(rand, 82, 90) };
+    const r = rand();
+    return {
+      name: pick(rand, ['Spider plant', 'Chlorophytum', 'Airplane plant', 'Ribbon plant', 'Hen and chickens']),
+      leaf: { h: range(rand, 90, 120), s: range(rand, 40, 60), l: range(rand, 34, 44) },
+      stem: { h: range(rand, 60, 75), s: range(rand, 30, 45), l: range(rand, 58, 66) },
+      shape: 'strap',
+      leaves: 9 + Math.floor(rand() * 6),
+      leafLen: range(rand, 18, 30),
+      leafWidth: range(rand, 1, 1.5),
+      petiole: 0,
+      fan: range(rand, 0.5, 0.8),
+      curl: range(rand, 0.12, 0.22),
+      crown: 1.5,
+      stripe: r < 0.55 ? { where: 'centre', ...cream } : r < 0.8 ? { where: 'edge', ...cream } : null,
+      bands: false,
+      stalks: 2 + Math.floor(rand() * 3),
+      stalkLen: range(rand, 1.8, 2.8),
+      stalkCurl: range(rand, 0.14, 0.22),
+      flower: { kind: 'runner', size: range(rand, 0.8, 1.2), color: { h: 60, s: 20, l: 95 } },
+    };
+  },
+  // Stiff upright sword leaves with wavy pale bands across them, sometimes yellow-edged.
+  sword: (rand) => {
+    const leaf = { h: range(rand, 100, 140), s: range(rand, 30, 50), l: range(rand, 22, 30) };
+    return {
+      name: pick(rand, ['Snake plant', 'Sansevieria', "Mother-in-law's tongue", 'Bowstring hemp']),
+      leaf,
+      stem: leaf,
+      shape: 'sword',
+      leaves: 5 + Math.floor(rand() * 5),
+      leafLen: range(rand, 30, 52),
+      leafWidth: range(rand, 1.4, 2.2),
+      petiole: 0,
+      fan: range(rand, 0.15, 0.35),
+      curl: range(rand, 0, 0.02),
+      crown: 3,
+      stripe:
+        rand() < 0.5 ? { where: 'edge', h: range(rand, 50, 60), s: range(rand, 60, 80), l: range(rand, 55, 65) } : null,
+      bands: true,
+      stalks: 0,
+      stalkLen: 1,
+      stalkCurl: 0,
+      flower: null,
+    };
+  },
+};
+
+export const CLUMP_KINDS = Object.keys(CLUMP_FORMS);
+
+// A random clump plant species.
+export const makeClump = (rand) => {
+  const form = pick(rand, CLUMP_KINDS);
+  return { form, speed: range(rand, 0.012, 0.022), ...CLUMP_FORMS[form](rand) };
+};
+
 // Wallpaper styles: [key, label, detail (1..5, sets the price), smallest and largest pattern size in px].
 const WALLPAPER_STYLES = [
   ['stripes', 'stripes', 1, 3, 7],
