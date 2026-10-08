@@ -118,11 +118,12 @@ Shop, Garden (Prune, Relocate, Propagate and Feed), Saves and Settings. The game
   save, to keep a tank safe or move it to another browser.
 - Settings: Reset tank (asks twice) starts over with a fresh tank; saves are kept. Tank size: small, medium or large
   (256 by 341 or 320 by 427 pixels, standing up; or 512 by 384, on its side), shown as big as fits (a bigger one
-  never narrower than a smaller one would be); the tank moves into the new size with everything kept to the middle
-  and the floor, and a size narrower or shorter than this one asks first, as whatever doesn't fit is lost. A save
-  comes back at the size it was saved at. Debug mode (off to start, remembered) shows Load sample tank (asks twice;
-  swaps in the tank in `src/samples/`), buttons that make every bug idle, walk, eat, dance, wave its front legs,
-  pose as a twig or groom at once, and all the tuning sliders.
+  never narrower than a smaller one would be; medium and large grow to fill the room they have and, on a wide
+  screen, go beside the panel, as tall as the window, the panel scrolling alongside); the tank moves into the new
+  size with everything kept to the middle and the floor, and a size narrower or shorter than this one asks first, as
+  whatever doesn't fit is lost. A save comes back at the size it was saved at. Debug mode (off to start, remembered)
+  shows Load sample tank (asks twice; swaps in the tank in `src/samples/`), buttons that make every bug idle, walk,
+  eat, dance, wave its front legs, pose as a twig or groom at once, and all the tuning sliders.
 
 ## Code
 

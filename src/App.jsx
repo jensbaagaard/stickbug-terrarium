@@ -533,270 +533,273 @@ export default function App() {
         )}
       </div>
 
-      {snap?.selected && (
-        <Inspector
-          who={snap.selected}
-          onRelease={withSelected(release)}
-          onClose={act((w) => (w.selected = null))}
-        />
-      )}
+      {/* Everything but the tank: under it, or beside it on a wide screen (Terrarium decides). */}
+      <div className="panel">
+        {snap?.selected && (
+          <Inspector
+            who={snap.selected}
+            onRelease={withSelected(release)}
+            onClose={act((w) => (w.selected = null))}
+          />
+        )}
 
-      <div className="panelbar">
-        <nav className="tabs" role="tablist" aria-label="Panels">
-          {TABS.map(([key, label]) => (
-            <button
-              key={key}
-              type="button"
-              role="tab"
-              className="stack"
-              aria-selected={tab === key}
-              onClick={() => switchTab(key)}
-            >
-              <Icon name={key} />
-              {label}
-            </button>
-          ))}
-        </nav>
-        <span className="coins" aria-label="Coins">
-          <Icon name="coin" />
-          <span key={coins} className="bump">
-            {coins}
+        <div className="panelbar">
+          <nav className="tabs" role="tablist" aria-label="Panels">
+            {TABS.map(([key, label]) => (
+              <button
+                key={key}
+                type="button"
+                role="tab"
+                className="stack"
+                aria-selected={tab === key}
+                onClick={() => switchTab(key)}
+              >
+                <Icon name={key} />
+                {label}
+              </button>
+            ))}
+          </nav>
+          <span className="coins" aria-label="Coins">
+            <Icon name="coin" />
+            <span key={coins} className="bump">
+              {coins}
+            </span>
           </span>
-        </span>
-      </div>
+        </div>
 
-      {tab === 'editor' && (
-        <section className="editor" aria-label="Terrain editor">
-          <div className="palette" role="group" aria-label="Material">
-            {MATERIALS.map(([key, label]) => (
+        {tab === 'editor' && (
+          <section className="editor" aria-label="Terrain editor">
+            <div className="palette" role="group" aria-label="Material">
+              {MATERIALS.map(([key, label]) => (
+                <button
+                  key={key}
+                  type="button"
+                  className="stack"
+                  aria-pressed={brush.material === key}
+                  onClick={act((w) => setBrush(w, { material: key }))}
+                >
+                  <span className="chip" style={{ background: color(key) }} aria-hidden="true" />
+                  {label}
+                </button>
+              ))}
+            </div>
+            <div className="sizes" role="group" aria-label="Brush size">
+              {BRUSH_SIZES.map((size) => (
+                <button
+                  key={size}
+                  type="button"
+                  aria-label={`Size ${size}`}
+                  aria-pressed={brush.size === size}
+                  onClick={act((w) => setBrush(w, { size }))}
+                >
+                  <span className="dot" style={{ '--size': size, background: brushColor }} aria-hidden="true" />
+                </button>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {tab === 'shop' && (
+          <section className="shop" aria-label="Shop">
+            <div className="bar">
+              <button
+                type="button"
+                aria-pressed={snap?.placing === 'fountain'}
+                disabled={snap?.placing !== 'fountain' && coins < PRICES.fountain}
+                onClick={act((w) => startPlacing(w, 'fountain'))}
+              >
+                <Icon name="fountain" />
+                Fountain
+                <Price n={PRICES.fountain} short={coins < PRICES.fountain} />
+              </button>
+              {/* Fills up over the minute until rerolling is free again. */}
+              <button
+                type="button"
+                className="reroll"
+                style={{ '--ready': 1 - (snap?.rerollWait ?? 0) }}
+                disabled={coins < rerollCost}
+                onClick={act(buyReroll)}
+              >
+                <Icon name="reroll" />
+                Reroll shop
+                {rerollCost > 0 && <Price n={rerollCost} short={coins < rerollCost} />}
+              </button>
+            </div>
+            {SHOWCASE.map(([kind, label]) => (
+              <div key={kind} className="offers" role="group" aria-label={label}>
+                {snap?.shop?.[kind].map((offer) => (
+                  <Offer
+                    key={offer.id}
+                    offer={offer}
+                    active={snap.placingOffer === offer.id}
+                    short={coins < offer.price}
+                    blocked={offer.sold || (kind === 'bug' && snap.full)}
+                    onPick={act((w) => (kind === 'wallpaper' ? buyWallpaper(w, offer) : startPlacing(w, kind, offer)))}
+                  />
+                ))}
+              </div>
+            ))}
+            {/* The wallpapers bought so far, to put back up for free. */}
+            {snap?.wallpapers.length > 0 && (
+              <div className="offers library" role="group" aria-label="Your wallpapers">
+                <Wallpaper wp={null} active={snap.wallpaper === null} onPick={act((w) => hangWallpaper(w, null))} />
+                {snap.wallpapers.map((wp) => (
+                  <Wallpaper
+                    key={wp.seed}
+                    wp={wp}
+                    active={snap.wallpaper === wp.seed}
+                    onPick={act((w) => hangWallpaper(w, wp))}
+                  />
+                ))}
+              </div>
+            )}
+          </section>
+        )}
+
+        {tab === 'garden' && (
+          <section className="garden" role="group" aria-label="Gardening">
+            {GARDEN_TOOLS.map(([key, label]) => (
               <button
                 key={key}
                 type="button"
                 className="stack"
-                aria-pressed={brush.material === key}
-                onClick={act((w) => setBrush(w, { material: key }))}
+                aria-pressed={snap?.tool === key}
+                onClick={act((w) => setTool(w, w.tool === key ? 'hand' : key))}
               >
-                <span className="chip" style={{ background: color(key) }} aria-hidden="true" />
+                <Icon name={key} scale={3} />
                 {label}
               </button>
             ))}
-          </div>
-          <div className="sizes" role="group" aria-label="Brush size">
-            {BRUSH_SIZES.map((size) => (
-              <button
-                key={size}
-                type="button"
-                aria-label={`Size ${size}`}
-                aria-pressed={brush.size === size}
-                onClick={act((w) => setBrush(w, { size }))}
-              >
-                <span className="dot" style={{ '--size': size, background: brushColor }} aria-hidden="true" />
+            <button type="button" className="stack" disabled={!snap?.fish} onClick={act(feedFish)}>
+              <Icon name="feed" scale={3} />
+              Feed
+            </button>
+          </section>
+        )}
+
+        {tab === 'saves' && (
+          <section className="saves" aria-label="Saves">
+            <div className="bar">
+              <button type="button" onClick={saveNew}>
+                <Icon name="saves" />
+                Save
               </button>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {tab === 'shop' && (
-        <section className="shop" aria-label="Shop">
-          <div className="bar">
-            <button
-              type="button"
-              aria-pressed={snap?.placing === 'fountain'}
-              disabled={snap?.placing !== 'fountain' && coins < PRICES.fountain}
-              onClick={act((w) => startPlacing(w, 'fountain'))}
-            >
-              <Icon name="fountain" />
-              Fountain
-              <Price n={PRICES.fountain} short={coins < PRICES.fountain} />
-            </button>
-            {/* Fills up over the minute until rerolling is free again. */}
-            <button
-              type="button"
-              className="reroll"
-              style={{ '--ready': 1 - (snap?.rerollWait ?? 0) }}
-              disabled={coins < rerollCost}
-              onClick={act(buyReroll)}
-            >
-              <Icon name="reroll" />
-              Reroll shop
-              {rerollCost > 0 && <Price n={rerollCost} short={coins < rerollCost} />}
-            </button>
-          </div>
-          {SHOWCASE.map(([kind, label]) => (
-            <div key={kind} className="offers" role="group" aria-label={label}>
-              {snap?.shop?.[kind].map((offer) => (
-                <Offer
-                  key={offer.id}
-                  offer={offer}
-                  active={snap.placingOffer === offer.id}
-                  short={coins < offer.price}
-                  blocked={offer.sold || (kind === 'bug' && snap.full)}
-                  onPick={act((w) => (kind === 'wallpaper' ? buyWallpaper(w, offer) : startPlacing(w, kind, offer)))}
-                />
-              ))}
-            </div>
-          ))}
-          {/* The wallpapers bought so far, to put back up for free. */}
-          {snap?.wallpapers.length > 0 && (
-            <div className="offers library" role="group" aria-label="Your wallpapers">
-              <Wallpaper wp={null} active={snap.wallpaper === null} onPick={act((w) => hangWallpaper(w, null))} />
-              {snap.wallpapers.map((wp) => (
-                <Wallpaper
-                  key={wp.seed}
-                  wp={wp}
-                  active={snap.wallpaper === wp.seed}
-                  onPick={act((w) => hangWallpaper(w, wp))}
-                />
-              ))}
-            </div>
-          )}
-        </section>
-      )}
-
-      {tab === 'garden' && (
-        <section className="garden" role="group" aria-label="Gardening">
-          {GARDEN_TOOLS.map(([key, label]) => (
-            <button
-              key={key}
-              type="button"
-              className="stack"
-              aria-pressed={snap?.tool === key}
-              onClick={act((w) => setTool(w, w.tool === key ? 'hand' : key))}
-            >
-              <Icon name={key} scale={3} />
-              {label}
-            </button>
-          ))}
-          <button type="button" className="stack" disabled={!snap?.fish} onClick={act(feedFish)}>
-            <Icon name="feed" scale={3} />
-            Feed
-          </button>
-        </section>
-      )}
-
-      {tab === 'saves' && (
-        <section className="saves" aria-label="Saves">
-          <div className="bar">
-            <button type="button" onClick={saveNew}>
-              <Icon name="saves" />
-              Save
-            </button>
-            <button type="button" onClick={() => importInput.current.click()}>
-              <Icon name="import" />
-              Import
-            </button>
-            <input ref={importInput} type="file" accept=".json,application/json" hidden onChange={importFile} />
-            <label className="toggle">
-              <input type="checkbox" checked={autosave} onChange={(e) => toggleAutosave(e.target.checked)} />
-              Autosave
-            </label>
-          </div>
-          {saveNote && <p className="status">{saveNote}</p>}
-          {saves.length > 0 && (
-            <ul className="list">
-              {saves.map((s) => (
-                <Save
-                  key={s.id}
-                  save={s}
-                  flash={flash === s.id}
-                  onLoad={loadSave(s)}
-                  onOverwrite={overwrite(s)}
-                  onExport={exportSave(s)}
-                  onDelete={remove(s)}
-                />
-              ))}
-            </ul>
-          )}
-        </section>
-      )}
-
-      {tab === 'settings' && (
-        <section className="settings" aria-label="Settings">
-          <div className="bar">
-            <ConfirmButton onConfirm={() => swap(createWorld)}>Reset tank</ConfirmButton>
-            <label className="toggle">
-              <input type="checkbox" checked={debug} onChange={(e) => toggleDebug(e.target.checked)} />
-              Debug mode
-            </label>
-          </div>
-          {/* A tank narrower or shorter than this one cuts off what doesn't fit, so that asks first. */}
-          <div className="bar sizes-bar" role="group" aria-label="Tank size">
-            {Object.entries(TANK_SIZES).map(([key, [w, h]]) => {
-              const label = key[0].toUpperCase() + key.slice(1);
-              const [cw, ch] = snap ? [snap.W, snap.H] : TANK_SIZES[size];
-              const current = w === cw && h === ch;
-              if (!current && (w < cw || h < ch)) {
-                return (
-                  <ConfirmButton key={key} onConfirm={() => resize(key)} confirm="Shrink?">
-                    {label}
-                  </ConfirmButton>
-                );
-              }
-              return (
-                <button key={key} type="button" aria-pressed={current} onClick={() => !current && resize(key)}>
-                  {label}
-                </button>
-              );
-            })}
-          </div>
-        </section>
-      )}
-
-      {tab === 'settings' && debug && (
-        <>
-          <div className="bar" role="group" aria-label="Sample">
-            <ConfirmButton onConfirm={loadSample}>Load sample tank</ConfirmButton>
-          </div>
-          <div className="commands" role="group" aria-label="Make every bug">
-            {COMMANDS.map(([action, label]) => (
-              <button key={action} type="button" onClick={act((w) => command(w, action))}>
-                {label}
+              <button type="button" onClick={() => importInput.current.click()}>
+                <Icon name="import" />
+                Import
               </button>
-            ))}
-          </div>
-          <div className="bar" role="group" aria-label="Bugs">
-            <button type="button" onClick={act((w) => w.bugs.forEach((b) => rerollGenes(w, b)))}>
-              Re-roll all bugs
-            </button>
-          </div>
+              <input ref={importInput} type="file" accept=".json,application/json" hidden onChange={importFile} />
+              <label className="toggle">
+                <input type="checkbox" checked={autosave} onChange={(e) => toggleAutosave(e.target.checked)} />
+                Autosave
+              </label>
+            </div>
+            {saveNote && <p className="status">{saveNote}</p>}
+            {saves.length > 0 && (
+              <ul className="list">
+                {saves.map((s) => (
+                  <Save
+                    key={s.id}
+                    save={s}
+                    flash={flash === s.id}
+                    onLoad={loadSave(s)}
+                    onOverwrite={overwrite(s)}
+                    onExport={exportSave(s)}
+                    onDelete={remove(s)}
+                  />
+                ))}
+              </ul>
+            )}
+          </section>
+        )}
 
-          <section className="tuner" aria-label="Stickbug tuning">
-            {GROUPS.map(({ title, sliders }, i) => (
-              <details key={title} className="group" open={i === 0}>
-                <summary>{title}</summary>
-                {sliders.map(([key]) => {
-                  const { label, min, max, step, names } = SLIDER[key];
+        {tab === 'settings' && (
+          <section className="settings" aria-label="Settings">
+            <div className="bar">
+              <ConfirmButton onConfirm={() => swap(createWorld)}>Reset tank</ConfirmButton>
+              <label className="toggle">
+                <input type="checkbox" checked={debug} onChange={(e) => toggleDebug(e.target.checked)} />
+                Debug mode
+              </label>
+            </div>
+            {/* A tank narrower or shorter than this one cuts off what doesn't fit, so that asks first. */}
+            <div className="bar sizes-bar" role="group" aria-label="Tank size">
+              {Object.entries(TANK_SIZES).map(([key, [w, h]]) => {
+                const label = key[0].toUpperCase() + key.slice(1);
+                const [cw, ch] = snap ? [snap.W, snap.H] : TANK_SIZES[size];
+                const current = w === cw && h === ch;
+                if (!current && (w < cw || h < ch)) {
                   return (
-                    <label key={key} className="row">
-                      <span>{label}</span>
-                      <input
-                        id={`s-${key}`}
-                        type="range"
-                        min={min}
-                        max={max}
-                        step={step}
-                        value={values[key]}
-                        onChange={(e) => update({ ...values, [key]: Number(e.target.value) })}
-                      />
-                      <output>{names ? names[values[key]] : values[key]}</output>
-                    </label>
+                    <ConfirmButton key={key} onConfirm={() => resize(key)} confirm="Shrink?">
+                      {label}
+                    </ConfirmButton>
                   );
-                })}
-              </details>
-            ))}
-            <textarea id="values" readOnly rows={3} value={json} onFocus={(e) => e.target.select()} />
-            <div className="actions">
-              <button type="button" onClick={copy}>
-                {copied ? 'Copied' : 'Copy values'}
-              </button>
-              <button type="button" onClick={() => update({ ...DEFAULTS })}>
-                Reset all
-              </button>
+                }
+                return (
+                  <button key={key} type="button" aria-pressed={current} onClick={() => !current && resize(key)}>
+                    {label}
+                  </button>
+                );
+              })}
             </div>
           </section>
-        </>
-      )}
+        )}
+
+        {tab === 'settings' && debug && (
+          <>
+            <div className="bar" role="group" aria-label="Sample">
+              <ConfirmButton onConfirm={loadSample}>Load sample tank</ConfirmButton>
+            </div>
+            <div className="commands" role="group" aria-label="Make every bug">
+              {COMMANDS.map(([action, label]) => (
+                <button key={action} type="button" onClick={act((w) => command(w, action))}>
+                  {label}
+                </button>
+              ))}
+            </div>
+            <div className="bar" role="group" aria-label="Bugs">
+              <button type="button" onClick={act((w) => w.bugs.forEach((b) => rerollGenes(w, b)))}>
+                Re-roll all bugs
+              </button>
+            </div>
+
+            <section className="tuner" aria-label="Stickbug tuning">
+              {GROUPS.map(({ title, sliders }, i) => (
+                <details key={title} className="group" open={i === 0}>
+                  <summary>{title}</summary>
+                  {sliders.map(([key]) => {
+                    const { label, min, max, step, names } = SLIDER[key];
+                    return (
+                      <label key={key} className="row">
+                        <span>{label}</span>
+                        <input
+                          id={`s-${key}`}
+                          type="range"
+                          min={min}
+                          max={max}
+                          step={step}
+                          value={values[key]}
+                          onChange={(e) => update({ ...values, [key]: Number(e.target.value) })}
+                        />
+                        <output>{names ? names[values[key]] : values[key]}</output>
+                      </label>
+                    );
+                  })}
+                </details>
+              ))}
+              <textarea id="values" readOnly rows={3} value={json} onFocus={(e) => e.target.select()} />
+              <div className="actions">
+                <button type="button" onClick={copy}>
+                  {copied ? 'Copied' : 'Copy values'}
+                </button>
+                <button type="button" onClick={() => update({ ...DEFAULTS })}>
+                  Reset all
+                </button>
+              </div>
+            </section>
+          </>
+        )}
+      </div>
     </>
   );
 }

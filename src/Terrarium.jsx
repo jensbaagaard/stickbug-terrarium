@@ -22,6 +22,12 @@ import { SCISSORS_CURSOR } from './icons.js';
 const MAX_SCALE = 2;
 const HEIGHT_SHARE = 0.7;
 const GUTTER = 38; // css px beside the tank: the page's padding and the tank's frame
+// Medium and large tanks may go bigger, up to BIG_SCALE css px to a world pixel, filling the room they have (a
+// whole number of screen pixels to each if that nearly fills it); and on a wide enough screen beside the panel
+// (PANEL_WIDTH css px, plus GAP), where they can be as tall as the window, if that makes them no smaller.
+const BIG_SCALE = 3;
+const PANEL_WIDTH = 380; // styles.css --panel-width
+const GAP = 14;
 const TICK_MS = 1000 / 60;
 
 // The cursor says what a press would do there.
@@ -57,16 +63,27 @@ export default function Terrarium({ worldRef: ref, size = 'small' }) {
       }
       const dpr = window.devicePixelRatio || 1;
       const across = document.documentElement.clientWidth - GUTTER;
-      // css px wide a tank W by H is shown at: whole screen pixels to a world pixel, as many as fit.
-      const crisp = (W, H) => {
+      // How a tank W by H is shown on its own: css px wide, and whether beside the panel. Small: whole screen pixels
+      // to a world pixel, as many as fit. Bigger: as big as fits, under the panel or beside it.
+      const [sw, sh] = TANK_SIZES.small;
+      const own = (W, H) => {
         const room = Math.min(W * MAX_SCALE, across, (innerHeight * HEIGHT_SHARE * W) / H);
-        return (W * Math.max(1, Math.floor((room * dpr) / W))) / dpr;
+        const crisp = (W * Math.max(1, Math.floor((room * dpr) / W))) / dpr;
+        if (W * H <= sw * sh) return { w: crisp, side: false };
+        const under = Math.min(W * BIG_SCALE, across, (innerHeight * HEIGHT_SHARE * W) / H);
+        const beside = Math.min(W * BIG_SCALE, across - GAP - PANEL_WIDTH, ((innerHeight - GUTTER) * W) / H);
+        const side = beside >= under; // beside, the panel stays in view too
+        const k = ((side ? beside : under) * dpr) / W; // screen pixels to a world pixel, filling it
+        return { w: Math.max(crisp, (W * (Math.floor(k) >= k * 0.92 ? Math.floor(k) : k)) / dpr), side };
       };
-      const smaller = Object.values(TANK_SIZES).filter(([sw]) => sw <= W);
-      const w = Math.max(crisp(W, H), ...smaller.map(([sw, sh]) => crisp(sw, sh)));
+      // ... and never narrower than a smaller size would be.
+      const { side } = own(W, H);
+      const sizes = Object.values(TANK_SIZES).filter(([tw, th]) => tw * th <= W * H);
+      const w = Math.max(own(W, H).w, ...sizes.map(([tw, th]) => own(tw, th).w));
       const h = (w * H) / W;
       Object.assign(canvas.style, { width: `${w}px`, height: `${h}px` });
       document.documentElement.style.setProperty('--tank-width', `${w}px`);
+      document.documentElement.classList.toggle('side', side);
     };
     fit();
 

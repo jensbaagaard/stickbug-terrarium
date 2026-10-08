@@ -22,6 +22,7 @@ body {
   padding: 16px;
 }
 #app {
+  --panel-width: 380px; /* beside the tank; Terrarium's PANEL_WIDTH */
   width: 100%;
   max-width: calc(var(--tank-width, 440px) + 6px); /* the tank and its frame; Terrarium sizes the tank */
   margin-inline: auto;
@@ -29,6 +30,16 @@ body {
   flex-direction: column;
   gap: 14px;
 }
+.panel { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+/* On a wide screen a medium or large tank goes beside the panel, so it can be as tall as the window, and stays in
+   view while the panel scrolls. */
+.side #app {
+  flex-direction: row;
+  align-items: flex-start;
+  max-width: calc(var(--tank-width, 440px) + 6px + 14px + var(--panel-width));
+}
+.side .tank { flex: none; position: sticky; top: 16px; }
+.side .panel { flex: none; width: var(--panel-width); }
 .tank { position: relative; border: 3px solid var(--frame); background: #000; }
 /* Full screen: the tank alone, in the middle of a black screen. */
 .tank:fullscreen { display: flex; align-items: center; justify-content: center; border: 0; }
