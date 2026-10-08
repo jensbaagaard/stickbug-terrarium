@@ -78,6 +78,11 @@ const GRASS_STUB = 0.25; // grass cut down to less than this share of its full h
 const VINE_REACH = 14; // px: a vine hangs from anything this close to where you tap
 const PLACE_REACH = 50; // px: plants and sticks land on the first thing at most this far below where you tap
 const CLIPPING_LEN = 6; // px of pruned plant stem per coin; clippings are the only income
+const BEND_STIFFNESS = 0.06; // how hard a bent stem springs back
+const BEND_DAMPING = 0.9;
+const CURRENT = 0.0015; // how hard the water rocks a stem, radians per tick per tick
+const VINE_CURRENT = 0.04; // and a vine's nodes, px per tick per tick
+const FLEX = 0.15; // how hard pulled grass springs back
 export const PRICES = { fountain: 15 }; // fixed prices for anything not showcased; showcased kinds are priced per offer
 const SHOP_KINDS = ['bug', 'plant', 'stick', 'wallpaper']; // showcased in the shop, OFFERS of each
 const OFFERS = 4;
@@ -468,7 +473,8 @@ export const createWorld = (W, H, { seed = Date.now(), scene = true } = {}) => {
     press: null,
     pointer: { x: 0, y: 0 },
     hover: false, // the pointer is over the tank, so what's under it can be marked
-    touch: null, // where a press on empty space started, to tell taps from drags
+    touch: null, // where a press on empty space started, to tell taps from drags, and any plant there
+    pull: null, // the plant, vine or grass being pulled about, and where it was grabbed
     cut: null,
     shop: null, // the showcased offers, by kind
     offers: 0,
@@ -885,7 +891,7 @@ export const stageOffer = (world, offer) => {
   }
   const obj = addDecor(world, build(world, kind, offer.seed, x, world.H));
   if (kind === 'plant') {
-    const busy = () => obj.stems.some((st) => st.growing || st.sprout > 0 || (st.flower > 0 && st.flower < 1));
+    const busy = () => obj.stems.some((st) => st.growing || st.sprout > 0 || (st.bud && st.flower < 1));
     for (let i = 0; i < 20000 && busy(); i++) growPlant(world, obj, 4);
     const b = box(obj.stems.flatMap((st) => [st.root, st.tip]), 8 + obj.species.flower.size * 6);
     return { ...b, y1: world.ground.y0 + 2 };
@@ -906,8 +912,13 @@ const newStem = (world, plant, parent, from, angle) => ({
   parent,
   depth: parent ? parent.depth + 1 : 0,
   target: plant.species.internode * (0.8 + world.rand() * 0.4),
+  len: 0,
   growing: true,
+  bend: 0, // radians it's bent off the way it grew, at its root
+  spin: 0, // how fast the bend is changing
+  turn: 0, // how far it's turned in all: its bend and the turn of the stem it grows from
   sprout: 0, // ticks until a pruned stem sprouts new shoots
+  bud: false, // it flowers (out of the water)
   flower: 0, // bloom, 0..1
   sideBloom: false, // a flower part way up the stem rather than at a tip
   leaves: [], // {at: 0..1 along the stem, side: +-1, size}
@@ -927,7 +938,8 @@ const growPlant = (world, plant, rate) => {
   const sp = plant.species;
   for (const stem of [...plant.stems]) {
     for (const leaf of stem.leaves) leaf.size = Math.min(1, leaf.size + LEAF_GROWTH * 2 * rate);
-    if (stem.flower > 0) stem.flower = Math.min(1, stem.flower + 0.002 * rate);
+    // Flowers only open in the air: under water they close up again, until it's gone.
+    if (stem.bud) stem.flower = clamp(stem.flower + (wetAt(world.terrain, stem.tip) ? -0.01 : 0.002 * rate), 0, 1);
     if (stem.sprout > 0) {
       stem.sprout -= rate;
       if (stem.sprout <= 0) {
@@ -936,22 +948,60 @@ const growPlant = (world, plant, rate) => {
       }
     }
     if (!stem.growing) continue;
-    const len = dist(stem.root, stem.tip) + sp.speed * rate;
-    stem.tip = add(stem.root, dirOf(stem.angle), len);
-    if (len < stem.target && stem.tip.y > 3 && stem.tip.x > 1 && stem.tip.x < world.W - 2) continue;
+    stem.len += sp.speed * rate;
+    if (stem.len < stem.target && stem.tip.y > 3 && stem.tip.x > 1 && stem.tip.x < world.W - 2) continue;
     stem.growing = false;
     stem.leaves.push({ at: 1, side: 1, size: 0 }, { at: 1, side: -1, size: 0 });
     if (stem.depth + 1 >= sp.maxNodes || stem.tip.y <= 3) {
-      stem.flower = 0.01;
+      stem.bud = true;
     } else {
-      if (world.rand() < sp.flower.nodeBloom) {
-        // Flowering along the stem: smaller than the flowers at the tips.
-        stem.flower = 0.01;
-        stem.sideBloom = true;
-      }
+      // Flowering along the stem: smaller than the flowers at the tips.
+      if (world.rand() < sp.flower.nodeBloom) Object.assign(stem, { bud: true, sideBloom: true });
       sprout(world, plant, stem, world.rand() < sp.branchChance ? 2 : 1);
     }
   }
+  bendPlant(world, plant);
+};
+
+const wrapAngle = (a) => Math.atan2(Math.sin(a), Math.cos(a));
+
+// Each stem points the way it grew, turned as far as the stem it grows from, and bent at its root. Bent, it springs
+// back, so a plant pulled about bends along its length and wobbles back when let go, and under water the current
+// rocks it.
+const bendPlant = (world, plant) => {
+  const pull = world.pull?.obj === plant && plant.stems.includes(world.pull.stem) ? world.pull : null;
+  const goals = pull ? reachFor(plant, pull.stem, add(world.pointer, pull.off)) : null;
+  for (const stem of plant.stems) {
+    const root = stem.parent ? stem.parent.tip : plant.base;
+    const rest = stem.angle + (stem.parent?.turn ?? 0); // the way it points unbent
+    const goal = goals?.get(stem);
+    if (goal) {
+      const bend = wrapAngle(Math.atan2(goal.y - root.y, goal.x - root.x) - rest);
+      [stem.spin, stem.bend] = [wrapAngle(bend - stem.bend), bend];
+    } else {
+      const wet = wetAt(world.terrain, stem.tip);
+      const push = wet ? CURRENT * Math.sin(world.time * 0.03 - stem.depth * 0.5 + plant.base.x) : 0;
+      stem.spin = (stem.spin - stem.bend * BEND_STIFFNESS - push * Math.sin(rest + stem.bend)) * BEND_DAMPING;
+      stem.bend += stem.spin;
+    }
+    stem.turn = (stem.parent?.turn ?? 0) + stem.bend;
+    Object.assign(stem, { root, tip: add(root, dirOf(rest + stem.bend), stem.len) });
+  }
+};
+
+// Where each stem from the base up to the one pulled should point for that one's tip to reach goal, or get as near
+// as it can: a pass of FABRIK a tick, plenty to keep up with the pointer.
+const reachFor = (plant, pulled, goal) => {
+  const chain = [];
+  for (let s = pulled; s; s = s.parent) chain.unshift(s);
+  const toward = (a, b, len) => lerp(a, b, len / (dist(a, b) || 1));
+  const n = chain.length;
+  const pts = [plant.base, ...chain.map((s) => s.tip)];
+  const total = chain.reduce((sum, s) => sum + s.len, 0);
+  pts[n] = toward(plant.base, goal, Math.min(total, dist(plant.base, goal)));
+  for (let i = n - 1; i > 0; i--) pts[i] = toward(pts[i + 1], pts[i], chain[i].len);
+  for (let i = 1; i <= n; i++) pts[i] = toward(pts[i - 1], pts[i], chain[i - 1].len);
+  return new Map(chain.map((s, i) => [s, pts[i + 1]]));
 };
 
 const stemDescendants = (plant, stem) => {
@@ -983,7 +1033,7 @@ const prunePlant = (world, plant, stem, p) => {
   } else {
     const was = dist(stem.root, stem.tip);
     stem.leaves = stem.leaves.filter((l) => l.at * was <= kept).map((l) => ({ ...l, at: (l.at * was) / kept }));
-    Object.assign(stem, { tip: p, growing: false, flower: 0, sprout: SPROUT_TICKS });
+    Object.assign(stem, { tip: p, len: kept, growing: false, bud: false, flower: 0, sprout: SPROUT_TICKS });
   }
   plant.stems = plant.stems.filter((s) => !doomed.includes(s));
   if (!plant.stems.length) world.objects = world.objects.filter((o) => o !== plant);
@@ -1037,6 +1087,8 @@ const solidAt = (ter, x, y) => {
   const i = cellAt(ter, x, y);
   return i >= 0 && ter.cells[i] !== EMPTY && ter.cells[i] !== WATER;
 };
+
+const wetAt = (ter, p) => ter.cells[cellAt(ter, p.x, p.y)] === WATER;
 
 // Where to hang a vine off the terrain near (x, y): under a solid cell with open space below it (an overhang
 // or a ledge), or against the face of one with open space beside and below it. at is where it hangs from,
@@ -1101,10 +1153,20 @@ const growGrass = (world, patch, rate) => {
     patch.tufts.push({ x, y, size: 0.05, seed: world.rand() * 1000, dying: false });
   }
   if (!patch.tufts.length) world.objects = world.objects.filter((o) => o !== patch);
+  // Pulled, the tufts near where it was grabbed bend over toward the pointer; let go, they spring back.
+  const pull = world.pull?.obj === patch ? world.pull : null;
+  if (pull) patch.flex = { dx: 0, v: 0, ...patch.flex, x: pull.x };
+  const flex = patch.flex;
+  if (!flex) return;
+  const to = pull && clamp(world.pointer.x - pull.x, -g.height, g.height);
+  flex.v = pull ? to - flex.dx : (flex.v - flex.dx * FLEX) * 0.85;
+  flex.dx += flex.v;
+  if (!pull && Math.abs(flex.dx) + Math.abs(flex.v) < 0.05) patch.flex = null;
 };
 
 // A vine is a rope of nodes hanging from its anchor: it grows a node at a time, sways in the breeze, and
-// drapes onto whatever floor it reaches.
+// drapes onto whatever floor it reaches. Under water it floats and rocks in the current; pulled, the node
+// grabbed follows the pointer as far as the rope reaches.
 const growVine = (world, vine, rate) => {
   const g = vine.genome;
   const nodes = vine.nodes;
@@ -1119,28 +1181,34 @@ const growVine = (world, vine, rate) => {
   }
   const breeze = Math.sin(world.time * 0.017 + vine.base.x * 0.05) * 0.015 * (1 - g.stiffness * 0.7);
   Object.assign(nodes[0], { x: vine.base.x, y: vine.base.y });
-  for (const p of nodes.slice(1)) {
+  nodes.forEach((p, i) => {
+    if (i === 0) return;
+    p.wet = wetAt(world.terrain, p);
     const vx = (p.x - p.px) * 0.95;
     const vy = (p.y - p.py) * 0.95;
     p.px = p.x;
     p.py = p.y;
-    p.x += vx + breeze;
-    p.y += vy + params.gravity * 0.4;
+    p.x += vx + breeze + (p.wet ? VINE_CURRENT * Math.sin(world.time * 0.03 - i * 0.4) : 0);
+    p.y += vy + params.gravity * (p.wet ? 0.1 : 0.4);
+  });
+  const held = world.pull?.obj === vine && world.pull.i < nodes.length ? world.pull.i : 0;
+  if (held) {
+    const goal = add(world.pointer, world.pull.off);
+    Object.assign(nodes[held], lerp(nodes[0], goal, Math.min(1, (held * g.spacing) / (dist(nodes[0], goal) || 1))));
   }
   for (let it = 0; it < 4; it++) {
     for (let i = 1; i < nodes.length; i++) {
       const a = nodes[i - 1];
       const b = nodes[i];
+      const [wa, wb] = [i - 1 === 0 || i - 1 === held ? 0 : 1, i === held ? 0 : 1]; // the anchor and held node stay
+      if (!wa && !wb) continue;
       const dx = b.x - a.x;
       const dy = b.y - a.y;
-      const k = (Math.hypot(dx, dy) - g.spacing) / (Math.hypot(dx, dy) || 1);
-      const share = i === 1 ? 1 : 0.5; // the anchor doesn't move
-      b.x -= dx * k * share;
-      b.y -= dy * k * share;
-      if (i > 1) {
-        a.x += dx * k * 0.5;
-        a.y += dy * k * 0.5;
-      }
+      const k = (Math.hypot(dx, dy) - g.spacing) / (Math.hypot(dx, dy) || 1) / (wa + wb);
+      b.x -= dx * k * wb;
+      b.y -= dy * k * wb;
+      a.x += dx * k * wa;
+      a.y += dy * k * wa;
     }
   }
   for (const p of nodes.slice(1)) {
@@ -1330,7 +1398,16 @@ export const pointerDown = (world, x, y) => {
   }
   const hit = bugAt(world, x, y);
   if (hit) world.press = { ...hit, x, y };
-  else world.touch = { x, y };
+  else world.touch = { x, y, hit: prunableAt(world, x, y, true) }; // a plant there, to pull if it's dragged
+};
+
+// Take hold of a plant, vine or grass where it was pressed (hit, as prunableAt gives it), to pull it about: a
+// plant by the stem, a vine by the node below, grass where it was grabbed.
+const grab = (hit) => {
+  const off = (p) => ({ x: p.x - hit.p.x, y: p.y - hit.p.y });
+  if (hit.plant) return { obj: hit.plant, stem: hit.stem, off: off(hit.stem.tip) };
+  if (hit.vine) return { obj: hit.vine, i: hit.at, off: off(hit.vine.nodes[hit.at]) };
+  return { obj: hit.grass, x: hit.p.x };
 };
 
 export const pointerMove = (world, x, y) => {
@@ -1347,6 +1424,11 @@ export const pointerMove = (world, x, y) => {
     world.press = null;
     detach(press.bug, 'held');
     world.held = { bug: press.bug, i: press.i };
+  }
+  const touch = world.touch;
+  if (touch?.hit && Math.hypot(x - touch.x, y - touch.y) > PRESS_SLOP) {
+    world.touch = null;
+    world.pull = grab(touch.hit);
   }
   if (world.cut) Object.assign(world.cut, { x1: x, y1: y });
 };
@@ -1375,6 +1457,10 @@ export const pointerUp = (world, x, y) => {
     world.held = null;
     setState(bug, 'fall', 0);
   }
+  if (world.pull) {
+    world.pull = null; // let go, it springs back
+    return;
+  }
   const cut = world.cut;
   world.cut = null;
   if (cut) {
@@ -1389,14 +1475,14 @@ export const pointerUp = (world, x, y) => {
 
 export const pointerCancel = (world) => {
   if (world.held) setState(world.held.bug, 'fall', 0);
-  Object.assign(world, { held: null, press: null, touch: null, cut: null, painting: false, moving: null });
+  Object.assign(world, { held: null, press: null, touch: null, pull: null, cut: null, painting: false, moving: null });
 };
 
 // What a press at the pointer would do, to show it before it's done: grab a bug, cut something there (hit, as
 // prunableAt gives it), lift a plant to move it, pick a plant to take a cutting from, or put down the plant
 // lifted or picked. Null if nothing, or the pointer isn't over the tank.
 export const aimAt = (world) => {
-  if (!world.hover || world.placing || world.held || world.cut || world.painting) return null;
+  if (!world.hover || world.placing || world.held || world.pull || world.cut || world.painting) return null;
   const { x, y } = world.pointer;
   const tool = world.tool;
   if (tool === 'hand' && bugAt(world, x, y)) return { kind: 'bug' };
@@ -1465,7 +1551,7 @@ const relocate = (world, obj, to) => {
 export const propagatable = (obj) =>
   obj.kind === 'plant' &&
   obj.stems.some((st) => st.flower >= 1) &&
-  obj.stems.every((st) => !st.growing && st.sprout <= 0 && (st.flower === 0 || st.flower >= 1));
+  obj.stems.every((st) => !st.growing && st.sprout <= 0 && (!st.bud || st.flower >= 1));
 
 // Take a cutting: a seedling of the same species goes in at to, and the parent is cut right back to a seedling
 // too, so both start again.
@@ -2105,7 +2191,8 @@ export const importWorld = (data, W, H) => {
       world.branches.push(...obj.segs);
     } else if (o.kind === 'plant') {
       obj.species = o.species;
-      obj.stems = o.stems.map((st) => ({ ...st, root: at(st.root), tip: at(st.tip) }));
+      const fresh = (st) => ({ len: dist(st.root, st.tip), bend: 0, spin: 0, turn: 0, bud: st.flower > 0 });
+      obj.stems = o.stems.map((st) => ({ ...fresh(st), ...st, root: at(st.root), tip: at(st.tip) }));
       obj.stems.forEach((st) => (st.parent = obj.stems[st.parent] ?? null));
     } else if (o.kind === 'grass') {
       Object.assign(obj, { genome: o.genome, tufts: o.tufts.map((tuft) => ({ ...tuft, ...at(tuft) })) });

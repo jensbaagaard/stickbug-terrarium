@@ -248,7 +248,7 @@ const drawPlant = (ctx, plant, time) => {
   }
   for (const st of plant.stems) {
     if (st.flower <= 0) continue;
-    const turn = (st.root.x * 13 + st.root.y * 7) % 6.28;
+    const turn = (st.angle * 1000) % 6.28; // not its position, which moves as it bends
     drawFlower(ctx, sp.flower, sway(st.tip), st.flower, turn, st.sideBloom ? 0.55 : 1);
   }
 };
@@ -275,15 +275,17 @@ const drawGrass = (ctx, patches, time) => {
   for (const patch of patches) {
     const g = patch.genome;
     const tones = [0, 0.5, 1].map((f) => pixel(hslHex(g.blade.h, g.blade.s, g.blade.l + g.tipLight * f)));
+    const flex = patch.flex; // pulled over toward the pointer, most where it was grabbed
     for (const tuft of patch.tufts) {
       const sway = Math.sin(time * 0.03 + tuft.x * 0.2) * 0.15;
+      const pull = flex ? flex.dx * Math.max(0, 1 - Math.abs(tuft.x - flex.x) / 8) : 0;
       for (let b = 0; b < g.blades; b++) {
         const a = -Math.PI / 2 + g.lean + (b - (g.blades - 1) / 2) * g.fan;
         const len = g.height * tuft.size * (0.7 + 0.5 * hash(tuft.seed, b, 1));
         let tip = null;
         for (let k = 0; k <= len; k++) {
           const f = k / Math.max(1, len);
-          const x = tuft.x + Math.cos(a) * k + sway * k * f;
+          const x = tuft.x + Math.cos(a) * k + sway * k * f + pull * f * f;
           const y = tuft.y + Math.sin(a) * k;
           dot(Math.round(x), Math.round(y), tones[Math.min(2, Math.floor(f * 3))]);
           tip = { x, y };
@@ -312,7 +314,7 @@ const drawGrass = (ctx, patches, time) => {
 };
 
 // A hanging vine: its stem through the rope's nodes, a leaf off each node on alternating sides (smaller near
-// the growing tip), pale-edged if variegated, and a flower every few nodes.
+// the growing tip), pale-edged if variegated, and a flower every few nodes out of the water.
 const drawVine = (ctx, vine) => {
   const g = vine.genome;
   const nodes = vine.nodes;
@@ -338,7 +340,7 @@ const drawVine = (ctx, vine) => {
     const grown = Math.min(1, (nodes.length - i) / 3);
     const len = (3 + 4 * g.leafSize) * form.len * grown;
     if (len >= 1) leafShape(ctx, nodes[i], axis, len, form, 1.2 * g.leafSize * grown, fill, vein);
-    if (g.flower && i % g.flower.every === 0 && grown >= 1) {
+    if (g.flower && i % g.flower.every === 0 && grown >= 1 && !nodes[i].wet) {
       ctx.fillStyle = hslHex(g.flower.h, g.flower.s, g.flower.l);
       const c = add(nodes[i], axis, -2);
       for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) {

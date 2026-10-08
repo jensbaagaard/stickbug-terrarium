@@ -25,10 +25,11 @@ const TICK_MS = 1000 / 60;
 // The cursor says what a press would do there.
 const AIM_CURSORS = { bug: 'grab', cut: SCISSORS_CURSOR, lift: 'grab', pick: 'pointer', drop: 'copy' };
 const cursorOf = (world) => {
-  if (world.held || (world.moving && world.tool === 'move')) return 'grabbing';
+  if (world.held || world.pull || (world.moving && world.tool === 'move')) return 'grabbing';
   if (world.tool === 'paint') return 'crosshair';
   if (world.placing) return previewAt(world) ? 'copy' : 'not-allowed';
   const aim = aimAt(world);
+  if (world.tool === 'hand' && aim?.hit && !aim.hit.seg) return 'grab'; // a plant to pull about; a tap still cuts it
   return aim ? AIM_CURSORS[aim.kind] : world.tool === 'prune' ? 'crosshair' : 'default';
 };
 

@@ -10,7 +10,7 @@ shop, and tune everything.
 npm install
 npm run dev     # local dev server
 npm run build   # static build in dist/
-npm run check   # checks what the pointer's marks say a press would do
+npm run check   # checks the pointer's marks, and pulling plants and flowering under water
 ```
 
 ## Interact
@@ -21,9 +21,9 @@ Shop, Garden (Prune, Relocate and Propagate), Saves and Settings. The game shows
 - Picking a tool (the Editor's brush, Prune, Relocate, Propagate) plays a short ghost animation of how it's used in
   the middle of the tank; a press in the tank stops it. While something bought waits to go in, the tank's frame
   glows and, until the pointer comes over the tank, a ghost pointer brings it in from below and taps it down.
-- Over the tank, the cursor and a mark show what a press would do: a hand over a bug, scissors and a blinking red
-  notch where a stem, stick or vine would be cut (a line where grass would be mown), an arrow over a plant
-  Relocate would lift.
+- Over the tank, the cursor and a mark show what a press would do: a hand over a bug, or over a plant, vine or
+  grass you can pull about; a blinking red notch where a tap would cut a stem, stick or vine (a line where it
+  would mow grass), with scissors over a stick or with Prune; an arrow over a plant Relocate would lift.
 - Prices turn red when you can't afford them, the coin count hops when it changes, a save flashes when it's just
   been saved, loaded or imported, and the reroll button fills up until rerolling is free again. Only errors are
   written out.
@@ -36,6 +36,8 @@ Shop, Garden (Prune, Relocate and Propagate), Saves and Settings. The game shows
 - Drag a bug to pick it up; tap it to inspect it (its picture, name, and bars for hunger, speed, size, laziness
   and groove). From the card you can release the bug.
 - Bugs climb anything that touches the ground or each other: the starting stick and whatever you buy.
+- Drag a plant, vine or grass to pull it about, a bit like Aqua Box: it bends toward the pointer and springs back
+  when you let go.
 - Tap a branch, stick or plant to prune it there; whatever stood on a cut-off piece comes down with it. The Prune
   tool (Gardening) cuts along a dragged line instead. Plant clippings sell for coins.
 - Relocate (Gardening): drag a plant, grass patch or vine somewhere else. Plants and grass land on whatever is below
@@ -52,7 +54,8 @@ Shop, Garden (Prune, Relocate and Propagate), Saves and Settings. The game shows
 - Plants come in three types, each with its own genome: flowering plants that grow node by node; grass that you sow
   on dirt (painted dirt or the tank floor) and that spreads tuft by tuft, withering if buried or flooded;
   and hanging vines that hang from the nearest branch, stick, or underside or face of the terrain (a stone ledge,
-  say), or else from a hook at the top of the tank; they sway and drape onto the floor. Tap grass to mow it or a
+  say), or else from a hook at the top of the tank; they sway and drape onto the floor.
+  Plants and vines sway more under water, rocked by the current, and only flower out of it. Tap grass to mow it or a
   vine to cut it back; both grow back, and the clippings sell.
 - Saves: save the tank (terrain, plants, sticks, bugs, coins and the shop) into a new slot, each shown with a
   little photo of the tank; tap the photo to load one, or save over, export or delete it (delete asks twice).
