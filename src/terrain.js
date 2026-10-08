@@ -219,14 +219,3 @@ export const stepTerrain = (ter, rand, tick) => {
   else if (!pouring) ter.active = false;
   if (solidMoved) ter.solidVersion++;
 };
-
-// Height of the top solid cell in each column, in world px (water doesn't hold anything up); the floor where
-// there's none.
-export const skyline = (ter, floor) =>
-  Array.from({ length: ter.cols }, (_, c) => {
-    for (let r = 0; r < ter.rows; r++) {
-      const m = ter.cells[r * ter.cols + c];
-      if (m !== EMPTY && m !== WATER) return ter.top + r * CELL;
-    }
-    return floor;
-  });

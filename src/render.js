@@ -594,10 +594,10 @@ const drawBug = (ctx, world, bug) => {
     let knee = add(hip, thighFor(t, tan, r, down));
     let foot = bug.surf ? bug.legs[k].foot : null;
     if (!foot) {
-      // Loose: dangling, or paddling at the air while held.
+      // Loose: dangling, or paddling while held or swimming.
       let ahead = 0;
       let raise = 0;
-      if (bug.state === 'held') {
+      if (bug.state === 'held' || bug.state === 'swim') {
         const kick = time * 0.4 + Math.PI * L.tripod;
         ahead = strideLen(t) * Math.sin(kick);
         raise = t.footLift * t.size * Math.max(0, Math.cos(kick));

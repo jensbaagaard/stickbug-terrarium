@@ -47,7 +47,6 @@ import {
   paintTerrain,
   placeFountain,
   resizeTerrain,
-  skyline,
   stepTerrain,
   WATER,
 } from './terrain.js';
@@ -60,7 +59,7 @@ const PRESS_SLOP = 3; // a press on a bug that moves further than this picks it 
 const JUNCTION_DIST = 6; // surfaces closer than this connect
 const FLOOR_SLOPE = 1.2; // surfaces flatter than this catch falling things
 const TAP_SLOP = 8; // a press that moves less than this is a tap
-const SKY_TOLERANCE = 2.5; // px the walkable outline may stray from the terrain's top
+const OUTLINE_TOLERANCE = 2.5; // px the walkable outline may stray from the terrain's edge
 const ARRIVE = 0.5; // close enough to a walk target to stop stepping
 const HUNGER_RATE = 1 / 2700;
 const LEAF_GROWTH = 1 / 1200;
@@ -98,22 +97,29 @@ const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 const isFloorLike = (g) => Math.abs(g.y1 - g.y0) <= Math.abs(g.x1 - g.x0) * FLOOR_SLOPE;
 const yAt = (g, x) => g.y0 + ((g.y1 - g.y0) * (x - g.x0)) / (g.x1 - g.x0 || 1);
 
-// Highest floor-like surface at x that is at or below y. The terrain's outline counts at any slope: it's the
-// ground.
+// Highest floor-like surface at x that is at or below y. The terrain's outline (the open floor included) counts at
+// any slope short of a wall: it's the ground. Below everything, the tank floor itself.
 export const floorBelow = (world, x, y) => {
-  let best = { y: world.ground.y0, g: world.ground };
+  let best = null;
   for (const g of world.branches) {
     if (!(g.kind === 'terrain' ? g.x1 > g.x0 : isFloorLike(g)) || x < g.x0 || x > g.x1) continue;
     const gy = yAt(g, x);
-    if (gy >= y && gy < best.y) best = { y: gy, g };
+    if (gy >= y && (!best || gy < best.y)) best = { y: gy, g };
   }
-  return best;
+  return best ?? { y: world.ground.y0, g: world.ground };
 };
 
-const surfaces = (world) => [world.ground, ...world.branches];
+// The outline of the open floor at x, or of the terrain over it there.
+const floorAt = (world, x) => floorBelow(world, x, world.ground.y0 - 1).g;
+
+// A surface under water all along it: no way for a bug to go.
+const submerged = (world, g) => {
+  const n = segNormal(g);
+  return [0.1, 0.5, 0.9].every((k) => wetAt(world.terrain, add(pointAt(g, k * segLength(g)), n, 1)));
+};
 
 const rebuildJunctions = (world) => {
-  const all = surfaces(world);
+  const all = world.branches;
   world.junctions = [];
   for (let i = 0; i < all.length; i++) {
     for (let j = i + 1; j < all.length; j++) {
@@ -123,7 +129,7 @@ const rebuildJunctions = (world) => {
   }
 };
 
-// BFS over junctions. Returns a list of hops ([] if from === to) or null.
+// BFS over junctions, keeping out of the water. Returns a list of hops ([] if from === to) or null.
 const findRoute = (world, from, to) => {
   const prev = new Map([[from, null]]);
   const queue = [from];
@@ -131,7 +137,7 @@ const findRoute = (world, from, to) => {
     const cur = queue.shift();
     for (const j of world.junctions) {
       for (const [a, sa, b, sb] of [[j.a, j.sa, j.b, j.sb], [j.b, j.sb, j.a, j.sa]]) {
-        if (a !== cur || prev.has(b)) continue;
+        if (a !== cur || prev.has(b) || submerged(world, b)) continue;
         prev.set(b, { from: a, sFrom: sa, to: b, sTo: sb });
         queue.push(b);
       }
@@ -143,7 +149,7 @@ const findRoute = (world, from, to) => {
   return route;
 };
 
-// Every surface reachable from `from`, in one flood fill.
+// Every surface reachable from `from` without going through water, in one flood fill.
 const reachable = (world, from) => {
   const seen = new Set([from]);
   const queue = [from];
@@ -151,7 +157,7 @@ const reachable = (world, from) => {
     const cur = queue.shift();
     for (const j of world.junctions) {
       const next = j.a === cur ? j.b : j.b === cur ? j.a : null;
-      if (next && !seen.has(next)) {
+      if (next && !seen.has(next) && !submerged(world, next)) {
         seen.add(next);
         queue.push(next);
       }
@@ -192,7 +198,7 @@ const removeSegments = (world, segs) => {
   for (const bug of world.bugs) if (gone.has(bug.surf) || gone.has(bug.transfer?.from)) detach(bug, 'fall');
   replan(world);
   // Whatever stood on a surface that's gone, or that was cut back from under it, comes down too. (The terrain's
-  // outline is never cut: rebuildSkyline looks after what stands on it.)
+  // outline is never cut: rebuildOutline looks after what stands on it.)
   for (const obj of [...world.objects]) {
     const on = obj.on;
     if (!on || on === world.ground || on.kind === 'terrain' || !world.objects.includes(obj)) continue;
@@ -205,9 +211,7 @@ const removeSegments = (world, segs) => {
 const replan = (world) => {
   for (const bug of world.bugs) {
     if (!bug.goal || !bug.surf) continue;
-    const route = world.branches.includes(bug.goal.surf) || bug.goal.surf === world.ground
-      ? findRoute(world, bug.surf, bug.goal.surf)
-      : null;
+    const route = world.branches.includes(bug.goal.surf) ? findRoute(world, bug.surf, bug.goal.surf) : null;
     if (route) {
       bug.route = route;
       continue;
@@ -293,7 +297,7 @@ const downOf = (bug) => {
 const snapFoot = (world, bug, p, hip) => {
   const reach = standHeight(bug.t) * 0.75 + 2;
   let best = null;
-  for (const g of surfaces(world)) {
+  for (const g of world.branches) {
     const q = pointAt(g, project(g, p.x, p.y));
     const d = dist(p, q);
     if (d < reach && (!best || d < best.d)) best = { d, q, g };
@@ -497,6 +501,7 @@ export const createWorld = (W, H, { seed = Date.now(), scene = true } = {}) => {
     brush: { material: 'sand', size: 3 }, // cells
     painting: false,
   };
+  rebuildOutline(world); // the floor, to walk on
   if (scene) seedScene(world);
   rerollShop(world);
   return world;
@@ -526,7 +531,9 @@ const seedScene = (world) => {
   const plant = addDecor(world, build(world, 'plant', Math.floor(world.rand() * 2 ** 31), W * 0.84, H));
   for (let i = 0; i < 2400; i++) growPlant(world, plant, 1);
   // One bug to start with, always the plain default: no genetic offsets, so it is exactly the sliders.
-  const starter = placeBug(world, world.ground, W * 0.62, -1, Object.fromEntries(GENES.map((g) => [g.key, 0])));
+  const floor = floorAt(world, W * 0.62);
+  const genes = Object.fromEntries(GENES.map((g) => [g.key, 0]));
+  const starter = placeBug(world, floor, project(floor, W * 0.62, world.ground.y0), -1, genes);
   starter.name = 'Stickbug';
 };
 
@@ -552,84 +559,100 @@ const simplify = (pts, tol) => {
   return [...simplify(pts.slice(0, at + 1), tol).slice(0, -1), ...simplify(pts.slice(at), tol)];
 };
 
-// The terrain's top as walkable surfaces: each raised stretch rises from the floor, follows the tops of its
-// columns, and comes back down, simplified into a few straight runs. Unchanged runs keep their old objects,
-// so bugs on them don't notice a rebuild.
-const skylineSegs = (world, sky, old) => {
-  const floor = world.ground.y0;
+// The terrain's outline, as walkable surfaces: wherever open space (air or water) meets solid ground (the terrain,
+// or the tank floor under it). It's traced cell edge by cell edge with the open side on the left, so each run's
+// normal points out into the open (and it only ever goes right, up or down), then simplified into a few straight
+// runs. Floors, slopes and walls are kept; undersides, which nothing could stand on, are dropped, as are walls with
+// no room beside them (in a crack, or up against the tank's side). Unchanged runs keep their old objects, so bugs on
+// them don't notice a rebuild.
+const outlineSegs = (world, old) => {
+  const ter = world.terrain;
+  const { cols, rows } = ter;
+  const solid = (c, r) => {
+    if (r >= rows) return true;
+    const m = r >= 0 && c >= 0 && c < cols ? ter.cells[r * cols + c] : EMPTY;
+    return m !== EMPTY && m !== WATER;
+  };
+  const next = new Map(); // corner "c,r" -> the corners its edges lead on to
+  const into = new Set(); // corners some edge leads to
+  const edge = (c0, r0, c1, r1) => {
+    const k = `${c0},${r0}`;
+    if (!next.has(k)) next.set(k, []);
+    next.get(k).push(`${c1},${r1}`);
+    into.add(`${c1},${r1}`);
+  };
+  // Room beside a wall to stand out from it: a few open cells, inside the tank.
+  const room = (c, r, dc) => [1, 2, 3].every((k) => c + dc * k >= 0 && c + dc * k < cols && !solid(c + dc * k, r));
+  for (let r = 0; r <= rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      if (!solid(c, r)) continue;
+      if (!solid(c, r - 1)) edge(c, r, c + 1, r); // a top, going right
+      if (room(c, r, -1)) edge(c, r + 1, c, r); // a wall facing left, going up
+      if (room(c, r, 1)) edge(c + 1, r, c + 1, r + 1); // a wall facing right, going down
+    }
+  }
+  const follow = (k) => {
+    const pts = [];
+    for (;;) {
+      const [c, r] = k.split(',').map(Number);
+      pts.push({ x: Math.min(c * CELL, world.W - 1), y: ter.top + r * CELL });
+      if (!next.get(k)?.length) return pts;
+      k = next.get(k).pop();
+    }
+  };
+  // Runs from where they start, then whatever's left where two meet corner to corner.
+  const runs = [...next.keys()].filter((k) => !into.has(k)).map(follow);
+  for (const k of next.keys()) while (next.get(k).length) runs.push(follow(k));
   const reuse = new Map([...old].map((g) => [`${g.root.x},${g.root.y},${g.tip.x},${g.tip.y}`, g]));
   const segs = [];
-  let run = [];
-  const end = (x) => {
-    run.push({ x, y: floor });
-    const pts = simplify(run, SKY_TOLERANCE);
+  for (const run of runs) {
+    const pts = simplify(run, OUTLINE_TOLERANCE);
     for (let i = 1; i < pts.length; i++) {
       const [a, b] = [pts[i - 1], pts[i]];
       if (dist(a, b) < 1) continue;
       segs.push(reuse.get(`${a.x},${a.y},${b.x},${b.y}`) ?? makeSeg(world, a, b, { kind: 'terrain' }));
     }
-    run = [];
-  };
-  sky.forEach((y, c) => {
-    const x = Math.min(c * CELL, world.W - 1);
-    if (y < floor - 0.5) {
-      if (!run.length) run.push({ x, y: floor });
-      run.push({ x, y }, { x: Math.min(x + CELL, world.W - 1), y });
-    } else if (run.length) {
-      end(x);
-    }
-  });
-  if (run.length) end(world.W - 1);
+  }
   return segs;
 };
 
-// The terrain moved: redo its outline. Bugs on outline that changed, or on the floor where terrain has risen
-// over them, step onto the new outline under their feet; things planted on it move with it or come down.
-const rebuildSkyline = (world) => {
+// The terrain moved: redo its outline. Bugs and things planted on outline that changed move onto the new outline
+// where they were, or let go and come down if it's gone from under them.
+const rebuildOutline = (world) => {
   const ter = world.terrain;
   ter.skyDirty = false;
-  const sky = skyline(ter, world.ground.y0);
-  if (ter.sky && sky.every((y, c) => y === ter.sky[c])) return;
-  ter.sky = sky;
   const old = new Set(world.branches.filter((g) => g.kind === 'terrain'));
-  const fresh = skylineSegs(world, sky, old);
+  const fresh = outlineSegs(world, old);
+  const added = fresh.filter((g) => !old.has(g));
   for (const g of fresh) old.delete(g);
+  if (!old.size && !added.length) return;
   world.branches = world.branches.filter((g) => g.kind !== 'terrain').concat(fresh);
   rebuildJunctions(world);
-  const under = (x) => fresh.find((g) => g.x1 > g.x0 && x >= g.x0 && x <= g.x1);
+  // The new outline nearest p, if it's close enough to be what was there.
+  const near = (p) => {
+    let best = null;
+    for (const g of added) {
+      const d = distToSeg(g, p.x, p.y);
+      if (d < 3 && (!best || d < best.d)) best = { d, g };
+    }
+    return best?.g;
+  };
   for (const bug of world.bugs) {
-    const surf = bug.surf;
-    const shifted = old.has(surf) || old.has(bug.transfer?.from);
-    if (!surf || !(shifted || surf === world.ground)) continue;
-    if (shifted && bug.transfer) {
+    if (!bug.surf || !(old.has(bug.surf) || old.has(bug.transfer?.from))) continue;
+    const at = pointAt(bug.surf, bug.s);
+    const g = !bug.transfer && near(at);
+    if (!g) {
       detach(bug, 'fall');
       continue;
     }
-    const at = pointAt(surf, bug.s);
-    const g = under(at.x);
-    // The ground fell away beneath it: let go and fall, rather than snap down.
-    if (shifted && (!g || yAt(g, at.x) > at.y + 6)) {
-      detach(bug, 'fall');
-      continue;
-    }
-    // Terrain drawn high overhead isn't something to climb onto. A bug on the floor stays put; one whose ground
-    // was swallowed into it lets go and drops to whatever is below.
-    if (g && shifted && yAt(g, at.x) < at.y - 40) {
-      detach(bug, 'fall');
-      continue;
-    }
-    if (!g || (surf === world.ground && yAt(g, at.x) < at.y - 40)) continue; // open floor, or terrain floating high
-    const d = segDir(surf);
-    const nd = segDir(g);
-    const facing = (d.x * nd.x + d.y * nd.y) * bug.dir;
-    const s = clampS(g, project(g, at.x, at.y), bug.t);
-    Object.assign(bug, { surf: g, s, dir: facing < 0 ? -1 : 1, transfer: null, step: null });
+    const facing = dot(segDir(bug.surf), segDir(g)) * bug.dir;
+    Object.assign(bug, { surf: g, s: clampS(g, project(g, at.x, at.y), bug.t), dir: facing < 0 ? -1 : 1, step: null });
     resetLegs(bug);
   }
   for (const obj of [...world.objects]) {
     if (!old.has(obj.on)) continue;
-    const g = under(obj.base.x);
-    if (g && distToSeg(g, obj.base.x, obj.base.y) < 3) obj.on = g;
+    const g = near(obj.base);
+    if (g) obj.on = g;
     else removeObject(world, obj, true);
   }
   replan(world);
@@ -872,8 +895,9 @@ export const stageOffer = (world, offer) => {
   };
   if (offer.kind === 'bug') {
     const bug = newBug(world, x, 0, offer.genes);
-    land(world, bug, world.ground, x, 1);
-    bodyPose(world.ground, bug.s, bug.dir, 1, bug.t).forEach((p, i) =>
+    const floor = floorAt(world, x);
+    land(world, bug, floor, project(floor, x, world.ground.y0), 1);
+    bodyPose(floor, bug.s, bug.dir, 1, bug.t).forEach((p, i) =>
       Object.assign(bug.pts[i], { x: p.x, y: p.y, px: p.x, py: p.y }),
     );
     world.bugs.push(bug);
@@ -1602,7 +1626,7 @@ export const step = (world) => {
   const ter = world.terrain;
   if (world.painting) paintAt(world, world.pointer); // holding still keeps pouring
   stepTerrain(ter, world.rand, world.time);
-  if (ter.skyDirty && (world.time % 8 === 0 || !ter.active)) rebuildSkyline(world);
+  if (ter.skyDirty && (world.time % 8 === 0 || !ter.active)) rebuildOutline(world);
   growLeaves(world);
   // Plants and sticks standing on the terrain come down if the cell holding them goes, or they're buried.
   if (world.time % 10 === 0) {
@@ -1628,6 +1652,7 @@ export const step = (world) => {
     bug.calm += ((still ? 1 : 0) - bug.calm) * 0.03;
     bug.munch += ((bug.state === 'eat' ? 1 : 0) - bug.munch) * 0.1;
     bug.raise += ((bug.state === 'quirk' ? 1 : 0) - bug.raise) * 0.08;
+    if (bug.surf && wetAt(ter, standingAt(bug.surf, bug.s, bug.t))) detach(bug, 'swim'); // in over its back: it floats
     if (bug.surf) think(world, bug);
     if (bug.surf) followSurface(world, bug);
     else simulateLoose(world, bug);
@@ -1685,23 +1710,67 @@ const constrain = (a, b, len, stiffness) => {
   b.y -= dy * k;
 };
 
-// Verlet physics for falling or held bugs; settles onto a surface when at rest.
+// Where the body of a bug standing on surf at s is: its height off the surface.
+const standingAt = (surf, s, t) => add(pointAt(surf, s), segNormal(surf), standHeight(t));
+
+// Which way the nearest bank is from p, along the water: -1, 1, or 0 if there's none in sight.
+const bankSide = (world, p) => {
+  for (let d = CELL; d < world.W; d += CELL) {
+    for (const side of [-1, 1]) if (solidAt(world.terrain, p.x + side * d, p.y)) return side;
+  }
+  return 0;
+};
+
+// A bug in the water hauls itself out onto the nearest spot it can reach, from whichever end is nearer the bank,
+// where it can stand out of the water (up a bank, onto a stick), facing up and away from the water. Returns whether
+// it did.
+const climbOut = (world, bug, side) => {
+  const [a, b] = [bug.pts[0], bug.pts[SEGMENTS - 1]];
+  const head = (a.x - b.x) * side >= 0 ? a : b;
+  const reach = standHeight(bug.t) * 2 + 4;
+  let best = null;
+  for (const g of world.branches) {
+    const s0 = project(g, head.x, head.y);
+    if (dist(pointAt(g, s0), head) > reach) continue;
+    for (let along = 0; along < reach; along += 2) {
+      for (const s of [clampS(g, s0 - along, bug.t), clampS(g, s0 + along, bug.t)]) {
+        const d = dist(pointAt(g, s), head);
+        if (d > reach || wetAt(world.terrain, standingAt(g, s, bug.t))) continue;
+        if (!best || d < best.d) best = { d, g, s };
+      }
+    }
+  }
+  if (!best) return false;
+  land(world, bug, best.g, best.s, dot(segDir(best.g), { x: side, y: -1 }));
+  return true;
+};
+
+// Verlet physics for falling, floating or held bugs; settles onto a surface when at rest. In the water a bug is
+// buoyed up to ride at the surface, and paddles head first for the nearest bank, then climbs out. It never ends up
+// inside the terrain: it's pushed back out the way it came, or up out of anything poured over it.
 const simulateLoose = (world, bug) => {
   const isHeld = world.held?.bug === bug;
+  const ter = world.terrain;
   const pin = () => {
     if (!isHeld) return;
     const p = bug.pts[world.held.i];
     p.x = world.pointer.x;
     p.y = world.pointer.y;
   };
-  for (const p of bug.pts) {
-    const vx = (p.x - p.px) * 0.99;
-    const vy = (p.y - p.py) * 0.99;
+  // Floating, bobbing at the surface, with the water just under it.
+  const swimming = !isHeld && bug.pts.some((p) => wetAt(ter, p) || wetAt(ter, { x: p.x, y: p.y + 3 }));
+  if (!isHeld) bug.state = swimming ? 'swim' : 'fall';
+  const side = swimming ? bankSide(world, bug.pts[MID]) : 0;
+  if (swimming && (world.time + Math.floor(bug.seed)) % 6 === 0 && climbOut(world, bug, side)) return;
+  bug.pts.forEach((p, i) => {
+    const wet = wetAt(ter, p);
+    const vx = (p.x - p.px) * (wet ? 0.85 : 0.99);
+    const vy = (p.y - p.py) * (wet ? 0.85 : 0.99);
     p.px = p.x;
     p.py = p.y;
-    p.x += vx;
-    p.y += vy + params.gravity;
-  }
+    p.x += vx + (wet && i < MID ? side * 0.03 : 0);
+    p.y += vy + params.gravity * (wet ? -0.6 : 1);
+  });
   const h = standHeight(bug.t);
   const len = bodySegLen(bug.t);
   // The floor holding up the body point nearest its middle: a bug draped over a bump or across two
@@ -1716,6 +1785,8 @@ const simulateLoose = (world, bug) => {
       const p = bug.pts[i];
       p.x = clamp(p.x, 0, world.W - 1);
       p.y = Math.max(p.y, 0);
+      if (solidAt(ter, p.x, p.y) && !solidAt(ter, p.px, p.y)) p.x = p.px;
+      while (p.y > 0 && solidAt(ter, p.x, p.y)) p.y -= 1;
       const floor = isHeld ? { y: world.ground.y0, g: world.ground } : floorBelow(world, p.x, p.py + h - 2);
       if (p.y > floor.y - h) {
         p.y = floor.y - h;
@@ -1798,11 +1869,17 @@ const decide = (world, bug) => {
 
 const restTicks = (world, bug) => bug.t.idleTicks * (0.5 + world.rand());
 
-// Walk to a random spot on any surface the bug can reach.
+// Walk to a random spot on any surface the bug can reach, out of the water and not inside the terrain (where a
+// stick goes into it).
 const wander = (world, bug) => {
   const options = [...reachable(world, bug.surf)];
-  const surf = options[Math.floor(world.rand() * options.length)];
-  goTo(world, bug, surf, world.rand() * segLength(surf));
+  for (let tries = 0; tries < 5; tries++) {
+    const surf = options[Math.floor(world.rand() * options.length)];
+    const s = world.rand() * segLength(surf);
+    const body = add(pointAt(surf, s), segNormal(surf), standHeight(bug.t));
+    if (!wetAt(world.terrain, body) && !solidAt(world.terrain, body.x, body.y)) return goTo(world, bug, surf, s);
+  }
+  setState(bug, 'idle', 60);
 };
 
 const goTo = (world, bug, surf, s, leaf) => {
@@ -1821,8 +1898,8 @@ const seekFood = (world, bug) => {
   for (const g of world.branches) {
     if (!g.leaves.length || !within.has(g)) continue;
     for (const leaf of g.leaves) {
-      if (leaf.size < 0.4) continue;
       const p = pointAt(g, leaf.t * segLength(g));
+      if (leaf.size < 0.4 || wetAt(world.terrain, p)) continue;
       const d = Math.hypot(p.x - c.x, p.y - c.y);
       if (!best || d < best.d) best = { g, leaf, d };
     }
@@ -1847,6 +1924,19 @@ const startStep = (world, bug, remaining) => {
   const from = bug.feet[stance];
   const len = Math.min(from + strideLen(t), remaining);
   const end = poseAhead(bug, len);
+  // A stick can run into the terrain (through a ledge, say), and there the way on is blocked: give up and think
+  // again. The head leads, so if its way is clear, so is the rest of the body's. (The terrain's outline only ever
+  // goes round it.)
+  const head = bug.pts[0];
+  const n = Math.ceil(dist(head, end[0])) || 1;
+  const inTerrain = (k) => {
+    const p = lerp(head, end[0], k / n);
+    return solidAt(world.terrain, p.x, p.y);
+  };
+  if (bug.surf.kind === 'stick' && [...Array(n + 1).keys()].some(inTerrain)) {
+    Object.assign(bug, { goal: null, route: [] });
+    return setState(bug, 'idle', 30);
+  }
   legLayout(t).forEach((L, k) => {
     if (L.tripod !== stance) swingLeg(bug.legs[k], footFor(world, bug, end, L, len - from), t.stepTicks);
   });
@@ -2242,7 +2332,7 @@ export const importWorld = (data, W, H) => {
     world.objects.push(obj);
   }
   rebuildJunctions(world);
-  rebuildSkyline(world);
+  rebuildOutline(world);
   // What each thing stands on (or hangs from), now the surfaces are back.
   for (const obj of world.objects) {
     if ((obj.kind === 'stick' || obj.kind === 'plant') && !obj.hold) {
@@ -2255,7 +2345,7 @@ export const importWorld = (data, W, H) => {
   for (const b of data.bugs) {
     const p = at(b.at);
     let near = null;
-    for (const g of b.standing ? surfaces(world) : []) {
+    for (const g of b.standing ? world.branches : []) {
       const d = distToSeg(g, p.x, p.y);
       if (d < 4 && (!near || d < near.d)) near = { d, g };
     }

@@ -10,7 +10,7 @@ and water, decorate it from the shop, and tune everything.
 npm install
 npm run dev     # local dev server
 npm run build   # static build in dist/
-npm run check   # checks the pointer's marks, pulling plants, flowering under water, and the fish
+npm run check   # checks the pointer's marks, pulling plants, flowering under water, the fish, and bugs' footing
 ```
 
 ## Interact
@@ -31,8 +31,9 @@ Shop, Garden (Prune, Relocate, Propagate and Feed), Saves and Settings. The game
 - Editor: pick stone, sandstone, wood, dirt, sand or water (or erase) and a brush size, and draw in the tank; hold
   still to keep pouring. Stone, sandstone (in soft layers) and wood (with its grain running along it) stay where
   they're drawn, sand slides into slopes, dirt falls straight down and stacks up, and water runs, fills hollows and
-  spills out of the sides of the tank (wall them with stone to keep it in). Bugs walk over the terrain's outline and
-  wade through water, and anything you plant can stand on it.
+  spills out of the sides of the tank (wall them with stone to keep it in). Bugs walk over the terrain and climb its
+  walls, along ledges and through caves (never through it, or on air), and wade through shallow water; in deeper
+  water they float, paddling for the nearest bank, and climb out. Anything you plant can stand on the terrain.
 - Drag a bug to pick it up; tap it to inspect it (its picture, name, and bars for hunger, speed, size, laziness
   and groove). From the card you can release the bug.
 - Bugs climb anything that touches the ground or each other: the starting stick and whatever you buy.
@@ -92,8 +93,8 @@ Shop, Garden (Prune, Relocate, Propagate and Feed), Saves and Settings. The game
   ropes, pruning, the shop and coins. Pure logic, no DOM.
 - `src/fish.js` – guppies: their genome, price and names, and how they live: cruising and shoaling, food and
   grazing, resting, begging, fleeing, courting, and flopping when stranded. Pure logic, no DOM.
-- `src/terrain.js` – the falling-sand grid (stone, sandstone, wood, dirt, sand, water, fountains): painting,
-  stepping, and its skyline, which `sim.js` turns into walkable surfaces.
+- `src/terrain.js` – the falling-sand grid (stone, sandstone, wood, dirt, sand, water, fountains): painting and
+  stepping. `sim.js` traces its outline (and the open floor's) into the surfaces bugs walk on.
 - `src/decor.js` – random sticks (with their own foliage), wallpapers, and the plant genomes: flowering
   species with a flower genome (form, petals, colours, size), grasses and hanging vines.
 - `src/geom.js` – maths, segment and colour helpers.
