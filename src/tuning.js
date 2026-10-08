@@ -125,7 +125,26 @@ export const GROUPS = [
     sliders: [
       ['breeze', 'Breeze', 1, 1, 0.1], // how hard the breeze blows, swells and gusts alike
       ['leafLife', 'Leaf life', 1, 0.9, 0.1], // multiplier on how long a leaf lasts before it yellows and drops
+    ],
+  },
+  {
+    title: 'Fireflies',
+    genes: false,
+    sliders: [
       ['fireflies', 'Fireflies', 6, 6, 1], // at most, and never more than two to a plant
+      ['fireflyBlink', 'Blink time', 240, 180, 10], // ticks between a firefly's flashes, give or take
+      ['fireflyFlash', 'Flash length', 0.12, 0.1, 0.01], // the share of that it's lit
+      ['fireflySync', 'Sync', 0.08, 0.08, 0.01], // how far a flash pulls on nearby clocks; at 0 they never fall in step
+    ],
+  },
+  {
+    title: 'Bubbles',
+    genes: false,
+    sliders: [
+      // The chance a stem tip, vine node or tuft under water lets a bubble go, every 15 ticks.
+      ['bubbleRate', 'Bubble rate', 0.005, 0.005, 0.0005],
+      ['bubbleSpeed', 'Bubble speed', 0.25, 0.2, 0.01], // px per tick at the most; they start slower and speed up
+      ['bigBubbles', 'Big bubbles', 0.25, 0.25, 0.05], // the share that are big, and pop with a ring at the surface
     ],
   },
 ];

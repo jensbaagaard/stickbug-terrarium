@@ -9,12 +9,8 @@ import { params } from './tuning.js';
 const GUST_EVERY = 2400; // ticks: one gust somewhere in each stretch this long
 const GUST_SPEED = 1.2; // px a tick a gust rolls across the tank
 const GUST_WIDTH = 140; // px across a gust's front
-const FIREFLY_PERIOD = 240; // ticks between a firefly's flashes, give or take
-export const FLASH = 0.12; // the share of that it's lit
-const SYNC = 0.08; // how far a flash nearby pulls a firefly's clock on: enough to fall into step in a minute or two
-const SYNC_REACH = 70; // px
+const SYNC_REACH = 70; // px: a flash pulls on the clocks of fireflies this near
 const MAX_BUBBLES = 40;
-const BUBBLE_CHANCE = 0.005; // per wet stem tip, vine node or tuft, every BUBBLE_TICKS
 const BUBBLE_TICKS = 15;
 const MOTES = 10;
 export const RIPPLE_TICKS = 40;
@@ -67,7 +63,7 @@ const spawnFirefly = (world, at) => {
     vy: -0.1,
     home: { x: at.x + (r() - 0.5) * 30, y: at.y - 6 - r() * 20 },
     clock: r(),
-    rate: (1 + (r() - 0.5) * 0.04) / FIREFLY_PERIOD,
+    pace: 1 + (r() - 0.5) * 0.04, // its clock runs a touch fast or slow
     age: 0,
     life: 3600 + r() * 7200,
   });
@@ -98,7 +94,7 @@ const stepFireflies = (world) => {
     }
     f.x = Math.min(Math.max(f.x, 2), world.W - 3);
     f.y = Math.max(f.y, 2);
-    f.clock += f.rate;
+    f.clock += f.pace / params.fireflyBlink;
     if (f.clock >= 1) {
       f.clock -= 1;
       flashed.push(f);
@@ -106,8 +102,8 @@ const stepFireflies = (world) => {
   }
   for (const a of flashed) {
     for (const b of list) {
-      if (b === a || b.clock < FLASH || Math.abs(b.x - a.x) + Math.abs(b.y - a.y) > SYNC_REACH) continue;
-      b.clock = Math.min(1, b.clock * (1 + SYNC));
+      if (b === a || b.clock < params.fireflyFlash || Math.abs(b.x - a.x) + Math.abs(b.y - a.y) > SYNC_REACH) continue;
+      b.clock = Math.min(1, b.clock * (1 + params.fireflySync));
     }
   }
   world.fireflies = list.filter((f) => f.age < f.life);
@@ -121,8 +117,9 @@ const stepBubbles = (world) => {
   if (world.time % BUBBLE_TICKS === 0) {
     const r = world.lifeRand;
     const puff = (p) => {
-      if (world.bubbles.length >= MAX_BUBBLES || r() >= BUBBLE_CHANCE || cellOf(world, p.x, p.y) !== WATER) return;
-      world.bubbles.push({ x: p.x, y: p.y - 1, vy: -0.05 - r() * 0.05, seed: r() * 6, big: r() < 0.25 });
+      if (world.bubbles.length >= MAX_BUBBLES || r() >= params.bubbleRate || cellOf(world, p.x, p.y) !== WATER) return;
+      const vy = -(0.2 + 0.2 * r()) * params.bubbleSpeed;
+      world.bubbles.push({ x: p.x, y: p.y - 1, vy, seed: r() * 6, big: r() < params.bigBubbles });
     };
     for (const o of world.objects) {
       if (o.kind === 'plant') for (const st of o.stems) puff(st.tip);
@@ -131,7 +128,7 @@ const stepBubbles = (world) => {
     }
   }
   world.bubbles = world.bubbles.filter((b) => {
-    b.vy = Math.max(b.vy - 0.002, -0.25);
+    b.vy = Math.max(b.vy - params.bubbleSpeed * 0.008, -params.bubbleSpeed);
     b.x += Math.sin(world.time * 0.15 + b.seed) * 0.12;
     b.y += b.vy;
     const here = cellOf(world, b.x, b.y);

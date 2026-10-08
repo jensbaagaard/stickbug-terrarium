@@ -28,7 +28,8 @@ import { FAR_SHADE, bodyHex, patternHex, patternOf, traitsOf } from './genome.js
 import { CELL, DIRT, EMPTY, FOUNTAIN, MATERIALS, SAND, SANDSTONE, STONE, WATER, WOOD } from './terrain.js';
 import { aimAt, floorBelow, previewAt, propagatable, relocationAt } from './sim.js';
 import { facingNow, fishShape } from './fish.js';
-import { FLASH, RIPPLE_TICKS, wind } from './life.js';
+import { RIPPLE_TICKS, wind } from './life.js';
+import { params } from './tuning.js';
 
 const NOTE = ['..#.', '..##', '..#.', '..#.', '###.', '##..'];
 const ARROW = ['#####', '.###.', '..#..'];
@@ -911,7 +912,8 @@ const drawAir = (ctx, world) => {
   ctx.fillStyle = FIREFLY;
   for (const f of world.fireflies) {
     const fade = Math.min(1, f.age / 120, (f.life - f.age) / 120);
-    const lit = f.clock < FLASH ? Math.sin((Math.PI * f.clock) / FLASH) : 0;
+    const flash = params.fireflyFlash;
+    const lit = f.clock < flash ? Math.sin((Math.PI * f.clock) / flash) : 0;
     const [x, y] = [Math.round(f.x), Math.round(f.y)];
     if (lit > 0) {
       // A soft round glow: two crossed bars, brightest where they overlap, then a brighter cross.
