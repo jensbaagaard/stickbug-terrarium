@@ -36,7 +36,6 @@ import {
   makeStick,
   makeVine,
   makeWallpaper,
-  makeWood,
 } from './decor.js';
 import {
   CELL,
@@ -80,7 +79,7 @@ const VINE_REACH = 14; // px: a vine hangs from anything this close to where you
 const PLACE_REACH = 50; // px: plants and sticks land on the first thing at most this far below where you tap
 const CLIPPING_LEN = 6; // px of pruned plant stem per coin; clippings are the only income
 export const PRICES = { fountain: 15 }; // fixed prices for anything not showcased; showcased kinds are priced per offer
-export const SHOP_KINDS = ['bug', 'plant', 'stick', 'wallpaper']; // showcased in the shop, OFFERS of each
+const SHOP_KINDS = ['bug', 'plant', 'stick', 'wallpaper']; // showcased in the shop, OFFERS of each
 const OFFERS = 4;
 
 const dirOf = (a) => ({ x: Math.cos(a), y: Math.sin(a) });
@@ -162,9 +161,9 @@ const setEnds = (seg, root, tip) => {
   return Object.assign(seg, { root, tip, x0: a.x, y0: a.y, x1: b.x, y1: b.y });
 };
 
-const makeSeg = (world, a, b, extra = {}) => {
+const makeSeg = (world, a, b, extra) => {
   const fit = (p) => ({ x: clamp(p.x, 0, world.W - 1), y: clamp(p.y, 1, world.ground.y0) });
-  return setEnds({ leaves: [], kind: 'branch', obj: null, parent: null, ...extra }, fit(a), fit(b));
+  return setEnds({ leaves: [], obj: null, parent: null, ...extra }, fit(a), fit(b));
 };
 
 const maxLeaves = (g) => Math.floor(segLength(g) / LEAF_SPACING);
@@ -459,7 +458,7 @@ export const createWorld = (W, H, { seed = Date.now(), scene = true } = {}) => {
     W,
     H,
     ground: { x0: 0, y0: H - 6, x1: W - 1, y1: H - 6, kind: 'ground', leaves: [] },
-    branches: [], // every surface but the ground: drawn branches, sticks and the terrain's outline
+    branches: [], // every surface but the ground: sticks and the terrain's outline
     objects: [], // sticks (owning some of those surfaces) and plants
     bugs: [],
     junctions: [],
@@ -811,7 +810,7 @@ const makeOffer = (world, kind) => {
 };
 
 // Fill the showcase with fresh offers.
-export const rerollShop = (world) => {
+const rerollShop = (world) => {
   const offers = (kind) => Array.from({ length: OFFERS }, () => makeOffer(world, kind));
   world.shop = Object.fromEntries(SHOP_KINDS.map((kind) => [kind, offers(kind)]));
   if (world.placing?.offer) world.placing = null;
@@ -827,7 +826,7 @@ const freshRerolls = (world) => !world.rerolls || world.time - world.rerolls.sin
 export const rerollCost = (world) => (freshRerolls(world) ? 0 : world.rerolls.count * REROLL_STEP);
 
 // Ticks until the next free reroll; 0 when it's free now.
-export const freeRerollIn = (world) =>
+const freeRerollIn = (world) =>
   freshRerolls(world) ? 0 : world.rerolls.since + FREE_REROLL_TICKS - world.time;
 
 export const buyReroll = (world) => {
@@ -1189,12 +1188,8 @@ const pruneVine = (world, vine, i) => {
 
 // ---------- pruning ----------
 
-// Prune at p on seg: drawn branches go entirely, sticks are cut back to p.
+// Prune a stick's seg at p: it's cut back to p, and everything growing out of it beyond the cut falls.
 const pruneSegment = (world, seg, p) => {
-  if (seg.kind === 'branch') {
-    fling(world, seg.root, seg.tip, { kind: 'branch' });
-    return removeSegments(world, [seg]);
-  }
   const look = { kind: 'stick', wood: seg.obj.wood };
   const doomed = descendants(seg);
   for (const g of doomed) fling(world, g.root, g.tip, look);
@@ -2068,9 +2063,6 @@ export const exportWorld = (world) => ({
     cells: rle(world.terrain.cells),
     tint: rle(world.terrain.tint),
   },
-  branches: world.branches
-    .filter((g) => g.kind === 'branch')
-    .map((g) => ({ root: g.root, tip: g.tip, leaves: g.leaves })),
   objects: world.objects.map(exportObject).filter(Boolean),
   bugs: world.bugs.map((bug) => ({
     name: bug.name,
@@ -2101,9 +2093,6 @@ export const importWorld = (data, W, H) => {
   const n = t.cols * t.rows;
   const saved = { cols: t.cols, rows: t.rows, cells: unrle(t.cells, n), tint: unrle(t.tint, n) };
   world.terrain = resizeTerrain(saved, W, world.ground.y0);
-  for (const b of data.branches) {
-    world.branches.push(Object.assign(makeSeg(world, at(b.root), at(b.tip)), { leaves: b.leaves }));
-  }
   for (const o of data.objects) {
     const obj = { kind: o.kind, base: at(o.base) };
     if (o.kind === 'stick' || o.kind === 'plant') obj.hold = o.hold && at(o.hold); // standing on the terrain

@@ -23,7 +23,7 @@ body {
 }
 #app {
   width: 100%;
-  max-width: min(440px, calc(60dvh * 3 / 4));
+  max-width: calc(var(--tank-width, 440px) + 6px); /* the tank and its frame; Terrarium sizes the tank */
   margin-inline: auto;
   display: flex;
   flex-direction: column;

@@ -83,15 +83,6 @@ export const closestApproach = (a, b) => {
   return best;
 };
 
-export const inPolygon = (poly, x, y) => {
-  let inside = false;
-  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
-    const a = poly[i], b = poly[j];
-    if (a.y > y !== b.y > y && x < ((b.x - a.x) * (y - a.y)) / (b.y - a.y) + a.x) inside = !inside;
-  }
-  return inside;
-};
-
 // HSL (degrees, percent, percent) to a cached #rrggbb string.
 const hexCache = new Map();
 export const hslHex = (h, s, l) => {

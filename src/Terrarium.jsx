@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useLayoutEffect, useRef } from 'react';
 import {
   aimAt,
   createWorld,
@@ -12,9 +12,14 @@ import {
 import { drawWorld } from './render.js';
 import { SCISSORS_CURSOR } from './icons.js';
 
-// The tank is always this many world pixels, scaled up to fit the page.
+// The tank is always this many world pixels, shown a whole number of screen pixels to each so they all come out
+// the same size: the most that fits, up to MAX_WIDTH css px wide and HEIGHT_SHARE of the window's height (leaving
+// room for the panel). Resizing the window leaves it be until it no longer fits, or the next size up does.
 const W = 256;
 const H = 341;
+const MAX_WIDTH = 512;
+const HEIGHT_SHARE = 0.7;
+const GUTTER = 38; // css px beside the tank: the page's padding and the tank's frame
 const TICK_MS = 1000 / 60;
 
 // The cursor says what a press would do there.
@@ -27,18 +32,28 @@ const cursorOf = (world) => {
   return aim ? AIM_CURSORS[aim.kind] : world.tool === 'prune' ? 'crosshair' : 'default';
 };
 
-// The world lives in worldRef (or a ref of its own), and everything here reads it from there, so the parent can
-// swap in another world, a loaded save say, at any time.
-export default function Terrarium({ className, style, worldRef }) {
+// The world lives in worldRef, and everything here reads it from there, so the parent can swap in another world,
+// a loaded save say, at any time.
+export default function Terrarium({ worldRef: ref }) {
   const canvasRef = useRef(null);
-  const ownRef = useRef(null);
-  const ref = worldRef ?? ownRef;
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
 
     ref.current = createWorld(W, H);
+
+    // The page's column is as wide as the tank, so the panel under it lines up.
+    const fit = () => {
+      const dpr = window.devicePixelRatio || 1;
+      const across = document.documentElement.clientWidth - GUTTER;
+      const room = Math.min(MAX_WIDTH, across, (innerHeight * HEIGHT_SHARE * W) / H);
+      const k = Math.max(1, Math.floor((room * dpr) / W));
+      const [w, h] = [(W * k) / dpr, (H * k) / dpr];
+      Object.assign(canvas.style, { width: `${w}px`, height: `${h}px` });
+      document.documentElement.style.setProperty('--tank-width', `${w}px`);
+    };
+    fit();
 
     const toWorld = (world, e) => {
       const r = canvas.getBoundingClientRect();
@@ -68,6 +83,7 @@ export default function Terrarium({ className, style, worldRef }) {
     on('pointerup', (world, e) => pointerUp(world, ...toWorld(world, e)));
     on('pointercancel', (world) => pointerCancel(world));
     on('pointerleave', (world) => (world.hover = false));
+    window.addEventListener('resize', fit, { signal: abort.signal }); // also fires when the zoom or screen changes
 
     // Fixed-timestep loop, capped so a backgrounded tab doesn't fast-forward.
     let last = performance.now();
@@ -98,14 +114,10 @@ export default function Terrarium({ className, style, worldRef }) {
       ref={canvasRef}
       width={W}
       height={H}
-      className={className}
       style={{
         display: 'block',
-        width: '100%',
-        aspectRatio: `${W} / ${H}`,
         touchAction: 'none',
         imageRendering: 'pixelated',
-        ...style,
       }}
     />
   );

@@ -126,14 +126,6 @@ export const placeFountain = (ter, x, y, rand) => {
   ter.woodVersion++;
 };
 
-export const clearTerrain = (ter) => {
-  ter.cells.fill(EMPTY);
-  Object.assign(ter, { active: false, skyDirty: true });
-  ter.version++;
-  ter.solidVersion++;
-  ter.woodVersion++;
-};
-
 // One tick of falling sand, bottom row first so a grain only moves once. Rows alternate their sweep
 // direction so piles don't lean one way.
 export const stepTerrain = (ter, rand, tick) => {

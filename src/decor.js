@@ -13,19 +13,19 @@ const WOODS = [
 ];
 
 // A random wood: its name and colour.
-export const makeWood = (rand) => {
+const makeWood = (rand) => {
   const [name, color] = pick(rand, WOODS);
   return { name, ...color(rand) };
 };
 
-export const LEAF_SHAPES = ['round', 'long', 'needle', 'heart', 'oak', 'fan'];
+const LEAF_SHAPES = ['round', 'long', 'needle', 'heart', 'oak', 'fan'];
 
 // The leaves on the drawn-in branches.
 export const DEFAULT_FOLIAGE = { shape: 'round', size: 1.4, color: { h: 135, s: 39, l: 40 }, moss: false, knots: true };
 
 // A stick's foliage: what its leaves look like (now and then in autumn colours), and whether its bark has
 // knots or moss.
-export const makeFoliage = (rand) => {
+const makeFoliage = (rand) => {
   const autumn = rand() < 0.15;
   return {
     shape: pick(rand, ['round', 'long', 'heart', 'oak', 'fan']),
@@ -99,12 +99,12 @@ const PLANT_NAMES = [
   'Rotala', 'Ludwigia', 'Pilea', 'Fittonia', 'Peperomia', 'Hygrophila', 'Bacopa', 'Tradescantia',
   'Selaginella', 'Creeping fig', 'Pothos', 'Begonia', 'Cosmos', 'Campanula', 'Primula', 'Lavender',
 ];
-export const FLOWER_FORMS = ['daisy', 'star', 'bell', 'tulip', 'cluster', 'spike', 'pom'];
+const FLOWER_FORMS = ['daisy', 'star', 'bell', 'tulip', 'cluster', 'spike', 'pom'];
 
 // A flower genome: its form, how many petals and how big, colours from petal base to tip, the centre, and
 // sometimes a second ring of petals inside the first. nodeBloom is the chance a node flowers too, not just
 // the tips.
-export const makeFlower = (rand) => {
+const makeFlower = (rand) => {
   const h = rand() * 360;
   return {
     form: pick(rand, FLOWER_FORMS),
@@ -141,7 +141,7 @@ export const makeSpecies = (rand) => {
 };
 
 // Wallpaper styles: [key, label, detail (1..5, sets the price), smallest and largest pattern size in px].
-export const WALLPAPER_STYLES = [
+const WALLPAPER_STYLES = [
   ['stripes', 'stripes', 1, 3, 7],
   ['dots', 'dots', 1, 6, 11],
   ['gingham', 'gingham', 2, 4, 9],

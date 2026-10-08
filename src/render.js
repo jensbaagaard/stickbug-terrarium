@@ -13,7 +13,6 @@ import {
 } from './anatomy.js';
 import { add, hash, hslHex, lerp, normalize, pointAt, segDir, segLength, segNormal, smoothstep } from './geom.js';
 import { FAR_SHADE, bodyHex, patternHex, patternOf, traitsOf } from './genome.js';
-import { DEFAULT_FOLIAGE } from './decor.js';
 import { CELL, DIRT, EMPTY, FOUNTAIN, MATERIALS, SAND, SANDSTONE, STONE, WATER, WOOD } from './terrain.js';
 import { aimAt, floorBelow, previewAt, propagatable, relocationAt } from './sim.js';
 
@@ -21,7 +20,6 @@ const NOTE = ['..#.', '..##', '..#.', '..#.', '###.', '##..'];
 const ARROW = ['#####', '.###.', '..#..'];
 const LIFT = [...ARROW].reverse();
 const CRUMB_COLORS = ['#3f8f4f', '#7fbf5a'];
-const BRANCH = { dark: '#5a3d24', light: '#8a6440' };
 const COIN = '#f2c94c';
 const CUT = '#e04a3a';
 const POINTER = '#e3d3b5';
@@ -90,8 +88,8 @@ const woodColors = (w) => ({
 const MOSS = ['#5f8f3a', '#7aa84a'];
 const STICK_WIDTH = [4, 3, 2]; // main limb, twigs, twigs off twigs
 
-// Branches hang below their surface line, lit along the top. Sticks may have knots and patches of moss.
-const drawBranch = (ctx, g, colors, width = 3, look = null) => {
+// A stick's branches hang below their surface line, lit along the top, maybe with knots and patches of moss.
+const drawBranch = (ctx, g, colors, width, look) => {
   const n = segNormal(g);
   const a = { x: g.x0, y: g.y0 };
   const b = { x: g.x1, y: g.y1 };
@@ -99,7 +97,6 @@ const drawBranch = (ctx, g, colors, width = 3, look = null) => {
   line(ctx, add(a, n, -width / 2), add(b, n, -width / 2), width);
   ctx.fillStyle = colors.light;
   line(ctx, add(a, n, -0.5), add(b, n, -0.5), 1);
-  if (!look) return;
   const d = segDir(g);
   const seed = g.root.x * 7 + g.root.y * 13;
   for (let i = 2; i < segLength(g) - 2; i++) {
@@ -257,35 +254,61 @@ const drawPlant = (ctx, plant, time) => {
 };
 
 // Grass: tufts of blades fanning up from the dirt, lighter toward the tips and leaning in the breeze, some
-// with seed heads or little blossoms once grown.
-const drawGrass = (ctx, patch, time) => {
-  const g = patch.genome;
-  const tones = [0, 0.5, 1].map((f) => hslHex(g.blade.h, g.blade.s, g.blade.l + g.tipLight * f));
-  for (const tuft of patch.tufts) {
-    const sway = Math.sin(time * 0.03 + tuft.x * 0.2) * 0.15;
-    for (let b = 0; b < g.blades; b++) {
-      const a = -Math.PI / 2 + g.lean + (b - (g.blades - 1) / 2) * g.fan;
-      const len = g.height * tuft.size * (0.7 + 0.5 * hash(tuft.seed, b, 1));
-      let tip = null;
-      for (let k = 0; k <= len; k++) {
-        const f = k / Math.max(1, len);
-        const x = tuft.x + Math.cos(a) * k + sway * k * f;
-        const y = tuft.y + Math.sin(a) * k;
-        ctx.fillStyle = tones[Math.min(2, Math.floor(f * 3))];
-        ctx.fillRect(Math.round(x), Math.round(y), 1, 1);
-        tip = { x, y };
-      }
-      if (!tip || tuft.size < 0.8) continue;
-      if (g.seeds && b % 2 === 0) {
-        ctx.fillStyle = hslHex(g.seeds.h, g.seeds.s, g.seeds.l);
-        ctx.fillRect(Math.round(tip.x), Math.round(tip.y) - 1, 1, 2);
-      }
-      if (g.blossom && b === 0 && hash(tuft.seed, 9) < 0.5) {
-        ctx.fillStyle = hslHex(g.blossom.h, g.blossom.s, g.blossom.l);
-        plot(ctx, tip.x, tip.y, 2);
+// with seed heads or little blossoms once grown. A tank of it is tens of thousands of single dots, too many to
+// fill one at a time, so they're written into an image and drawn in one go, afresh every frame so it still sways.
+let grassLayer = null;
+const drawGrass = (ctx, patches, time) => {
+  if (!patches.length) return;
+  const { width: w, height: h } = ctx.canvas;
+  if (grassLayer?.canvas.width !== w || grassLayer.canvas.height !== h) grassLayer = imageLayer(w, h);
+  // Only the box the grass covers is drawn, and cleared again for next time.
+  const { pixels } = grassLayer;
+  let [x0, y0, x1, y1] = [w, h, -1, -1];
+  const dot = (x, y, color) => {
+    if (x < 0 || x >= w || y < 0 || y >= h) return;
+    pixels[y * w + x] = color;
+    if (x < x0) x0 = x;
+    if (x > x1) x1 = x;
+    if (y < y0) y0 = y;
+    if (y > y1) y1 = y;
+  };
+  for (const patch of patches) {
+    const g = patch.genome;
+    const tones = [0, 0.5, 1].map((f) => pixel(hslHex(g.blade.h, g.blade.s, g.blade.l + g.tipLight * f)));
+    for (const tuft of patch.tufts) {
+      const sway = Math.sin(time * 0.03 + tuft.x * 0.2) * 0.15;
+      for (let b = 0; b < g.blades; b++) {
+        const a = -Math.PI / 2 + g.lean + (b - (g.blades - 1) / 2) * g.fan;
+        const len = g.height * tuft.size * (0.7 + 0.5 * hash(tuft.seed, b, 1));
+        let tip = null;
+        for (let k = 0; k <= len; k++) {
+          const f = k / Math.max(1, len);
+          const x = tuft.x + Math.cos(a) * k + sway * k * f;
+          const y = tuft.y + Math.sin(a) * k;
+          dot(Math.round(x), Math.round(y), tones[Math.min(2, Math.floor(f * 3))]);
+          tip = { x, y };
+        }
+        if (!tip || tuft.size < 0.8) continue;
+        const [x, y] = [Math.round(tip.x), Math.round(tip.y)];
+        if (g.seeds && b % 2 === 0) {
+          const seeds = pixel(hslHex(g.seeds.h, g.seeds.s, g.seeds.l));
+          dot(x, y - 1, seeds);
+          dot(x, y, seeds);
+        }
+        if (g.blossom && b === 0 && hash(tuft.seed, 9) < 0.5) {
+          // Two dots square, as plot would draw it.
+          const blossom = pixel(hslHex(g.blossom.h, g.blossom.s, g.blossom.l));
+          const [bx, by] = [Math.ceil(tip.x - 1), Math.ceil(tip.y - 1)];
+          for (const [dx, dy] of [[0, 0], [1, 0], [0, 1], [1, 1]]) dot(bx + dx, by + dy, blossom);
+        }
       }
     }
   }
+  if (x1 < 0) return;
+  const [bw, bh] = [x1 - x0 + 1, y1 - y0 + 1];
+  grassLayer.ctx.putImageData(grassLayer.image, 0, 0, x0, y0, bw, bh);
+  ctx.drawImage(grassLayer.canvas, x0, y0, bw, bh, x0, y0, bw, bh);
+  for (let y = y0; y <= y1; y++) pixels.fill(0, y * w + x0, y * w + x1 + 1);
 };
 
 // A hanging vine: its stem through the rope's nodes, a leaf off each node on alternating sides (smaller near
@@ -329,11 +352,8 @@ const drawVine = (ctx, vine) => {
 
 const debrisColor = (look) => {
   if (look.kind === 'stick') return woodColors(look.wood).light;
-  const vineStem = look.vine?.genome.stem;
-  if (look.kind === 'vine') return hslHex(vineStem.h, vineStem.s, vineStem.l);
-  const stem = look.plant?.species.stem;
-  if (look.kind === 'stem') return hslHex(stem.h, stem.s, stem.l);
-  return BRANCH.light;
+  const { h, s, l } = look.kind === 'vine' ? look.vine.genome.stem : look.plant.species.stem;
+  return hslHex(h, s, l);
 };
 
 // While propagating, a little blinking green plus over each plant that's grown enough to take a cutting from,
@@ -372,7 +392,7 @@ const drawRelocation = (ctx, world, move) => {
   ctx.globalAlpha = 0.55;
   ctx.translate(Math.round(move.dx), Math.round(move.dy));
   if (obj.kind === 'plant') drawPlant(ctx, obj, world.time);
-  else if (obj.kind === 'grass') drawGrass(ctx, obj, world.time);
+  else if (obj.kind === 'grass') drawGrass(ctx, [obj], world.time);
   else drawVine(ctx, obj);
   ctx.restore();
   const top = topOf(obj);
@@ -430,7 +450,7 @@ const drawPreview = (ctx, world, spec, alpha = 1) => {
   } else if (spec.kind === 'grass') {
     // A seedling tuft.
     const tufts = [{ x: spec.base.x, y: spec.base.y, size: 0.6, seed: 1 }];
-    drawGrass(ctx, { genome: spec.genome, tufts }, world.time);
+    drawGrass(ctx, [{ genome: spec.genome, tufts }], world.time);
     top = spec.base.y - spec.genome.height * 0.6 - 1;
   } else if (spec.kind === 'vine') {
     // A short sprig hanging from where it would be anchored.
@@ -710,7 +730,6 @@ const dotColor = (ter, water, scale, x, y, grain) => {
   if (m === SANDSTONE) return MATERIAL_COLORS[SANDSTONE][sandstoneShade(r, c)];
   return MATERIAL_COLORS[m][ter.tint[i]];
 };
-const layerScale = (water) => (water ? 1 : CELL);
 
 const rgbCache = new Map();
 const rgb = (hex) => {
@@ -731,6 +750,14 @@ const pixel = (hex) => {
   return v;
 };
 
+// An image to write pixels into (whole colours from pixel), then draw onto the tank.
+const imageLayer = (w, h) => {
+  const canvas = Object.assign(document.createElement('canvas'), { width: w, height: h });
+  const ctx = canvas.getContext('2d');
+  const image = ctx.createImageData(w, h);
+  return { canvas, ctx, image, pixels: new Uint32Array(image.data.buffer) };
+};
+
 // Each terrain's drawing caches: its layers and its wood grain.
 const layers = new WeakMap();
 const layersOf = (ter) => {
@@ -739,19 +766,13 @@ const layersOf = (ter) => {
   return cache;
 };
 
-// In the browser each layer is an image (the solids at world-pixel size, water a pixel to a cell), redrawn only
+// Each layer is an image (the solids at world-pixel size, water a pixel to a cell), redrawn only
 // when its cells change and scaled up onto the tank.
 const terrainLayer = (ter, water) => {
   const cache = layersOf(ter);
-  const scale = layerScale(water);
+  const scale = water ? 1 : CELL;
   const w = ter.cols * scale;
-  let layer = cache[water];
-  if (!layer) {
-    const canvas = Object.assign(document.createElement('canvas'), { width: w, height: ter.rows * scale });
-    const ctx = canvas.getContext('2d');
-    const image = ctx.createImageData(w, ter.rows * scale);
-    layer = cache[water] = { canvas, ctx, image, pixels: new Uint32Array(image.data.buffer), version: -1 };
-  }
+  const layer = (cache[water] ??= { ...imageLayer(w, ter.rows * scale), version: -1 });
   const version = water ? ter.version : ter.solidVersion;
   if (layer.version !== version) {
     const { pixels } = layer;
@@ -780,28 +801,8 @@ const terrainLayer = (ter, water) => {
 const drawTerrain = (ctx, world, water) => {
   const ter = world.terrain;
   ctx.globalAlpha = water ? WATER_ALPHA : 1;
-  if (typeof document !== 'undefined' && ctx.drawImage) {
-    ctx.imageSmoothingEnabled = false;
-    ctx.drawImage(terrainLayer(ter, water), 0, ter.top, ter.cols * CELL, ter.rows * CELL);
-  } else {
-    // No DOM (tests): runs of same-coloured dots as rectangles.
-    const scale = layerScale(water);
-    const size = CELL / scale;
-    const grain = water ? null : woodGrain(ter);
-    for (let y = 0; y < ter.rows * scale; y++) {
-      let x = 0;
-      while (x < ter.cols * scale) {
-        const color = dotColor(ter, water, scale, x, y, grain);
-        let end = x + 1;
-        while (end < ter.cols * scale && dotColor(ter, water, scale, end, y, grain) === color) end++;
-        if (color) {
-          ctx.fillStyle = color;
-          ctx.fillRect(x * size, ter.top + y * size, (end - x) * size, size);
-        }
-        x = end;
-      }
-    }
-  }
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(terrainLayer(ter, water), 0, ter.top, ter.cols * CELL, ter.rows * CELL);
   ctx.globalAlpha = 1;
 };
 
@@ -895,16 +896,16 @@ const wallpaperLayer = (wp, W, floor) => {
   return canvas;
 };
 
-// The back of the tank: plain black, or the wallpaper (just its base colour when there's no DOM).
+// The back of the tank: plain black, or the wallpaper.
 const drawWallpaper = (ctx, world) => {
   const wp = world.wallpaper;
-  if (wp && typeof document !== 'undefined' && ctx.drawImage) {
-    ctx.imageSmoothingEnabled = false;
-    ctx.drawImage(wallpaperLayer(wp, world.W, world.ground.y0), 0, 0);
+  if (!wp) {
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, world.W, world.H);
     return;
   }
-  ctx.fillStyle = wp ? hslHex(wp.base.h, wp.base.s, wp.base.l) : '#000';
-  ctx.fillRect(0, 0, world.W, world.H);
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(wallpaperLayer(wp, world.W, world.ground.y0), 0, 0);
 };
 
 // ---------- how-tos ----------
@@ -1122,16 +1123,11 @@ export const drawWorld = (ctx, world) => {
   ctx.fillRect(0, floor, world.W, 1);
 
   for (const obj of world.objects) if (obj.kind === 'plant') drawPlant(ctx, obj, world.time);
-  for (const g of world.branches) {
-    if (g.kind === 'branch') drawBranch(ctx, g, BRANCH);
-    else if (g.kind === 'stick') drawBranch(ctx, g, woodColors(g.obj.wood), STICK_WIDTH[g.depth] ?? 2, g.obj.foliage);
-  }
-  for (const g of world.branches) {
-    const foliage = g.obj?.foliage ?? DEFAULT_FOLIAGE;
-    for (const leaf of g.leaves) drawLeaf(ctx, g, leaf, foliage);
-  }
+  const sticks = world.branches.filter((g) => g.kind === 'stick');
+  for (const g of sticks) drawBranch(ctx, g, woodColors(g.obj.wood), STICK_WIDTH[g.depth] ?? 2, g.obj.foliage);
+  for (const g of sticks) for (const leaf of g.leaves) drawLeaf(ctx, g, leaf, g.obj.foliage);
   drawTerrain(ctx, world, false);
-  for (const obj of world.objects) if (obj.kind === 'grass') drawGrass(ctx, obj, world.time);
+  drawGrass(ctx, world.objects.filter((obj) => obj.kind === 'grass'), world.time);
   for (const obj of world.objects) if (obj.kind === 'vine') drawVine(ctx, obj);
   if (world.tool === 'propagate') drawReady(ctx, world);
 

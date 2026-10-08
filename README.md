@@ -10,7 +10,7 @@ shop, and tune everything.
 npm install
 npm run dev     # local dev server
 npm run build   # static build in dist/
-node src/aim.check.js   # checks what the pointer's marks say a press would do
+npm run check   # checks what the pointer's marks say a press would do
 ```
 
 ## Interact
@@ -52,9 +52,8 @@ Shop, Garden (Prune, Relocate and Propagate), Saves and Settings. The game shows
 - Plants come in three types, each with its own genome: flowering plants that grow node by node; grass that you sow
   on dirt (painted dirt or the tank floor) and that spreads tuft by tuft, withering if buried or flooded;
   and hanging vines that hang from the nearest branch, stick, or underside or face of the terrain (a stone ledge,
-  say), or else from a hook at the top of the tank; they sway and drape onto the floor. Shop cards show which kind
-  a plant is with a little icon. Tap grass to mow it or a vine to cut it back; both grow back, and the clippings
-  sell.
+  say), or else from a hook at the top of the tank; they sway and drape onto the floor. Tap grass to mow it or a
+  vine to cut it back; both grow back, and the clippings sell.
 - Saves: save the tank (terrain, plants, sticks, bugs, coins and the shop) into a new slot, each shown with a
   little photo of the tank; tap the photo to load one, or save over, export or delete it (delete asks twice).
   Autosave, on unless you switch it off, saves into its own slot every 10 seconds and when you leave (its photo is
@@ -88,7 +87,8 @@ Shop, Garden (Prune, Relocate and Propagate), Saves and Settings. The game shows
   itself is turned into plain data and back by `exportWorld` / `importWorld` in `sim.js`, which fit saves made at
   another size to the tank's.
 - `src/samples/tank-1.stickbug.json` – the sample tank, a save file like the ones Export writes.
-- `src/Terrarium.jsx` – canvas component: a fixed 256×341 tank scaled up to fit the page, pointer input and cursor,
+- `src/Terrarium.jsx` – canvas component: a fixed 256×341 tank shown at a whole number of screen pixels per tank
+  pixel (the most that fits, so resizing the window only changes it a step at a time), pointer input and cursor,
   fixed 60 Hz step loop. It reads the world from a ref each frame, so a loaded or reset tank can be swapped in.
 - `src/App.jsx` – tank, bug inspector, and the Editor / Shop / Gardening / Saves / Settings tabs (sliders mutate
   `params` live).
