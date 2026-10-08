@@ -6,6 +6,7 @@
 // hopping toward the nearest water, until they're back in. Pure data + functions, like the rest of the simulation.
 import { CELL, cellAt, EMPTY, WATER } from './terrain.js';
 import { clamp, pick } from './geom.js';
+import { ripple } from './life.js';
 
 const HUNGER = 1 / 15000; // per tick, for an average appetite
 const BITE = 0.12; // hunger a flake takes away
@@ -201,8 +202,10 @@ const stepFlakes = (world) => {
   world.flakes = world.flakes.filter((fl) => {
     const inWater = wet(world, fl.x, fl.y);
     if (!inWater) fl.vy = Math.min(fl.vy + 0.05, 1.5);
-    else if (fl.vy > 0.1) Object.assign(fl, { vy: 0, float: 150 + world.rand() * 150 }); // just landed on it
-    else if (fl.float > 0 && !wet(world, fl.x, fl.y - CELL)) fl.float--;
+    else if (fl.vy > 0.1) {
+      Object.assign(fl, { vy: 0, float: 150 + world.rand() * 150 }); // just landed on it
+      ripple(world, fl.x, fl.y);
+    } else if (fl.float > 0 && !wet(world, fl.x, fl.y - CELL)) fl.float--;
     else fl.vy = 0.06;
     if (inWater) fl.x = clamp(fl.x + Math.sin(world.time * 0.02 + fl.seed) * 0.03, 1, world.W - 2);
     fl.y = Math.min(fl.y + fl.vy, floorUnder(world, fl.x, fl.y) - 1);
@@ -210,10 +213,10 @@ const stepFlakes = (world) => {
   });
 };
 
-// Food in the water: flakes, and crumbs that have fallen in.
+// Food in the water: flakes, and crumbs and leaves that have fallen in.
 const foodNear = (world, f, reach) => {
   let best = null;
-  for (const it of [...world.flakes, ...world.crumbs]) {
+  for (const it of [...world.flakes, ...world.crumbs, ...world.litter]) {
     if (it.life <= 0 || !wet(world, it.x, it.y + 1)) continue;
     const d = Math.hypot(it.x - f.x, it.y - f.y);
     if (d < reach && (!best || d < best.d)) best = { d, it };

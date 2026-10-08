@@ -51,6 +51,7 @@ import {
   WATER,
 } from './terrain.js';
 import { feedFish, fishAt, fishShape, guppyName, guppyPrice, makeGuppy, newFish, startle, stepFish } from './fish.js';
+import { ripple, stepLife, wind } from './life.js';
 
 export { feedFish };
 
@@ -67,6 +68,11 @@ const LEAF_SPAWN_CHANCE = 1 / 360;
 const LEAF_SPACING = 16;
 const MAX_CRUMBS = 200;
 const MAX_DEBRIS = 80;
+const MAX_LITTER = 60; // fallen leaves
+const LEAF_LIFE = 180000; // ticks a plant leaf lasts, for species from before leaves aged
+const LEAF_FADE = 1200; // ticks an old leaf takes to yellow before it drops
+const LITTER_ROT = 1 / 3600; // how fast a fallen leaf lying on the ground browns and curls up, per tick
+const FLOAT_TICKS = 600; // a leaf fallen on the water floats this long before it sinks
 const SPROUT_TICKS = 120; // a pruned stem waits this long before sprouting new shoots
 const QUIRKS = [
   ['wave', 0.4],
@@ -84,6 +90,8 @@ const BEND_STIFFNESS = 0.06; // how hard a bent stem springs back
 const BEND_DAMPING = 0.9;
 const CURRENT = 0.0015; // how hard the water rocks a stem, radians per tick per tick
 const VINE_CURRENT = 0.04; // and a vine's nodes, px per tick per tick
+const PLANT_WIND = 0.001; // how hard the breeze pushes a stem in the air, radians per tick per tick
+const VINE_WIND = 0.015; // and a vine's nodes, px per tick per tick
 const FLEX = 0.15; // how hard pulled grass springs back
 export const PRICES = { fountain: 15 }; // fixed prices for anything not showcased; showcased kinds are priced per offer
 const SHOP_KINDS = ['bug', 'fish', 'plant', 'stick', 'wallpaper']; // showcased in the shop, OFFERS of each
@@ -478,6 +486,7 @@ export const createWorld = (W, H, { seed = Date.now(), scene = true } = {}) => {
     junctions: [],
     time: 0,
     rand: mulberry32(seed),
+    lifeRand: mulberry32(seed + 1), // for the tank's ambient life alone, so it never reshuffles what else happens
     held: null,
     press: null,
     pointer: { x: 0, y: 0 },
@@ -489,6 +498,11 @@ export const createWorld = (W, H, { seed = Date.now(), scene = true } = {}) => {
     offers: 0,
     crumbs: [],
     debris: [],
+    litter: [], // fallen leaves
+    fireflies: [],
+    bubbles: [],
+    motes: [], // dust in the air
+    ripples: [],
     popups: [],
     coins: START_COINS,
     placing: null, // the shop item waiting to be put down: {kind, seed}
@@ -1006,11 +1020,45 @@ const growPlant = (world, plant, rate) => {
   bendPlant(world, plant);
 };
 
+// Leaves get old. One past its time yellows and drops, and its node buds a new one in its place: one leaf at a
+// time, so a plant never looks poorly.
+const ageLeaves = (world, plant) => {
+  const life = (plant.species.leafLife ?? LEAF_LIFE) * params.leafLife;
+  let fading = null;
+  let due = null; // the leaf longest past its time
+  for (const stem of plant.stems) {
+    for (const leaf of stem.leaves) {
+      leaf.age = (leaf.age ?? Math.floor(world.lifeRand() * life)) + 1; // new ones start part way, not all together
+      if (leaf.fade) fading = { stem, leaf };
+      else if (leaf.age > life && !(due?.leaf.age > leaf.age)) due = { stem, leaf };
+    }
+  }
+  if (!fading) {
+    if (due) due.leaf.fade = 1 / LEAF_FADE;
+    return;
+  }
+  const { stem, leaf } = fading;
+  leaf.fade += 1 / LEAF_FADE;
+  if (leaf.fade < 1) return;
+  if (world.litter.length >= MAX_LITTER) world.litter.shift();
+  const sp = plant.species;
+  world.litter.push({
+    ...lerp(stem.root, stem.tip, leaf.at),
+    look: { shape: sp.shape, color: sp.leaf, grown: leaf.size, scale: sp.leafSize, flip: leaf.side },
+    state: 'fall',
+    phase: world.lifeRand() * 6, // of its flutter
+    rot: 0, // lying on the ground it browns and curls up as this goes to 1, and is gone
+    size: 1, // fish bite it smaller
+    life: 1, // eaten, like crumbs and flakes, when a fish takes it to 0
+  });
+  Object.assign(leaf, { size: 0, age: 0, fade: 0 });
+};
+
 const wrapAngle = (a) => Math.atan2(Math.sin(a), Math.cos(a));
 
 // Each stem points the way it grew, turned as far as the stem it grows from, and bent at its root. Bent, it springs
-// back, so a plant pulled about bends along its length and wobbles back when let go, and under water the current
-// rocks it.
+// back, so a plant pulled about bends along its length and wobbles back when let go, the breeze sways it, and
+// under water the current rocks it.
 const bendPlant = (world, plant) => {
   const pull = world.pull?.obj === plant && plant.stems.includes(world.pull.stem) ? world.pull : null;
   const goals = pull ? reachFor(plant, pull.stem, add(world.pointer, pull.off)) : null;
@@ -1023,7 +1071,9 @@ const bendPlant = (world, plant) => {
       [stem.spin, stem.bend] = [wrapAngle(bend - stem.bend), bend];
     } else {
       const wet = wetAt(world.terrain, stem.tip);
-      const push = wet ? CURRENT * Math.sin(world.time * 0.03 - stem.depth * 0.5 + plant.base.x) : 0;
+      const push = wet
+        ? CURRENT * Math.sin(world.time * 0.03 - stem.depth * 0.5 + plant.base.x)
+        : PLANT_WIND * wind(world, stem.tip.x);
       stem.spin = (stem.spin - stem.bend * BEND_STIFFNESS - push * Math.sin(rest + stem.bend)) * BEND_DAMPING;
       stem.bend += stem.spin;
     }
@@ -1224,7 +1274,7 @@ const growVine = (world, vine, rate) => {
     const last = nodes[nodes.length - 1];
     nodes.push({ x: last.x, y: last.y + 1, px: last.x, py: last.y + 1 });
   }
-  const breeze = Math.sin(world.time * 0.017 + vine.base.x * 0.05) * 0.015 * (1 - g.stiffness * 0.7);
+  const give = VINE_WIND * (1 - g.stiffness * 0.7); // how far the breeze moves it
   Object.assign(nodes[0], { x: vine.base.x, y: vine.base.y });
   nodes.forEach((p, i) => {
     if (i === 0) return;
@@ -1233,7 +1283,7 @@ const growVine = (world, vine, rate) => {
     const vy = (p.y - p.py) * 0.95;
     p.px = p.x;
     p.py = p.y;
-    p.x += vx + breeze + (p.wet ? VINE_CURRENT * Math.sin(world.time * 0.03 - i * 0.4) : 0);
+    p.x += vx + (p.wet ? VINE_CURRENT * Math.sin(world.time * 0.03 - i * 0.4) : wind(world, p.x) * give);
     p.y += vy + params.gravity * (p.wet ? 0.1 : 0.4);
   });
   const held = world.pull?.obj === vine && world.pull.i < nodes.length ? world.pull.i : 0;
@@ -1638,8 +1688,10 @@ export const step = (world) => {
     }
   }
   for (const obj of [...world.objects]) {
-    if (obj.kind === 'plant') growPlant(world, obj, params.plantGrowth);
-    else if (obj.kind === 'grass') growGrass(world, obj, params.plantGrowth);
+    if (obj.kind === 'plant') {
+      growPlant(world, obj, params.plantGrowth);
+      ageLeaves(world, obj);
+    } else if (obj.kind === 'grass') growGrass(world, obj, params.plantGrowth);
     else if (obj.kind === 'vine') growVine(world, obj, params.plantGrowth);
   }
   for (const bug of world.bugs) {
@@ -1661,6 +1713,8 @@ export const step = (world) => {
   stepFish(world);
   stepCrumbs(world);
   stepDebris(world);
+  stepLitter(world);
+  stepLife(world);
   world.popups = world.popups.filter((p) => {
     p.y -= 0.25;
     return --p.life > 0;
@@ -2140,6 +2194,44 @@ const stepDebris = (world) => {
       }
     }
     return --p.life > 0;
+  });
+};
+
+// Fallen leaves flutter down, rocking side to side and blown along by the breeze. On the ground they lie, brown,
+// curl up and are gone in a minute; on the water they float a while, then sink, and fish nibble at them.
+const stepLitter = (world) => {
+  const ter = world.terrain;
+  world.litter = world.litter.filter((it) => {
+    const y0 = it.y;
+    if (it.state === 'fall') {
+      it.phase += 0.05;
+      it.x = clamp(it.x + Math.cos(it.phase) * 0.35 + wind(world, it.x) * 0.3, 1, world.W - 2);
+      it.y += 0.06 + 0.3 * Math.cos(it.phase) ** 2; // quickest at the bottom of each swing
+      if (wetAt(ter, { x: it.x, y: it.y - CELL })) {
+        it.state = 'sink'; // dropped under water
+      } else if (wetAt(ter, it)) {
+        it.y = ter.top + Math.floor((it.y - ter.top) / CELL) * CELL - 0.5; // on the surface
+        Object.assign(it, { state: 'float', float: FLOAT_TICKS });
+        ripple(world, it.x, it.y + 1);
+      }
+    } else if (it.state === 'float') {
+      it.x = clamp(it.x + wind(world, it.x) * 0.05 + Math.sin(world.time * 0.02 + it.phase) * 0.03, 1, world.W - 2);
+      if (!wetAt(ter, { x: it.x, y: it.y + 1 })) it.state = 'fall'; // drifted off the edge of the water, or it drained
+      else if (--it.float <= 0) it.state = 'sink';
+    } else if (it.state === 'sink') {
+      it.phase += 0.03;
+      it.x = clamp(it.x + Math.cos(it.phase) * 0.08, 1, world.W - 2);
+      it.y += 0.05;
+    } else {
+      it.rot += LITTER_ROT;
+    }
+    // Falling or sinking it lands on the floor; lying, it falls again if the floor goes from under it.
+    if (it.state !== 'float' && (it.state !== 'lie' || world.time % 10 === 0)) {
+      const floor = floorBelow(world, it.x, Math.min(y0, it.y) - 1).y - 1;
+      if (it.y >= floor) Object.assign(it, { y: floor, state: 'lie' });
+      else if (it.state === 'lie') it.state = 'fall';
+    }
+    return it.life > 0 && it.rot < 1;
   });
 };
 

@@ -3,7 +3,9 @@
 import assert from 'node:assert/strict';
 import { buyReroll, createWorld, pointerDown, pointerMove, pointerUp, startPlacing, step } from './sim.js';
 import { EMPTY, WATER } from './terrain.js';
+import { params } from './tuning.js';
 
+params.breeze = 0; // still air, so a plant let go comes to rest
 const world = createWorld(240, 320, { seed: 1 });
 world.coins = 1e6;
 // Some grass, sown from the shop in the middle of the floor.

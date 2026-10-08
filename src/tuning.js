@@ -119,6 +119,15 @@ export const GROUPS = [
       ['maxBugs', 'Max bugs', 8, 7, 1],
     ],
   },
+  {
+    title: 'Life',
+    genes: false,
+    sliders: [
+      ['breeze', 'Breeze', 1, 1, 0.1], // how hard the breeze blows, swells and gusts alike
+      ['leafLife', 'Leaf life', 1, 0.9, 0.1], // multiplier on how long a leaf lasts before it yellows and drops
+      ['fireflies', 'Fireflies', 6, 6, 1], // at most, and never more than two to a plant
+    ],
+  },
 ];
 
 // Flat list with the range worked out.

@@ -28,6 +28,7 @@ import { FAR_SHADE, bodyHex, patternHex, patternOf, traitsOf } from './genome.js
 import { CELL, DIRT, EMPTY, FOUNTAIN, MATERIALS, SAND, SANDSTONE, STONE, WATER, WOOD } from './terrain.js';
 import { aimAt, floorBelow, previewAt, propagatable, relocationAt } from './sim.js';
 import { facingNow, fishShape } from './fish.js';
+import { FLASH, RIPPLE_TICKS, wind } from './life.js';
 
 const NOTE = ['..#.', '..##', '..#.', '..#.', '###.', '##..'];
 const ARROW = ['#####', '.###.', '..#..'];
@@ -241,28 +242,50 @@ const drawFlower = (ctx, f, c, bloom, turn, scale = 1) => {
   plot(ctx, c.x, c.y, Math.max(1, f.centreSize * s));
 };
 
-// Plants sway in the breeze, more toward the top.
-const drawPlant = (ctx, plant, time) => {
+// A leaf's colour as it gets old: yellowing as fade goes 0 -> 1, then browning as rot goes 0 -> 1 on the ground.
+// Returns [h, s, l].
+const agedLeaf = ({ h, s, l }, fade, rot = 0) => {
+  const toward = (a, b) => a + (b - a) * fade;
+  const yellow = [h + (((((45 - h) % 360) + 540) % 360) - 180) * fade, toward(s, 70), toward(l, 52)];
+  return yellow.map((v, i) => v + ([28, 38, 30][i] - v) * rot);
+};
+
+// A plant as the breeze has bent it, its old leaves yellowing and drooping.
+const drawPlant = (ctx, plant) => {
   const sp = plant.species;
-  const bend = Math.sin(time * 0.02 + plant.base.x * 0.13) * 0.035;
-  const sway = (p) => ({ x: p.x + bend * (plant.base.y - p.y), y: p.y });
   ctx.fillStyle = hslHex(sp.stem.h, sp.stem.s, sp.stem.l);
-  for (const st of plant.stems) line(ctx, sway(st.root), sway(st.tip), 1.2);
+  for (const st of plant.stems) line(ctx, st.root, st.tip, 1.2);
   const form = LEAF_FORMS[sp.shape];
   for (const st of plant.stems) {
     for (const leaf of st.leaves) {
-      const a = st.angle + leaf.side * 0.95;
-      const l = sp.leaf.l + leaf.side * 4;
+      const fade = leaf.fade ?? 0;
+      const a = st.angle + leaf.side * (0.95 + 0.6 * fade); // yellowing, it droops
+      const [h, s, l] = agedLeaf({ ...sp.leaf, l: sp.leaf.l + leaf.side * 4 }, fade);
       const len = (1.5 + 4 * leaf.size) * sp.leafSize * form.len;
-      const fill = hslHex(sp.leaf.h, sp.leaf.s, l);
-      const vein = hslHex(sp.leaf.h, sp.leaf.s, l - 9);
-      leafShape(ctx, sway(lerp(st.root, st.tip, leaf.at)), dirOf(a), len, form, leaf.size * sp.leafSize, fill, vein);
+      const at = lerp(st.root, st.tip, leaf.at);
+      leafShape(ctx, at, dirOf(a), len, form, leaf.size * sp.leafSize, hslHex(h, s, l), hslHex(h, s, l - 9));
     }
   }
   for (const st of plant.stems) {
     if (st.flower <= 0) continue;
     const turn = (st.angle * 1000) % 6.28; // not its position, which moves as it bends
-    drawFlower(ctx, sp.flower, sway(st.tip), st.flower, turn, st.sideBloom ? 0.55 : 1);
+    drawFlower(ctx, sp.flower, st.tip, st.flower, turn, st.sideBloom ? 0.55 : 1);
+  }
+};
+
+// Fallen leaves: rocking as they flutter down or sink, flat on the water or the ground, shrinking as fish bite them
+// and curling up at the end.
+const LITTER_TILT = { fall: 0.9, sink: 0.4 };
+const drawLitter = (ctx, world) => {
+  for (const it of world.litter) {
+    const { shape, color, grown, scale, flip } = it.look;
+    const form = LEAF_FORMS[shape];
+    const k = it.size * Math.min(1, (1 - it.rot) / 0.3);
+    const len = (1.5 + 4 * grown) * scale * form.len * k;
+    const tilt = Math.sin(it.phase) * (LITTER_TILT[it.state] ?? 0);
+    const axis = { x: Math.cos(tilt) * flip, y: Math.sin(tilt) };
+    const [h, s, l] = agedLeaf(color, 1, it.rot);
+    leafShape(ctx, add(it, axis, -len / 2), axis, len, form, grown * scale * k, hslHex(h, s, l), hslHex(h, s, l - 9));
   }
 };
 
@@ -270,8 +293,9 @@ const drawPlant = (ctx, plant, time) => {
 // with seed heads or little blossoms once grown. A tank of it is tens of thousands of single dots, too many to
 // fill one at a time, so they're written into an image and drawn in one go, afresh every frame so it still sways.
 let grassLayer = null;
-const drawGrass = (ctx, patches, time) => {
+const drawGrass = (ctx, world, patches) => {
   if (!patches.length) return;
+  const time = world.time;
   const { width: w, height: h } = ctx.canvas;
   if (grassLayer?.canvas.width !== w || grassLayer.canvas.height !== h) grassLayer = imageLayer(w, h);
   // Only the box the grass covers is drawn, and cleared again for next time.
@@ -290,8 +314,11 @@ const drawGrass = (ctx, patches, time) => {
     const tones = [0, 0.5, 1].map((f) => pixel(hslHex(g.blade.h, g.blade.s, g.blade.l + g.tipLight * f)));
     const flex = patch.flex; // pulled over toward the pointer, most where it was grabbed
     for (const tuft of patch.tufts) {
-      // Under water it sways further and slower, rocked by the current.
-      const sway = tuft.wet ? Math.sin(time * 0.02 + tuft.x * 0.1) * 0.35 : Math.sin(time * 0.03 + tuft.x * 0.2) * 0.15;
+      // In the air it leans with the breeze, fluttering a little; under water it sways further and slower, rocked by
+      // the current.
+      const sway = tuft.wet
+        ? Math.sin(time * 0.02 + tuft.x * 0.1) * 0.35
+        : wind(world, tuft.x) * 0.35 + Math.sin(time * 0.05 + tuft.x * 0.3) * 0.03;
       const pull = flex ? flex.dx * Math.max(0, 1 - Math.abs(tuft.x - flex.x) / 8) : 0;
       for (let b = 0; b < g.blades; b++) {
         const a = -Math.PI / 2 + g.lean + (b - (g.blades - 1) / 2) * g.fan;
@@ -407,8 +434,8 @@ const drawRelocation = (ctx, world, move) => {
   ctx.save();
   ctx.globalAlpha = 0.55;
   ctx.translate(Math.round(move.dx), Math.round(move.dy));
-  if (obj.kind === 'plant') drawPlant(ctx, obj, world.time);
-  else if (obj.kind === 'grass') drawGrass(ctx, [obj], world.time);
+  if (obj.kind === 'plant') drawPlant(ctx, obj);
+  else if (obj.kind === 'grass') drawGrass(ctx, world, [obj]);
   else drawVine(ctx, obj);
   ctx.restore();
   const top = topOf(obj);
@@ -466,7 +493,7 @@ const drawPreview = (ctx, world, spec, alpha = 1) => {
   } else if (spec.kind === 'grass') {
     // A seedling tuft.
     const tufts = [{ x: spec.base.x, y: spec.base.y, size: 0.6, seed: 1 }];
-    drawGrass(ctx, [{ genome: spec.genome, tufts }], world.time);
+    drawGrass(ctx, world, [{ genome: spec.genome, tufts }]);
     top = spec.base.y - spec.genome.height * 0.6 - 1;
   } else if (spec.kind === 'vine') {
     // A short sprig hanging from where it would be anchored.
@@ -822,6 +849,82 @@ const drawTerrain = (ctx, world, water) => {
   ctx.globalAlpha = water ? WATER_ALPHA : 1;
   ctx.imageSmoothingEnabled = false;
   ctx.drawImage(terrainLayer(ter, water), 0, ter.top, ter.cols * CELL, ter.rows * CELL);
+  ctx.globalAlpha = 1;
+};
+
+// The water cells open to the air on top, as world px [x, y, x, y, ...], found again whenever the water moves.
+const surfaceOf = (ter) => {
+  const cache = layersOf(ter);
+  if (cache.surfaceVersion !== ter.version) {
+    const s = [];
+    for (let i = 0; i < ter.cells.length; i++) {
+      if (ter.cells[i] !== WATER || (i >= ter.cols && ter.cells[i - ter.cols] !== EMPTY)) continue;
+      s.push((i % ter.cols) * CELL, ter.top + Math.floor(i / ter.cols) * CELL);
+    }
+    Object.assign(cache, { surface: s, surfaceVersion: ter.version });
+  }
+  return cache.surface;
+};
+
+const GLINT = '#e6f3ff';
+const BUBBLE = '#cfe6ff';
+
+// Light on the water: glints sliding along the surface, rings spreading where something lands on it or a bubble
+// pops, and bubbles rising.
+const drawWater = (ctx, world) => {
+  const t = world.time;
+  const s = surfaceOf(world.terrain);
+  ctx.fillStyle = GLINT;
+  ctx.globalAlpha = 0.7;
+  for (let i = 0; i < s.length; i += 2) {
+    for (let x = s[i]; x < s[i] + CELL; x++) {
+      if (Math.sin(x * 0.37 - t * 0.05) + Math.sin(x * 0.13 + t * 0.021) > 1.55) ctx.fillRect(x, s[i + 1], 1, 1);
+    }
+  }
+  for (const r of world.ripples) {
+    ctx.globalAlpha = 0.8 * (1 - r.age / RIPPLE_TICKS);
+    const d = Math.round(1 + r.age * 0.3);
+    ctx.fillRect(Math.round(r.x) - d, r.y, 1, 1);
+    ctx.fillRect(Math.round(r.x) + d, r.y, 1, 1);
+  }
+  ctx.fillStyle = BUBBLE;
+  ctx.globalAlpha = 0.7;
+  for (const b of world.bubbles) {
+    const [x, y] = [Math.round(b.x), Math.round(b.y)];
+    if (!b.big) ctx.fillRect(x, y, 1, 1);
+    else for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) ctx.fillRect(x + dx, y + dy, 1, 1);
+  }
+  ctx.globalAlpha = 1;
+};
+
+const MOTE = '#fff3d6';
+const FIREFLY = '#e2ff7a';
+
+// What's in the air: dust catching the light, brighter higher up, and fireflies, glowing faintly between flashes.
+const drawAir = (ctx, world) => {
+  const t = world.time;
+  ctx.fillStyle = MOTE;
+  for (const m of world.motes) {
+    ctx.globalAlpha = (0.08 + 0.3 * (1 - m.y / world.ground.y0)) * (0.6 + 0.4 * Math.sin(t * 0.04 + m.seed));
+    ctx.fillRect(Math.round(m.x), Math.round(m.y), 1, 1);
+  }
+  ctx.fillStyle = FIREFLY;
+  for (const f of world.fireflies) {
+    const fade = Math.min(1, f.age / 120, (f.life - f.age) / 120);
+    const lit = f.clock < FLASH ? Math.sin((Math.PI * f.clock) / FLASH) : 0;
+    const [x, y] = [Math.round(f.x), Math.round(f.y)];
+    if (lit > 0) {
+      // A soft round glow: two crossed bars, brightest where they overlap, then a brighter cross.
+      ctx.globalAlpha = 0.25 * lit * fade;
+      ctx.fillRect(x - 2, y - 1, 5, 3);
+      ctx.fillRect(x - 1, y - 2, 3, 5);
+      ctx.globalAlpha = 0.6 * lit * fade;
+      ctx.fillRect(x - 1, y, 3, 1);
+      ctx.fillRect(x, y - 1, 1, 3);
+    }
+    ctx.globalAlpha = (0.25 + 0.75 * lit) * fade;
+    ctx.fillRect(x, y, 1, 1);
+  }
   ctx.globalAlpha = 1;
 };
 
@@ -1287,12 +1390,12 @@ export const drawWorld = (ctx, world) => {
   ctx.fillStyle = '#9c7448';
   ctx.fillRect(0, floor, world.W, 1);
 
-  for (const obj of world.objects) if (obj.kind === 'plant') drawPlant(ctx, obj, world.time);
+  for (const obj of world.objects) if (obj.kind === 'plant') drawPlant(ctx, obj);
   const sticks = world.branches.filter((g) => g.kind === 'stick');
   for (const g of sticks) drawBranch(ctx, g, woodColors(g.obj.wood), STICK_WIDTH[g.depth] ?? 2, g.obj.foliage);
   for (const g of sticks) for (const leaf of g.leaves) drawLeaf(ctx, g, leaf, g.obj.foliage);
   drawTerrain(ctx, world, false);
-  drawGrass(ctx, world.objects.filter((obj) => obj.kind === 'grass'), world.time);
+  drawGrass(ctx, world, world.objects.filter((obj) => obj.kind === 'grass'));
   for (const obj of world.objects) if (obj.kind === 'vine') drawVine(ctx, obj);
   if (world.tool === 'propagate') drawReady(ctx, world);
 
@@ -1303,7 +1406,9 @@ export const drawWorld = (ctx, world) => {
   if (preview) drawPreview(ctx, world, preview);
 
   for (const bug of world.bugs) drawBug(ctx, world, bug);
-  drawTerrain(ctx, world, true); // water over the bugs, so they wade
+  drawLitter(ctx, world);
+  drawTerrain(ctx, world, true); // water over the bugs and fallen leaves, so they wade and sink
+  drawWater(ctx, world);
   // Fish and their food go over the water, just tinted by it: under the full wash of it their colours would be lost.
   for (const f of world.fish) {
     ctx.globalAlpha = f.dry ? 1 : 0.75;
@@ -1347,6 +1452,7 @@ export const drawWorld = (ctx, world) => {
     [...p.text].forEach((ch, i) => sprite(ctx, GLYPHS[ch], p.x - 4 + i * 4, p.y));
   }
   ctx.globalAlpha = 1;
+  drawAir(ctx, world);
   drawDemo(ctx, world);
   if (world.tool === 'paint' && world.hover) drawBrush(ctx, world.pointer, world.brush.size * CELL + 1);
 };

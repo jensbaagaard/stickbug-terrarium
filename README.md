@@ -10,8 +10,11 @@ and water, decorate it from the shop, and tune everything.
 npm install
 npm run dev     # local dev server
 npm run build   # static build in dist/
-npm run check   # checks the pointer's marks, pulling plants, flowering under water, the fish, and bugs' footing
+npm run check   # checks the pointer's marks, pulling plants, flowering under water, the fish, bugs' footing, and the tank's life
+npm run stress  # times the simulation on a tank packed with everything (`node src/stress.js 3`: 3x the plants)
 ```
+
+To time the drawing too, open `/stress.html` on the dev server (`?crowd=3` for three times the plants).
 
 ## Interact
 
@@ -71,6 +74,12 @@ Shop, Garden (Prune, Relocate, Propagate and Feed), Saves and Settings. The game
   drape onto the floor.
   Plants and vines sway more under water, rocked by the current, and only flower out of it. Tap grass to mow it or a
   vine to cut it back; both grow back, and the clippings sell.
+- The tank lives on its own. A breeze sways the plants, grass and vines in the air, and now and then a gust rolls
+  across the tank, leaning everything over as it passes. Old plant leaves yellow, droop and drop, one at a time, and
+  the node grows a new one: fallen leaves flutter down and lie browning on the ground until they're gone, or float on
+  the water a while and sink, and the fish nibble them. Fireflies hang about over the plants, blinking, and over a
+  minute or two fall into step until they flash together. Whatever grows under water gives off bubbles that pop at
+  the surface, light glints along the water, rings spread where something lands on it, and dust drifts in the air.
 - Saves: save the tank (terrain, plants, sticks, bugs, coins and the shop) into a new slot, each shown with a
   little photo of the tank; tap the photo to load one, or save over, export or delete it (delete asks twice).
   Autosave, on unless you switch it off, saves into its own slot every 10 seconds and when you leave (its photo is
@@ -89,8 +98,11 @@ Shop, Garden (Prune, Relocate, Propagate and Feed), Saves and Settings. The game
 - `src/genome.js` – random genes (Variety sets how far they stray from the sliders), traits, colours, names.
 - `src/anatomy.js` – body and leg geometry shared by the simulation and the renderer.
 - `src/sim.js` – world, surfaces and junctions, bugs (kicked tripod steps with feet planted in the world, crawling
-  round corners at junctions, quirks), decorations, plants growing node by node, spreading grass, vines as swaying
-  ropes, pruning, the shop and coins. Pure logic, no DOM.
+  round corners at junctions, quirks), decorations, plants growing node by node (their leaves ageing and dropping),
+  fallen leaves, spreading grass, vines as swaying ropes, pruning, the shop and coins. Pure logic, no DOM.
+- `src/life.js` – the tank's ambient life: the breeze (a function of time alone, read by the sim and the drawing),
+  fireflies, bubbles, dust and ripples. It draws from its own random numbers, so it never changes what else happens.
+  Pure logic, no DOM.
 - `src/fish.js` – guppies: their genome, price and names, and how they live: cruising and shoaling, food and
   grazing, resting, begging, fleeing, courting, and flopping when stranded. Pure logic, no DOM.
 - `src/terrain.js` – the falling-sand grid (stone, sandstone, wood, dirt, sand, water, fountains): painting and
@@ -98,8 +110,10 @@ Shop, Garden (Prune, Relocate, Propagate and Feed), Saves and Settings. The game
 - `src/decor.js` – random sticks (with their own foliage), wallpapers, and the plant genomes: flowering
   species with a flower genome (form, petals, colours, size), grasses and hanging vines.
 - `src/geom.js` – maths, segment and colour helpers.
-- `src/render.js` – canvas drawing (scenery, flowers, genome colours and patterns, quirk poses, previews, coin
-  popups, the marks under the pointer and the tools' how-to animations).
+- `src/render.js` – canvas drawing (scenery, flowers, ageing and fallen leaves, light on the water, fireflies and
+  dust, genome colours and patterns, quirk poses, previews, coin popups, the marks under the pointer and the tools'
+  how-to animations).
+- `src/stress.js`, `stress.html` – the stress test: a tank packed with everything, timed.
 - `src/icons.js` – the panel's pixel icons, as rows of `#`, and the scissors cursor.
 - `src/thumbs.js` – shop pictures: each offer built in a scratch world, grown, drawn and cropped.
 - `src/saves.js` – save slots, the autosave and remembered settings in localStorage, and the save photos. The tank

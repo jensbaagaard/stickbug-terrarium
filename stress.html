@@ -1,0 +1,59 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Stress</title>
+  </head>
+  <body style="margin: 0; background: #111; color: #ddd; font: 13px monospace">
+    <canvas id="c" width="256" height="341" style="width: 512px; height: 682px; image-rendering: pixelated"></canvas>
+    <pre id="out">building…</pre>
+    <script type="module">
+      // The stress tank (src/stress.js), stepped and drawn a frame at a time: what each costs, how many pixels get
+      // filled one by one, and how steady the frames come. Open /stress.html on the dev server; ?frames=n to run
+      // longer, ?crowd=n for n times the plants. The result lands in window.result too.
+      import { census, stressWorld, timeOf } from '/src/stress.js';
+      import { step } from '/src/sim.js';
+      import { drawWorld } from '/src/render.js';
+
+      const out = document.getElementById('out');
+      const ctx = document.getElementById('c').getContext('2d');
+      const query = new URLSearchParams(location.search);
+      const frames = Number(query.get('frames') ?? 600);
+      let fills = 0;
+      const fillRect = ctx.fillRect.bind(ctx);
+      ctx.fillRect = (...a) => {
+        fills++;
+        fillRect(...a);
+      };
+
+      setTimeout(() => {
+        let t = performance.now();
+        const world = stressWorld(Number(query.get('crowd') ?? 1));
+        const built = Math.round(performance.now() - t);
+        window.tank = { world, step, draw: () => drawWorld(ctx, world) }; // to poke at from the console
+        drawWorld(ctx, world); // warm the caches
+        const stepMs = timeOf(() => step(world), frames);
+        fills = 0;
+        const drawMs = timeOf(() => drawWorld(ctx, world), frames);
+        const fillsPerFrame = Math.round(fills / frames);
+        const show = (more) => {
+          window.result = { built, stepMs, drawMs, fillsPerFrame, ...more, census: census(world) };
+          out.textContent = JSON.stringify(window.result, null, 2);
+        };
+        show({ slowFrames: 'pending: runs while the page is in view' });
+        // Then live, as the tank runs: how many frames come late (a frame is due every 16.7 ms).
+        const gaps = [];
+        t = performance.now();
+        const frame = (now) => {
+          gaps.push(now - t);
+          t = now;
+          step(world);
+          drawWorld(ctx, world);
+          if (gaps.length < frames) requestAnimationFrame(frame);
+          else show({ slowFrames: gaps.filter((g) => g > 20).length });
+        };
+        requestAnimationFrame(frame);
+      }, 50);
+    </script>
+  </body>
+</html>

@@ -137,6 +137,7 @@ export const makeSpecies = (rand) => {
     lean: (rand() - 0.5) * 0.5,
     speed: range(rand, 0.008, 0.02), // px per tick
     flower: makeFlower(rand),
+    leafLife: range(rand, 120000, 240000), // ticks a leaf lasts before it yellows and drops
   };
 };
 
