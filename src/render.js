@@ -290,7 +290,8 @@ const drawGrass = (ctx, patches, time) => {
     const tones = [0, 0.5, 1].map((f) => pixel(hslHex(g.blade.h, g.blade.s, g.blade.l + g.tipLight * f)));
     const flex = patch.flex; // pulled over toward the pointer, most where it was grabbed
     for (const tuft of patch.tufts) {
-      const sway = Math.sin(time * 0.03 + tuft.x * 0.2) * 0.15;
+      // Under water it sways further and slower, rocked by the current.
+      const sway = tuft.wet ? Math.sin(time * 0.02 + tuft.x * 0.1) * 0.35 : Math.sin(time * 0.03 + tuft.x * 0.2) * 0.15;
       const pull = flex ? flex.dx * Math.max(0, 1 - Math.abs(tuft.x - flex.x) / 8) : 0;
       for (let b = 0; b < g.blades; b++) {
         const a = -Math.PI / 2 + g.lean + (b - (g.blades - 1) / 2) * g.fan;
@@ -310,7 +311,7 @@ const drawGrass = (ctx, patches, time) => {
           dot(x, y - 1, seeds);
           dot(x, y, seeds);
         }
-        if (g.blossom && b === 0 && hash(tuft.seed, 9) < 0.5) {
+        if (g.blossom && b === 0 && hash(tuft.seed, 9) < 0.5 && !tuft.wet) {
           // Two dots square, as plot would draw it.
           const blossom = pixel(hslHex(g.blossom.h, g.blossom.s, g.blossom.l));
           const [bx, by] = [Math.ceil(tip.x - 1), Math.ceil(tip.y - 1)];

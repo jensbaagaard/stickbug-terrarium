@@ -1140,17 +1140,19 @@ const terrainHook = (world, x, y) => {
 };
 
 // Grass grows tuft by tuft. Grown tufts seed neighbours a few px along the same dirt, over bumps and up and
-// down the faces of piles (but not cliffs, or onto a ledge with a gap under it); tufts that get buried, flooded
-// or lose their dirt wither away.
+// down the faces of piles (but not cliffs, or onto a ledge with a gap under it); tufts that get buried or lose
+// their dirt wither away. Under water they grow on (wet), but don't blossom.
 const growGrass = (world, patch, rate) => {
   const g = patch.genome;
   const ter = world.terrain;
   const check = (world.time + Math.floor(patch.base.x)) % 10 === 0;
   for (const tuft of [...patch.tufts]) {
     if (check) {
-      const above = cellAt(ter, tuft.x, tuft.y - 1);
+      const above = ter.cells[cellAt(ter, tuft.x, tuft.y - 1)];
       const y = groundTop(world, tuft.x, tuft.y - 1);
-      if ((above >= 0 && ter.cells[above] !== EMPTY) || Math.abs(y - tuft.y) > 3 || !isSoil(world, tuft.x, y)) {
+      tuft.wet = above === WATER;
+      const buried = above !== undefined && above !== EMPTY && above !== WATER;
+      if (buried || Math.abs(y - tuft.y) > 3 || !isSoil(world, tuft.x, y)) {
         tuft.dying = true;
       } else {
         tuft.y = y;

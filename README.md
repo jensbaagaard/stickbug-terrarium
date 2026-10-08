@@ -61,9 +61,10 @@ Shop, Garden (Prune, Relocate, Propagate and Feed), Saves and Settings. The game
   tap, even in mid-air, and pours out water forever, like Powder Game's clone; erase it in the Editor. The only
   way to earn coins is to grow plants and sell the clippings.
 - Plants come in three types, each with its own genome: flowering plants that grow node by node; grass that you sow
-  on dirt (painted dirt or the tank floor) and that spreads tuft by tuft, withering if buried or flooded;
-  and hanging vines that hang from the nearest branch, stick, or underside or face of the terrain (a stone ledge,
-  say), or else from a hook at the top of the tank; they sway and drape onto the floor.
+  on dirt (painted dirt or the tank floor) and that spreads tuft by tuft, withering if buried (under water it grows
+  on, swaying in the current, but doesn't blossom); and hanging vines that hang from the nearest branch, stick, or
+  underside or face of the terrain (a stone ledge, say), or else from a hook at the top of the tank; they sway and
+  drape onto the floor.
   Plants and vines sway more under water, rocked by the current, and only flower out of it. Tap grass to mow it or a
   vine to cut it back; both grow back, and the clippings sell.
 - Saves: save the tank (terrain, plants, sticks, bugs, coins and the shop) into a new slot, each shown with a
