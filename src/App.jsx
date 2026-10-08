@@ -300,6 +300,16 @@ export default function App() {
   const [flash, setFlash] = useState(null); // the save just saved, loaded or imported
   const [debug, setDebugState] = useState(() => getSetting('debug', false));
   const [size, setSizeState] = useState(() => getSetting('tankSize', 'small'));
+  // Full screen: the tank alone, filling the screen. Esc (the browser's) or the button again leaves it.
+  const tankBox = useRef(null);
+  const [full, setFull] = useState(false);
+  useEffect(() => {
+    const onChange = () => setFull(!!document.fullscreenElement);
+    document.addEventListener('fullscreenchange', onChange);
+    return () => document.removeEventListener('fullscreenchange', onChange);
+  }, []);
+  const toggleFull = () =>
+    (document.fullscreenElement ? document.exitFullscreen() : tankBox.current.requestFullscreen()).catch(() => {});
   const world = useRef(null);
   const tabRef = useRef(tab);
   tabRef.current = tab;
@@ -315,10 +325,12 @@ export default function App() {
     setSetting('tankSize', key);
     setSizeState(key);
   };
-  // A save comes back at the size it was saved at, if that's one of the sizes, so nothing's cut off.
+  // A save comes back at the size it was saved at, so nothing's cut off, even if that's no longer one of the sizes
+  // (then none of the size buttons is picked, till one is).
   const load = (data) => {
+    const sane = (n) => n >= 120 && n <= 800;
+    swap((W, H) => importWorld(data, W, H), sane(data.W) && sane(data.H) ? [data.W, data.H] : undefined);
     const key = tankSize(data.W, data.H);
-    swap((W, H) => importWorld(data, W, H), key ? TANK_SIZES[key] : undefined);
     if (key) chooseSize(key);
   };
   // Move the tank into another size of tank, everything kept to the middle and the floor.
@@ -506,8 +518,19 @@ export default function App() {
 
   return (
     <>
-      <div className={snap?.placing ? 'tank placing' : 'tank'}>
+      <div className={snap?.placing ? 'tank placing' : 'tank'} ref={tankBox}>
         <Terrarium worldRef={world} size={size} />
+        {document.fullscreenEnabled && (
+          <button
+            type="button"
+            className="fullscreen"
+            aria-label={full ? 'Leave full screen' : 'Full screen'}
+            title={full ? 'Leave full screen' : 'Full screen'}
+            onClick={toggleFull}
+          >
+            <Icon name={full ? 'shrink' : 'expand'} />
+          </button>
+        )}
       </div>
 
       {snap?.selected && (
@@ -697,12 +720,13 @@ export default function App() {
               Debug mode
             </label>
           </div>
-          {/* A smaller tank cuts off what doesn't fit, so that asks first. */}
+          {/* A tank narrower or shorter than this one cuts off what doesn't fit, so that asks first. */}
           <div className="bar sizes-bar" role="group" aria-label="Tank size">
-            {Object.entries(TANK_SIZES).map(([key, [w]]) => {
+            {Object.entries(TANK_SIZES).map(([key, [w, h]]) => {
               const label = key[0].toUpperCase() + key.slice(1);
-              const current = snap?.W ?? TANK_SIZES[size][0];
-              if (w < current) {
+              const [cw, ch] = snap ? [snap.W, snap.H] : TANK_SIZES[size];
+              const current = w === cw && h === ch;
+              if (!current && (w < cw || h < ch)) {
                 return (
                   <ConfirmButton key={key} onConfirm={() => resize(key)} confirm="Shrink?">
                     {label}
@@ -710,12 +734,7 @@ export default function App() {
                 );
               }
               return (
-                <button
-                  key={key}
-                  type="button"
-                  aria-pressed={w === current}
-                  onClick={() => w !== current && resize(key)}
-                >
+                <button key={key} type="button" aria-pressed={current} onClick={() => !current && resize(key)}>
                   {label}
                 </button>
               );

@@ -39,6 +39,8 @@ Shop, Garden (Prune, Relocate, Propagate and Feed), Saves and Settings. The game
   ices over (bugs can walk across) while the water under the ice stays water. Bugs walk over the terrain and climb its
   walls, along ledges and through caves (never through it, or on air), and wade through shallow water; in deeper
   water they float, paddling for the nearest bank, and climb out. Anything you plant can stand on the terrain.
+- The button in the tank's top corner shows it full screen, alone and as big as it'll go; the button again (or Esc)
+  brings it back.
 - Drag a bug to pick it up; tap it to inspect it (its picture, name, and bars for hunger, speed, size, laziness
   and groove). From the card you can release the bug.
 - Bugs climb anything that touches the ground or each other: the starting stick and whatever you buy.
@@ -115,12 +117,12 @@ Shop, Garden (Prune, Relocate, Propagate and Feed), Saves and Settings. The game
   Export downloads one as a `.stickbug.json` file (name, photo and tank) and Import adds such a file back as a new
   save, to keep a tank safe or move it to another browser.
 - Settings: Reset tank (asks twice) starts over with a fresh tank; saves are kept. Tank size: small, medium or large
-  (256 by 341, 320 by 427 or 384 by 512 pixels), shown as big as fits (a bigger one never smaller than a smaller one
-  would be); the tank moves into the new size with everything kept to the middle and the floor, and going smaller
-  asks first, as whatever doesn't fit is lost. A save comes back at the size it was saved at. Debug mode (off to
-  start, remembered) shows Load sample tank (asks twice; swaps in the tank in `src/samples/`), buttons that make
-  every bug idle, walk, eat, dance, wave its front legs, pose as a twig or groom at once, and all the tuning
-  sliders.
+  (256 by 341 or 320 by 427 pixels, standing up; or 512 by 384, on its side), shown as big as fits (a bigger one
+  never narrower than a smaller one would be); the tank moves into the new size with everything kept to the middle
+  and the floor, and a size narrower or shorter than this one asks first, as whatever doesn't fit is lost. A save
+  comes back at the size it was saved at. Debug mode (off to start, remembered) shows Load sample tank (asks twice;
+  swaps in the tank in `src/samples/`), buttons that make every bug idle, walk, eat, dance, wave its front legs,
+  pose as a twig or groom at once, and all the tuning sliders.
 
 ## Code
 

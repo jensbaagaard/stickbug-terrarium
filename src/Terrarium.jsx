@@ -18,6 +18,7 @@ import { SCISSORS_CURSOR } from './icons.js';
 // size: the most that fits, up to MAX_SCALE css px to a world pixel and HEIGHT_SHARE of the window's height (leaving
 // room for the panel). Resizing the window leaves it be until it no longer fits, or the next size up does. A bigger
 // tank shows more, not smaller: never narrower than a smaller one would be, even if that means pixels a touch uneven.
+// In full screen it fills the screen, pixels a touch uneven or not.
 const MAX_SCALE = 2;
 const HEIGHT_SHARE = 0.7;
 const GUTTER = 38; // css px beside the tank: the page's padding and the tank's frame
@@ -49,6 +50,11 @@ export default function Terrarium({ worldRef: ref, size = 'small' }) {
     const fit = () => {
       const { W, H } = ref.current;
       [canvas.width, canvas.height] = [W, H];
+      if (document.fullscreenElement?.contains(canvas)) {
+        const w = Math.min(innerWidth, (innerHeight * W) / H);
+        Object.assign(canvas.style, { width: `${w}px`, height: `${(w * H) / W}px` });
+        return;
+      }
       const dpr = window.devicePixelRatio || 1;
       const across = document.documentElement.clientWidth - GUTTER;
       // css px wide a tank W by H is shown at: whole screen pixels to a world pixel, as many as fit.
@@ -93,6 +99,7 @@ export default function Terrarium({ worldRef: ref, size = 'small' }) {
     on('pointercancel', (world) => pointerCancel(world));
     on('pointerleave', (world) => (world.hover = false));
     window.addEventListener('resize', fit, { signal: abort.signal }); // also fires when the zoom or screen changes
+    document.addEventListener('fullscreenchange', fit, { signal: abort.signal });
 
     // Fixed-timestep loop, capped so a backgrounded tab doesn't fast-forward.
     let last = performance.now();

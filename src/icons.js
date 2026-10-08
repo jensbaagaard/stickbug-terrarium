@@ -173,6 +173,25 @@ export const ICONS = {
     '.###...',
     '..#....',
   ],
+  // Full screen: corners pointing out; and back: corners pointing in.
+  expand: [
+    '###.###',
+    '#.....#',
+    '#.....#',
+    '.......',
+    '#.....#',
+    '#.....#',
+    '###.###',
+  ],
+  shrink: [
+    '.#...#.',
+    '.#...#.',
+    '##...##',
+    '.......',
+    '##...##',
+    '.#...#.',
+    '.#...#.',
+  ],
 };
 
 // An SVG path filling each '#' with a unit square.

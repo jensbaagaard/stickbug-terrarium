@@ -2428,6 +2428,7 @@ export const snapshot = (world) => {
   const fish = world.fish.includes(world.selected) ? world.selected : null;
   return {
     W: world.W, // which size of tank it is
+    H: world.H,
     wallpaper: world.wallpaper?.seed ?? null, // which wallpaper is up
     wallpapers: world.wallpapers,
     coins: world.coins,
@@ -2521,8 +2522,9 @@ export const exportWorld = (world) => ({
   fish: world.fish.map((f) => ({ name: f.name, genome: f.genome, at: { x: f.x, y: f.y }, hunger: f.hunger })),
 });
 
-// The sizes a tank comes in, world px wide and tall, and which of them W by H is (null if none).
-export const TANK_SIZES = { small: [256, 341], medium: [320, 427], large: [384, 512] };
+// The sizes a tank comes in, world px wide and tall (the large one on its side: wider than it's tall), and which
+// of them W by H is (null if none).
+export const TANK_SIZES = { small: [256, 341], medium: [320, 427], large: [512, 384] };
 export const tankSize = (W, H) => {
   const [key] = Object.entries(TANK_SIZES).find(([, [w, h]]) => w === W && h === H) ?? [null];
   return key;

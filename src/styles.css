@@ -29,7 +29,26 @@ body {
   flex-direction: column;
   gap: 14px;
 }
-.tank { border: 3px solid var(--frame); background: #000; }
+.tank { position: relative; border: 3px solid var(--frame); background: #000; }
+/* Full screen: the tank alone, in the middle of a black screen. */
+.tank:fullscreen { display: flex; align-items: center; justify-content: center; border: 0; }
+.tank .fullscreen {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  flex: none;
+  min-height: 0;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  background: rgb(0 0 0 / 0.35);
+  color: var(--bright);
+  opacity: 0.5;
+}
+.tank .fullscreen:hover,
+.tank .fullscreen:focus-visible { opacity: 1; }
 /* Something bought is waiting to go in: the frame glows in coin yellow. */
 .tank.placing { animation: glow 1.2s ease-in-out infinite alternate; }
 @keyframes glow { to { border-color: var(--coin); } }
