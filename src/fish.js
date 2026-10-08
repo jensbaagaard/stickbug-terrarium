@@ -1,8 +1,9 @@
-// Guppies: their genome, and how they live in the tank's water. They cruise the upper water in a loose shoal, race
-// for food and graze the plants between meals, beg at the pointer when they're hungry, dart off when startled (the
-// fright spreading through the shoal), rest by the plants, and the males court the females with a quivering S-shaped
-// display. Out of the water they flop about, hopping toward the nearest water, until they're back in. Pure data +
-// functions, like the rest of the simulation.
+// Guppies: their genome, and how they live in the tank's water. They cruise the upper water in a loose shoal, now and
+// then forming up into a school that swims and turns as one, race for food and graze the plants and the surface
+// between meals, beg at the pointer when they're hungry, play tag, dart off when startled (the fright spreading
+// through the shoal) and the shy ones hide in the plants after, rest by the plants, and the males square up to each
+// other with fins flared and court the females with a quivering S-shaped display. Out of the water they flop about,
+// hopping toward the nearest water, until they're back in. Pure data + functions, like the rest of the simulation.
 import { CELL, cellAt, EMPTY, WATER } from './terrain.js';
 import { clamp, pick } from './geom.js';
 
@@ -145,6 +146,7 @@ export const newFish = (world, x, y, genome, name = guppyName(world.rand)) => ({
   from: null,
   cooldown: 0, // before a male courts again
   display: 0, // ticks left of a male's display
+  flare: 0, // eases to 1 while its fins are flared, sparring or on display
   peck: 0, // ticks left of a bite
   hop: 0, // out of the water: ticks to the next flop
   dry: false,
@@ -227,26 +229,89 @@ const mouthTo = (f, p) => {
   return { side, x: p.x - (side * fishShape(f.genome).len) / 2, y: p.y };
 };
 
-// Somewhere to graze: a plant or vine under water nearby, or the bottom.
+// Somewhere to graze: the surface just ahead now and then (guppies pick at it), else a plant or vine under water
+// nearby, or the bottom.
 const grazeSpot = (world, f) => {
+  const graze = (p) => ({ kind: 'graze', x: p.x, y: p.y, ticks: 150 + world.rand() * 200 });
+  const surface = { x: clamp(f.x + f.dir * 10, 4, world.W - 5), y: f.column.top + 1 };
+  if (world.rand() < 0.3 && wet(world, surface.x, surface.y)) return graze(surface);
   const spots = [];
   for (const o of world.objects) {
     if (o.kind === 'plant') for (const st of o.stems) spots.push(st.tip);
     if (o.kind === 'vine') spots.push(...o.nodes);
   }
   const near = spots.filter((p) => wet(world, p.x, p.y) && dist(p, f) < 80);
-  if (near.length) return { kind: 'graze', ...pick(world.rand, near), ticks: 150 + world.rand() * 200 };
+  if (near.length) return graze(pick(world.rand, near));
   const x = clamp(f.x + (world.rand() - 0.5) * 40, 4, world.W - 5);
   const y = floorUnder(world, x, f.y) - 2;
-  return wet(world, x, y) ? { kind: 'graze', x, y, ticks: 150 + world.rand() * 200 } : null;
+  return wet(world, x, y) ? graze({ x, y }) : null;
 };
 
-// Somewhere to rest: by a plant under water if there's one near (the cover makes it feel safe), or right here.
-const restSpot = (world, f) => {
-  const spots = world.objects.filter((o) => o.kind === 'plant').flatMap((o) => o.stems.map((st) => st.root));
-  const near = spots.filter((p) => wet(world, p.x, p.y) && dist(p, f) < 50);
+// Somewhere to rest: by a plant or vine under water if there's one near (the cover makes it feel safe), or right
+// here. Hiding, it's cover or nothing, and it gets there quick.
+const restSpot = (world, f, reach = 50, hiding = false) => {
+  const cover = (o) => (o.kind === 'plant' ? o.stems.map((st) => st.root) : o.kind === 'vine' ? o.nodes : []);
+  const near = world.objects.flatMap(cover).filter((p) => wet(world, p.x, p.y) && dist(p, f) < reach);
+  if (hiding && !near.length) return null;
   const at = near.length ? pick(world.rand, near) : f;
-  return { kind: 'rest', x: at.x, y: at.y, ticks: 200 + world.rand() * 500 * (1 - f.genome.activity) };
+  const ticks = (hiding ? 300 : 200) + world.rand() * 500 * (1 - f.genome.activity);
+  return { kind: 'rest', x: at.x, y: at.y, ticks, hiding };
+};
+
+// Fish near f with nothing else on: swimming about, not fleeing or out of the water.
+const freeNear = (world, f, reach) =>
+  world.fish.filter((o) => o !== f && !o.dry && !o.goal && !(o.fear > 0) && dist(o, f) < reach);
+
+// A sociable fish joins a school passing by, or leads the free fish near it off as a new one.
+const startSchool = (world, f) => {
+  const leader = world.fish.find((o) => o.goal?.kind === 'lead' && dist(o, f) < 50);
+  if (leader) return { kind: 'school', leader, slot: leader.goal.size++ };
+  const crew = freeNear(world, f, 60);
+  if (crew.length < 2) return null;
+  const goal = { kind: 'lead', ticks: 400 + world.rand() * 500, size: 0 };
+  for (const o of crew) o.goal = { kind: 'school', leader: f, slot: goal.size++ };
+  return goal;
+};
+
+// Where the slot-th fish of a school keeps: in an arrowhead behind its leader, a row of two every fish-length or so
+// back, one above and one below (that one a little further back, so they don't line up too neatly).
+const slotOf = (leader, slot) => {
+  const row = 1 + Math.floor(slot / 2);
+  const below = slot % 2;
+  return { x: leader.x - leader.facing * (row * 10 + below * 3), y: leader.y + (below ? 1 : -1) * (2 + row * 3) };
+};
+
+// A lively fish starts a game of tag with one nearby, and it's it.
+const startTag = (world, f) => {
+  const [other] = freeNear(world, f, 50);
+  if (!other) return null;
+  const game = { players: [f, other], it: f, wait: 0, rounds: 2 + Math.floor(world.rand() * 3), ticks: 600 };
+  other.goal = { kind: 'tag', game };
+  return { kind: 'tag', game };
+};
+
+// A male squares up to another one nearby.
+const startSpar = (world, f) => {
+  const rival = freeNear(world, f, 40).find((o) => o.genome.male);
+  if (!rival) return null;
+  const ticks = 120 + world.rand() * 120;
+  rival.goal = { kind: 'spar', rival: f, ticks };
+  return { kind: 'spar', rival, ticks };
+};
+
+// Cruising: on along the way it's going, wandering up and down (sweep says how far) and keeping to the depth it
+// likes, and turning back where the water ends.
+const cruiseWant = (world, f, speed, sweep) => {
+  const { top, bottom } = f.column;
+  if (!wet(world, f.x + f.dir * (fishShape(f.genome).len / 2 + 4), f.y)) f.dir = -f.dir;
+  f.wander = clamp(f.wander + (world.rand() - 0.5) * 0.06, -sweep, sweep);
+  const depth = top + (bottom - top) * (0.05 + 0.5 * f.genome.depth);
+  return { x: f.dir * speed, y: Math.sin(f.wander) * speed * 0.4 + clamp((depth - f.y) * 0.02, -0.12, 0.12) };
+};
+
+const capped = (v, max) => {
+  const m = Math.hypot(v.x, v.y);
+  return m > max ? { x: (v.x / m) * max, y: (v.y / m) * max } : v;
 };
 
 // A male picks a female nearby to court.
@@ -255,17 +320,21 @@ const courtship = (world, f) => {
   return mate ? { kind: 'court', mate, ticks: 240 + world.rand() * 240 } : null;
 };
 
-// Now and then a fish picks something to do: graze when it's peckish, court if it's a male, rest if it's a lazy
-// one, or else cruise, sometimes turning back the other way.
+// Now and then a fish picks something to do, by its nature: graze when it's peckish, school if it's sociable, play
+// tag if it's lively, square up to another male or court a female if it's a male, rest if it's a lazy one; or else
+// cruise, sometimes turning back the other way.
 const decide = (world, f) => {
   const g = f.genome;
   f.think = 60 + world.rand() * 120;
   if (f.goal) return;
-  const r = world.rand();
-  if (f.hunger > 0.3 && r < f.hunger - 0.2) f.goal = grazeSpot(world, f);
-  else if (g.male && f.cooldown <= 0 && r < 0.2 + 0.3 * g.activity) f.goal = courtship(world, f);
-  else if (r < 0.1 + 0.4 * (1 - g.activity)) f.goal = restSpot(world, f);
-  else if (world.rand() < 0.3) f.dir = -f.dir;
+  const roll = (p) => world.rand() < p;
+  if (f.hunger > 0.3 && roll(f.hunger - 0.2)) f.goal = grazeSpot(world, f);
+  else if (roll(0.1 + 0.25 * g.sociability)) f.goal = startSchool(world, f);
+  else if (roll(0.03 + 0.1 * g.activity)) f.goal = startTag(world, f);
+  else if (g.male && f.cooldown <= 0 && roll(0.2 + 0.3 * g.activity)) {
+    f.goal = (roll(0.35) && startSpar(world, f)) || courtship(world, f);
+  } else if (roll(0.1 + 0.4 * (1 - g.activity))) f.goal = restSpot(world, f);
+  else if (roll(0.3)) f.dir = -f.dir;
 };
 
 // The pull of the shoal: keep a little apart, swim the way the others do, and stay with them.
@@ -329,11 +398,11 @@ const swim = (world, f) => {
     Object.assign(f, { vx: f.vx * 0.4, vy: f.vy * 0.4, dry: false, fear: 30, fearDelay: 0 });
     f.from = { x: f.x, y: f.y - 5 };
   }
+  if (!f.column || (world.time + Math.floor(f.seed)) % 10 === 0) f.column = column(world, f);
   if (--f.think <= 0) decide(world, f);
   if (f.cooldown > 0) f.cooldown--;
   if (f.fearDelay > 0) f.fearDelay--;
-  else if (f.fear > 0) f.fear--;
-  if (!f.column || (world.time + Math.floor(f.seed)) % 10 === 0) f.column = column(world, f);
+  else if (f.fear > 0 && --f.fear <= 0 && g.boldness < 0.45) f.goal = restSpot(world, f, 90, true); // shy: hide
   if ((world.time + Math.floor(f.seed)) % 6 === 0 && f.goal?.kind !== 'food' && f.hunger > 0.1) {
     const it = foodNear(world, f, 25 + 90 * f.hunger);
     if (it) f.goal = { kind: 'food', it };
@@ -346,6 +415,8 @@ const swim = (world, f) => {
   let want;
   let force = 0.03 + 0.02 * g.speed; // a tail stroke's worth of push
   let look = 0; // which way to face when it's barely moving
+  let sync = null; // the leader of the school it's in, to turn and beat its tail with
+  let flare = f.display > 0;
   if (f.fear > 0 && f.fearDelay <= 0) {
     // Fleeing, flat out.
     const d = dist(f, f.from) || 1;
@@ -393,9 +464,71 @@ const swim = (world, f) => {
     }
     if (--goal.ticks <= 0 || !wet(world, goal.x, goal.y)) f.goal = null;
   } else if (goal?.kind === 'rest') {
-    // Hover by the plant, finning gently.
-    want = toward(f, goal, 0.1, 20);
+    // Hover by the plant, finning gently (dashing there first, if it's hiding).
+    want = toward(f, goal, goal.hiding ? cruise * 1.5 : 0.1, 20);
     if (--goal.ticks <= 0) f.goal = null;
+  } else if (goal?.kind === 'lead') {
+    // Leading a school round the water: a brisk cruise sweeping up and down, and now and then a sudden turn that
+    // the whole school makes together.
+    if (world.rand() < 0.004) f.dir = -f.dir;
+    want = cruiseWant(world, f, cruise * 1.4, 0.7);
+    if (--goal.ticks <= 0) f.goal = null;
+  } else if (goal?.kind === 'school') {
+    // In a school: keep its place and swim as the leader swims.
+    const lead = goal.leader;
+    if (lead.goal?.kind !== 'lead' || lead.dry || !world.fish.includes(lead)) {
+      f.goal = null;
+      want = { x: f.vx, y: f.vy };
+    } else {
+      const spot = slotOf(lead, goal.slot);
+      want = capped({ x: lead.vx + (spot.x - f.x) * 0.06, y: lead.vy + (spot.y - f.y) * 0.06 }, sprint * 0.9);
+      sync = lead;
+    }
+  } else if (goal?.kind === 'tag') {
+    // Tag: whoever's it gives chase while the other dodges away, zigzagging. Caught, they swap, and the new it
+    // counts a moment before it gives chase.
+    const game = goal.game;
+    const other = game.players.find((o) => o !== f);
+    const playing = game.players.every((o) => o.goal?.game === game && world.fish.includes(o) && !o.dry);
+    if (game.rounds <= 0 || game.ticks <= 0 || !playing) {
+      for (const o of game.players) if (o.goal?.game === game) o.goal = null;
+      want = { x: f.vx, y: f.vy };
+    } else if (game.it === f && game.wait > 0) {
+      game.wait--;
+      want = { x: 0, y: 0 };
+      look = Math.sign(other.x - f.x);
+    } else if (game.it === f) {
+      game.ticks--;
+      want = toward(f, other, sprint * 0.9, 1);
+      if (dist(f, other) < 4) Object.assign(game, { it: other, wait: 30, rounds: game.rounds - 1 });
+    } else {
+      const d = dist(f, game.it) || 1;
+      const [ax, ay] = [(f.x - game.it.x) / d, (f.y - game.it.y) / d];
+      const zig = Math.sin(world.time * 0.12 + f.seed) * 0.5;
+      const speed = sprint * (d < 30 ? 0.65 : 0.3);
+      want = { x: (ax - ay * zig) * speed, y: (ay + ax * zig) * speed };
+    }
+  } else if (goal?.kind === 'spar') {
+    // Squared up to another male: nose to nose a little apart, fins flared, circling each other. When it's over,
+    // the less bold of the two backs down and darts off.
+    const rival = goal.rival;
+    if (rival.goal?.rival !== f || rival.dry || !world.fish.includes(rival)) {
+      f.goal = null;
+      want = { x: 0, y: 0 };
+    } else if (--goal.ticks <= 0) {
+      const loser = g.boldness < rival.genome.boldness ? f : rival;
+      const winner = loser === f ? rival : f;
+      Object.assign(loser, { fear: 40, fearDelay: 0, from: { x: winner.x, y: winner.y } });
+      f.goal = rival.goal = null;
+      f.cooldown = rival.cooldown = 600 + world.rand() * 900;
+      want = { x: 0, y: 0 };
+    } else {
+      const side = Math.sign(f.x - rival.x) || 1;
+      const spot = { x: rival.x + side * 9, y: rival.y + Math.sin(world.time * 0.05) * 3 * side };
+      want = toward(f, spot, cruise * 1.2, 4);
+      look = -side;
+      flare = true;
+    }
   } else if (goal?.kind === 'court') {
     // Get in front of her, alongside, and now and then put on the display; she'd rather swim on.
     const mate = goal.mate;
@@ -417,14 +550,7 @@ const swim = (world, f) => {
       if (d < 10) [mate.vx, mate.vy] = [mate.vx + ((mate.x - f.x) / d) * 0.01, mate.vy + ((mate.y - f.y) / d) * 0.01];
     }
   } else {
-    // Cruise: on along the way it's going, wandering up and down a little and keeping to the depth it likes, and
-    // turning back where the water ends.
-    const { top, bottom } = f.column;
-    const len = fishShape(g).len;
-    if (!wet(world, f.x + f.dir * (len / 2 + 4), f.y)) f.dir = -f.dir;
-    f.wander = clamp(f.wander + (world.rand() - 0.5) * 0.06, -0.4, 0.4);
-    const depth = top + (bottom - top) * (0.05 + 0.5 * g.depth);
-    want = { x: f.dir * cruise, y: Math.sin(f.wander) * cruise * 0.4 + clamp((depth - f.y) * 0.02, -0.12, 0.12) };
+    want = cruiseWant(world, f, cruise, 0.4);
   }
   if (!(f.fear > 0 && f.fearDelay <= 0)) {
     const pull = shoal(world, f);
@@ -449,19 +575,20 @@ const swim = (world, f) => {
 
   // Face the way it swims, or when it's barely moving, the way it's looking; but having just turned round, it
   // doesn't turn straight back. It noses up or down as it swims up or down, but barely at all when it's going
-  // slowly, so it doesn't bob about as it hovers.
-  const turnTo = Math.abs(f.vx) > 0.1 ? Math.sign(f.vx) : look;
-  const settled = world.time - f.turnedAt > SETTLE_TICKS || f.fear > 0;
+  // slowly, so it doesn't bob about as it hovers. In a school it turns, tilts and beats its tail with the leader.
+  const turnTo = sync ? sync.facing : Math.abs(f.vx) > 0.1 ? Math.sign(f.vx) : look;
+  const settled = world.time - f.turnedAt > SETTLE_TICKS || f.fear > 0 || sync;
   if (f.turn > 0) f.turn--;
   else if (turnTo && turnTo !== f.facing && settled) [f.facing, f.turn, f.turnedAt] = [turnTo, TURN_TICKS, world.time];
   const tilt = Math.hypot(f.vx, f.vy) > 0.15 ? clamp(Math.atan2(f.vy, Math.abs(f.vx) + 0.3), -0.4, 0.4) : 0;
-  f.pitch += (tilt - f.pitch) * 0.08;
-  f.tail += 0.06 + (f.beat > 0 ? 0.35 : 0.05) + (f.fear > 0 ? 0.25 : 0);
+  f.pitch += ((sync ? sync.pitch : tilt) - f.pitch) * 0.08;
+  f.tail = sync ? sync.tail : f.tail + 0.06 + (f.beat > 0 ? 0.35 : 0.05) + (f.fear > 0 ? 0.25 : 0);
+  f.flare += ((flare ? 1 : 0) - f.flare) * 0.15;
 };
 
 // Out of the water: fall, then lie flopping, every so often hopping toward the nearest water.
 const flop = (world, f) => {
-  Object.assign(f, { dry: true, goal: null, fear: 0, display: 0 });
+  Object.assign(f, { dry: true, goal: null, fear: 0, display: 0, flare: 0 });
   while (f.y > 1 && solid(world, f.x, f.y)) f.y--; // buried: wriggle up out of it
   const floor = floorUnder(world, f.x, f.y) - 1.5;
   const grounded = f.y >= floor - 0.1 && f.vy >= 0;

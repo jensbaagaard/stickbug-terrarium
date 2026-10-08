@@ -39,9 +39,12 @@ Shop, Garden (Prune, Relocate, Propagate and Feed), Saves and Settings. The game
 - Fish: guppies, each with its own genome. Males are small and bright, with big tails (delta, fan, round, spade, veil,
   sword, double sword or lyre) in patterns; females are bigger and plainer; some are metallic and a rare few albino.
   Let one go in the water and it swims; on dry land it flops about, hopping toward the nearest water, until it's
-  back in. They shoal loosely in the upper water, graze and rest by the plants, come begging at the pointer when
-  they're hungry and bold, dart off when you tap the glass or sweep the pointer through the water (the fright
-  rippling through the shoal), and the males court the females with a quivering S-shaped display. Tap one to
+  back in. They shoal loosely in the upper water, and now and then a sociable one leads the others off as a school
+  that swims, turns and beats its tails as one. They graze the plants and pick at the surface, rest by the plants,
+  play tag (whoever's tagged counts a moment, then gives chase), come begging at the pointer when they're hungry and
+  bold, and dart off when you tap the glass or sweep the pointer through the water, the fright rippling through the
+  shoal and the shy ones hiding in the plants after. The males square up to each other nose to nose with their fins
+  flared until the less bold one backs off, and court the females with a quivering S-shaped display. Tap one to
   inspect it (hunger, speed, size, boldness and shoaling), drag one to move it. Feed (Garden) sprinkles flakes on
   the water above them; they float a while, then sink, and the fish race for them. Between feedings they eat
   crumbs that fall in.

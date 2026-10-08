@@ -1242,6 +1242,7 @@ const drawFish = (ctx, world, f) => {
   const g = f.genome;
   const ink = inksOf(g);
   const shape = fishShape(g);
+  if (f.flare) [shape.dorsal, shape.spread] = [shape.dorsal * (1 + 0.7 * f.flare), shape.spread * (1 + 0.3 * f.flare)];
   const turning = f.turn > 0;
   const across = facingNow(f);
   const sx = Math.sign(across || 1) * Math.max(0.25, Math.abs(across));

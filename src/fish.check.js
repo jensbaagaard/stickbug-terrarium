@@ -1,5 +1,5 @@
-// Run with `node src/fish.check.js`: guppies keep to the water, eat when fed, dart off when startled, and flop
-// back into the water when stranded.
+// Run with `node src/fish.check.js`: guppies keep to the water, school (turning as one) and play tag, eat when fed,
+// dart off when startled, and flop back into the water when stranded.
 import assert from 'node:assert/strict';
 import { createWorld, feedFish, pointerDown, pointerUp, startPlacing, step } from './sim.js';
 import { wet } from './fish.js';
@@ -29,11 +29,22 @@ for (const [i, offer] of world.shop.fish.entries()) {
 }
 assert.equal(world.fish.length, 4);
 
-// They keep to the water.
-for (let i = 0; i < 3000; i++) {
+// They keep to the water, and now and then form up into a school, which turns as one, or play tag.
+const seen = new Set();
+const schooling = { inStep: 0, all: 0 };
+for (let i = 0; i < 18000; i++) {
   step(world);
   assert.ok(world.fish.every((f) => wet(world, f.x, f.y)), 'every fish stays in the water');
+  for (const f of world.fish) {
+    seen.add(f.goal?.kind);
+    const lead = f.goal?.kind === 'school' && f.goal.leader;
+    if (lead?.goal?.kind !== 'lead' || f.turn || lead.turn) continue;
+    schooling.all++;
+    if (f.facing === lead.facing) schooling.inStep++;
+  }
 }
+assert.ok(seen.has('school') && seen.has('tag'), 'they school and play');
+assert.ok(schooling.inStep > schooling.all * 0.95, 'a school turns as one'); // a fish just joining lags a tick
 
 // Fed, they eat.
 const hunger = () => world.fish.reduce((sum, f) => sum + f.hunger, 0);
@@ -42,12 +53,13 @@ feedFish(world);
 steps(1200);
 assert.ok(hunger() < before - 0.2, 'they ate the flakes');
 
-// A tap close beside one (not on it, which picks it out) sends it darting off.
+// A tap close beside one (not on it, which picks it out) sends it darting off, out into the open water.
 const [fish] = world.fish;
 const from = { x: fish.x, y: fish.y };
-pointerDown(world, fish.x + 14, fish.y);
-pointerUp(world, fish.x + 14, fish.y);
-steps(30);
+const tap = fish.x + (fish.x < 128 ? -14 : 14);
+pointerDown(world, tap, fish.y);
+pointerUp(world, tap, fish.y);
+steps(40);
 assert.ok(Math.hypot(fish.x - from.x, fish.y - from.y) > 15, 'it darts away');
 
 // A tap on it picks it out, to look at.
