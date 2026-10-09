@@ -25,7 +25,7 @@
     - [x] lets also add some variant of darker stone og darker sandstone
 
 ## animated backrounds
-    - lets go though our backgrounds and add some rare random animations and general vibes
+    - [x] lets go though our backgrounds and add some rare random animations and general vibes
         - shooting stars to backgrounds that have stars
         - mist for backrounds with trees
         - clounds where it makes sense

@@ -83,6 +83,14 @@ export const closestApproach = (a, b) => {
   return best;
 };
 
+// A #rrggbb colour as [r, g, b], cached.
+const rgbCache = new Map();
+export const rgb = (hex) => {
+  let v = rgbCache.get(hex);
+  if (!v) rgbCache.set(hex, (v = [1, 3, 5].map((k) => parseInt(hex.slice(k, k + 2), 16))));
+  return v;
+};
+
 // HSL (degrees, percent, percent) to a cached #rrggbb string.
 const hexCache = new Map();
 export const hslHex = (h, s, l) => {
