@@ -171,8 +171,8 @@ const stepDragonfly = (world, v) => {
 const bumble = (world, v, p) => {
   const loop = Math.min(18, dist(p, v) / 2);
   const t = world.time * 0.05 + v.seed;
-  v.x += Math.cos(t * 2.4) * 0.4; // weaving a few px side to side, and bobbing up and down
-  v.y += Math.sin(t * 3.6) * 0.45;
+  v.x += Math.cos(t * 2.4) * 0.3; // weaving a couple of px side to side, and bobbing gently up and down
+  v.y += Math.sin(t * 2.8) * 0.2;
   return { x: p.x + Math.cos(t) * loop, y: p.y + Math.sin(t * 1.7) * loop * 0.7 };
 };
 
