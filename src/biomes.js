@@ -1,10 +1,10 @@
-// Biomes: what kind of place the tank is, read from what it's made of. Mostly sand and sandstone is a desert, with a
-// pond an oasis; snow and ice a tundra; basalt volcanic; dirt and water a wetland; and so on. Each biome has its own
-// goings-on (tumbleweeds and dust devils, snow flurries, embers and steam, dripping overhangs, will-o'-the-wisps, rain,
-// mushrooms, seed fluff, jellyfish), and very rarely a wild flower of its own seeds itself, one of a kind: a white
-// lotus on the desert sand. The goings-on draw on their own random numbers, so they never reshuffle anything else, and
-// like the visitors they aren't saved; a wild flower is a plant like any other, and which have turned up is kept.
-// Pure data + functions, like the rest of the simulation.
+// Biomes: what kind of place the tank is, read from what it's made of. Mostly sand, sandstone and brownstone is a
+// desert; snow and ice a tundra; basalt volcanic; rock, dirt and water, wood or grass the wilds; and so on. Each biome
+// has its own goings-on (tumbleweeds and dust devils, snow flurries, embers and steam, dripping overhangs,
+// will-o'-the-wisps, rain, mushrooms, seed fluff, jellyfish), and very rarely one of its wild flowers seeds itself, one
+// of each kind at most: a white lotus on the desert sand, say. The goings-on draw on their own random numbers, so they
+// never reshuffle anything else, and like the visitors they aren't saved; a wild flower is a plant like any other, and
+// which have turned up is kept. Pure data + functions, like the rest of the simulation.
 import { pick } from './geom.js';
 import {
   BASALT,
@@ -104,14 +104,16 @@ const surfaceAt = (s, x) => s.tops[Math.min(s.tops.length - 1, Math.max(0, Math.
 
 // ---------- the biomes ----------
 
-// Tested in turn, the first that fits is the tank's: [key, name, test, goings-on, wild flower, what it's like].
+// Tested in turn, the first that fits is the tank's: [key, name, test, goings-on, wild flowers, what it's like]. Each
+// goings-on comes at random on its own, where the tank has somewhere for it, and when a wild flower is due it's one of
+// the biome's, at random, of those not in the tank already.
 const BIOMES = [
   {
     key: 'sea',
     name: 'Sea',
     test: (s) => s.wet >= 0.6,
     goings: ['jellyfish'],
-    wild: null,
+    wild: [],
     about: 'Mostly water. Jellyfish drift about in it.',
   },
   {
@@ -119,7 +121,7 @@ const BIOMES = [
     name: 'Volcanic',
     test: (s) => s.land && share(s, BASALT) >= 0.35,
     goings: ['embers', 'steam'],
-    wild: 'fireLily',
+    wild: ['fireLily'],
     about: 'Mostly basalt. Embers rise off it, and steam where water meets it.',
   },
   {
@@ -127,75 +129,42 @@ const BIOMES = [
     name: 'Tundra',
     test: (s) => s.land && share(s, SNOW, ICE) >= 0.4,
     goings: ['flurry'],
-    wild: 'snowLotus',
+    wild: ['snowLotus'],
     about: 'Mostly snow and ice. Now and then a flurry blows in.',
-  },
-  {
-    key: 'oasis',
-    name: 'Oasis',
-    test: (s) => s.land && share(s, SAND, SANDSTONE) >= 0.45 && s.wet >= 0.04,
-    goings: ['tumbleweed', 'dustDevil'],
-    wild: 'blueLotus',
-    about: 'Sand and sandstone round a pond. Tumbleweeds roll by and dust devils whirl.',
   },
   {
     key: 'desert',
     name: 'Desert',
-    test: (s) => s.land && share(s, SAND, SANDSTONE) >= 0.45,
+    test: (s) => s.land && share(s, SAND, SANDSTONE, BROWNSTONE) >= 0.45,
     goings: ['tumbleweed', 'dustDevil'],
-    wild: 'whiteLotus',
-    about: 'Mostly sand and sandstone. Tumbleweeds roll by and dust devils whirl.',
-  },
-  {
-    key: 'canyon',
-    name: 'Canyon',
-    test: (s) => s.land && share(s, BROWNSTONE) >= 0.15 && share(s, BROWNSTONE, SANDSTONE, SAND) >= 0.45,
-    goings: ['dustDevil', 'tumbleweed'],
-    wild: 'paintbrush',
-    about: 'Brownstone and sandstone. Dust devils whirl, and a tumbleweed now and then.',
+    wild: ['whiteLotus', 'blueLotus', 'paintbrush'],
+    about: 'Mostly sand, sandstone and brownstone. Tumbleweeds roll by and dust devils whirl.',
   },
   {
     key: 'rainforest',
     name: 'Rainforest',
     test: (s) => s.green >= 10 && s.wet >= 0.05,
     goings: ['rain', 'mushrooms'],
-    wild: 'corpseLily',
+    wild: ['corpseLily'],
     about: 'Thick with plants, with water. It rains now and then, and mushrooms come up.',
   },
   {
-    key: 'crags',
-    name: 'Rocky crags',
-    test: (s) => s.land && share(s, STONE, BASALT, SANDSTONE, BROWNSTONE) >= 0.55,
-    goings: ['drips'],
-    wild: 'edelweiss',
-    about: 'Mostly rock. Water drips from its overhangs.',
+    key: 'wilds',
+    name: 'Wilds',
+    test: (s) =>
+      (s.land && share(s, STONE, BASALT, SANDSTONE, BROWNSTONE) >= 0.55) || // rocky crags
+      (s.land && s.wet >= 0.08 && share(s, DIRT) >= 0.3) || // a wetland
+      (s.land && share(s, WOOD) >= 0.2) || // a wood
+      (s.sticks >= 2 && s.green >= 4) ||
+      s.grass >= 2 || // a meadow
+      (s.land && share(s, DIRT) >= 0.35 && s.green >= 3),
+    goings: ['drips', 'wisps', 'rain', 'mushrooms', 'fluff'],
+    wild: ['edelweiss', 'pinkLotus', 'ghostOrchid', 'goldenPoppy'],
+    about:
+      'Rock, dirt and water, wood or grass. Water drips from overhangs, will-o-the-wisps hang over the water, it ' +
+      'rains now and then, mushrooms come up and seed fluff drifts by.',
   },
-  {
-    key: 'wetland',
-    name: 'Wetland',
-    test: (s) => s.land && s.wet >= 0.08 && share(s, DIRT) >= 0.3,
-    goings: ['wisps', 'rain'],
-    wild: 'pinkLotus',
-    about: 'Dirt and water. Will-o-the-wisps hang over the water, and now and then it rains.',
-  },
-  {
-    key: 'woodland',
-    name: 'Woodland',
-    test: (s) => (s.land && share(s, WOOD) >= 0.2) || (s.sticks >= 2 && s.green >= 4),
-    goings: ['mushrooms'],
-    wild: 'ghostOrchid',
-    about: 'Wood, or sticks among the plants. Mushrooms come up.',
-  },
-  {
-    key: 'meadow',
-    name: 'Meadow',
-    test: (s) => s.grass >= 2 || (s.land && share(s, DIRT) >= 0.35 && s.green >= 3),
-    goings: ['fluff', 'mushrooms'],
-    wild: 'goldenPoppy',
-    about: 'Grass, or dirt and plants. Seed fluff drifts on the breeze, and a ring of mushrooms comes up now and then.',
-  },
-  { key: 'garden', name: 'Garden', test: (s) => s.green >= 1, goings: [], wild: null, about: 'A few plants.' },
-  { key: 'bare', name: 'Bare tank', test: () => true, goings: [], wild: null, about: 'Nothing much yet.' },
+  { key: 'garden', name: 'Garden', test: () => true, goings: [], wild: [], about: 'Nothing special yet.' },
 ];
 
 // ---------- wild flowers ----------
@@ -308,16 +277,19 @@ const wildSpecies = (world, key) => {
 };
 
 // The name of the wild flower of biome b, or ??? if it's not turned up yet.
-const wildName = (world, b) => (world.found.includes(b.wild) ? WILD[b.wild].name : '???');
+const wildName = (world, key) => (world.found.includes(key) ? WILD[key].name : '???');
 
-// Seed the biome's wild flower somewhere it can grow, unless there's one already (planted from a cutting counts):
-// what to plant, for the simulation to put in, or null.
-const sow = (world, s, key) => {
-  const w = WILD[key];
-  if (world.objects.some((o) => o.species?.wild === key)) return null;
+// Seed one of the wild flowers keys somewhere it can grow, at random, of those there isn't one of already (planted
+// from a cutting counts): what to plant, for the simulation to put in, or null.
+const sow = (world, s, keys) => {
   const clear = (t) => !world.objects.some((o) => Math.abs(o.base.x - t.x) < 10 && Math.abs(o.base.y - t.y) < 12);
-  const spots = s.tops.filter((t) => w.where(t) && t.x > 6 && t.x < world.W - 6 && clear(t));
-  if (!spots.length) return null;
+  const options = keys
+    .filter((key) => !world.objects.some((o) => o.species?.wild === key))
+    .map((key) => [key, s.tops.filter((t) => WILD[key].where(t) && t.x > 6 && t.x < world.W - 6 && clear(t))])
+    .filter(([, spots]) => spots.length);
+  if (!options.length) return null;
+  const [key, spots] = pick(world.biomeRand, options);
+  const w = WILD[key];
   const t = pick(world.biomeRand, spots);
   if (!world.found.includes(key)) world.found.push(key);
   world.news = { text: `A ${w.name.toLowerCase()} is coming up!`, at: world.time };
@@ -585,15 +557,15 @@ export const strength = fade;
 
 // ---------- each tick ----------
 
-// What kind of place the tank is now: its biome's key, name, what it's like, and its wild flower's name (??? until
-// it's turned up); every wild flower that has, how much of the open space is water (%) and how green it is; and
-// any news to show.
+// What kind of place the tank is now: its biome's key, name, what it's like, and its wild flowers' names (??? for
+// any not turned up yet); every wild flower that has, how much of the open space is water (%) and how green it is;
+// and any news to show.
 export const biomeNow = (world) => {
   const s = surveyOf(world);
   const b = s.biome;
   const news = world.news && world.time - world.news.at < NEWS_TICKS ? world.news.text : null;
   const found = world.found.map((key) => WILD[key]?.name).filter(Boolean);
-  const wild = b.wild && wildName(world, b);
+  const wild = b.wild.map((key) => wildName(world, key));
   const water = Math.round(s.wet * 100);
   return { key: b.key, name: b.name, about: b.about, wild, found, water, green: s.green, news };
 };
@@ -612,6 +584,6 @@ export const stepBiomes = (world) => {
     if (h) world.happenings.push({ kind, age: 0, ...h });
   }
   world.happenings = world.happenings.filter((h) => GOINGS[h.kind].step(world, h, s));
-  if (!b.wild || world.time % WILD_TICKS || r() >= WILD_CHANCE * params.wildFlowers) return null;
+  if (!b.wild.length || world.time % WILD_TICKS || r() >= WILD_CHANCE * params.wildFlowers) return null;
   return sow(world, s, b.wild);
 };

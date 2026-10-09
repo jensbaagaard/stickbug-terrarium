@@ -786,7 +786,7 @@ export default function App() {
                 {[
                   ['Biome', snap.biome.name],
                   ['Like', snap.biome.about],
-                  ['Wild flower', snap.biome.wild ?? 'none here'],
+                  ['Wild flowers', snap.biome.wild.join(', ') || 'none here'],
                   ['Found', snap.biome.found.join(', ') || 'none yet'],
                   ['Water', `${snap.biome.water}% of the open space`],
                   ['Greenery', snap.biome.green], // plants, grass patches and vines
