@@ -26,7 +26,7 @@ Shop, Garden (Prune, Relocate, Propagate and Feed), Saves and Settings. The game
   glows and, until the pointer comes over the tank, a ghost pointer brings it in from below and taps it down.
 - Over the tank, the cursor and a mark show what a press would do: a hand over a bug, fish or ladybug, or over a
   plant, vine or grass you can pull about; a blinking red notch where a tap would cut a stem, stick or vine (a line
-  where it would mow grass), with scissors over a stick or with Prune; an arrow over a plant Relocate would lift.
+  where it would mow grass), with scissors over a stick or with Prune; an arrow over a plant or stick Relocate would lift.
 - Prices turn red when you can't afford them, the coin count hops when it changes, a save flashes when it's just
   been saved, loaded or imported, and the reroll button fills up until rerolling is free again. Only errors are
   written out.
@@ -80,9 +80,10 @@ Shop, Garden (Prune, Relocate, Propagate and Feed), Saves and Settings. The game
   when you let go.
 - Tap a branch, stick or plant to prune it there; whatever stood on a cut-off piece comes down with it. The Prune
   tool (Gardening) cuts along a dragged line instead. Plant clippings sell for coins.
-- Relocate (Gardening): drag a plant, grass patch or vine somewhere else. Plants and grass land on whatever is below
-  where you let go (grass withers off dirt and sand); vines hang from the nearest stick or ledge, or the top of the
-  tank.
+- Relocate (Gardening): drag a plant, grass patch, vine or stick somewhere else. Plants, grass and sticks land on
+  whatever is below where you let go (grass withers off dirt and sand); vines hang from the nearest stick or ledge, or
+  the top of the tank. A stick takes along everything on it (plants, vines, sticks leaning on it, the bugs walking on
+  it), keeps clear of the glass at the sides, and any of it that would poke out of the top is cut off there.
 - Propagate (Gardening): fully grown flowering plants get a blinking green plus. Tap one, then tap where a seedling
   of the same species should go; the parent is cut back to a seedling too, so both grow again. Tap the plant again
   or press Esc to cancel.

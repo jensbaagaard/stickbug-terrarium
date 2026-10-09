@@ -537,7 +537,7 @@ export const createWorld = (W, H, { seed = Date.now(), scene = true } = {}) => {
     coins: START_COINS,
     placing: null, // the shop item waiting to be put down: {kind, seed}
     tool: 'hand', // or 'paint', 'prune' or 'move'
-    moving: null, // the plant being dragged somewhere else, and where it was grabbed: {obj, x, y}
+    moving: null, // the plant or stick being dragged somewhere else, and where it was grabbed: {obj, x, y}
     demo: null, // the how-to animation for the tool just picked: {kind, at}
     selected: null,
     wallpaper: null, // the back of the tank: null for plain black
@@ -748,13 +748,13 @@ const vineAnchor = (world, x, y) => {
 // Where something put down at (x, y) stands: straight down from there, the first of the top of a stick, the
 // terrain (to the cell, so caves and ledges count; from inside it, its top) or the tank floor, if that's within
 // PLACE_REACH. On the terrain it remembers the cell holding it up (hold) and comes down if that goes. Null if
-// there's nothing near enough.
-const standAt = (world, x, y) => {
+// there's nothing near enough. A stick being moved doesn't stand on itself: skip is its surfaces.
+const standAt = (world, x, y, skip = null) => {
   const gx = clamp(x, 3, world.W - 4);
   const top = groundTop(world, gx, y);
   let best = { y: top, on: top >= world.ground.y0 ? world.ground : null };
   for (const g of world.branches) {
-    if (g.kind === 'terrain' || !isFloorLike(g) || gx < g.x0 || gx > g.x1) continue;
+    if (g.kind === 'terrain' || skip?.has(g) || !isFloorLike(g) || gx < g.x0 || gx > g.x1) continue;
     const gy = yAt(g, gx);
     if (gy >= y && gy < best.y) best = { y: gy, on: g };
   }
@@ -1690,8 +1690,8 @@ export const pointerDown = (world, x, y) => {
   }
   if (world.placing) return placeItem(world, x, y);
   if (world.tool === 'move') {
-    const hit = prunableAt(world, x, y, true);
-    if (hit) world.moving = { obj: hit.plant ?? hit.grass ?? hit.vine, x, y };
+    const obj = liftable(prunableAt(world, x, y));
+    if (obj) world.moving = { obj, x, y };
     return;
   }
   if (world.tool === 'propagate') {
@@ -1823,8 +1823,8 @@ export const aimAt = (world) => {
   }
   if (tool !== 'move' && tool !== 'propagate') return null;
   if (world.moving) return { kind: 'drop' };
-  const hit = prunableAt(world, x, y, true);
-  if (tool === 'move' && hit) return { kind: 'lift', obj: hit.plant ?? hit.grass ?? hit.vine };
+  const hit = prunableAt(world, x, y, tool === 'propagate');
+  if (tool === 'move' && hit) return { kind: 'lift', obj: liftable(hit) };
   return hit?.plant && tool === 'propagate' && propagatable(hit.plant) ? { kind: 'pick', obj: hit.plant } : null;
 };
 
@@ -1835,28 +1835,84 @@ const tap = (world, x, y) => {
   else world.selected = null;
 };
 
-// ---------- relocating plants ----------
+// ---------- relocating plants and sticks ----------
 
-// Where a plant, grass patch or vine dragged by (dx, dy) ends up: its base moves as far as the pointer did,
-// then lands the way a new one would.
+const LID = 4; // px from the top of the tank: a stick moved up so far it would poke out is cut off here
+
+// What Relocate would lift, of what a press there hit: a plant, grass patch, vine or stick.
+const liftable = (hit) => hit && (hit.plant ?? hit.grass ?? hit.vine ?? hit.seg?.obj);
+
+// A stick and everything that stands on it or hangs from it: plants, vines, other sticks and whatever is on those.
+const carried = (world, stick) => {
+  const out = [stick];
+  for (let i = 0; i < out.length; i++) {
+    const segs = out[i].segs ?? [];
+    for (const o of world.objects) if (!out.includes(o) && segs.includes(o.on)) out.push(o);
+  }
+  return out;
+};
+
+// Where a plant, grass patch, vine or stick dragged by (dx, dy) ends up: its base moves as far as the pointer did,
+// then lands the way a new one would. A stick keeps clear of the glass at the sides, and doesn't land on itself or
+// anything it carries.
 const destination = (world, obj, dx, dy) => {
   const [x, y] = [obj.base.x + dx, obj.base.y + dy];
   if (obj.kind === 'vine') return vineAnchor(world, x, y);
-  return obj.kind === 'grass' ? sowAt(world, x, y) : standAt(world, x, y);
+  if (obj.kind === 'grass') return sowAt(world, x, y);
+  if (obj.kind !== 'stick') return standAt(world, x, y);
+  const segs = new Set(carried(world, obj).flatMap((o) => o.segs ?? []));
+  const xs = [...segs].flatMap((g) => [g.x0, g.x1]);
+  const fit = clamp(x, obj.base.x + 2 - Math.min(...xs), obj.base.x + world.W - 3 - Math.max(...xs));
+  return standAt(world, fit, y, segs);
 };
 
-// The plant being dragged and where it would land (or, propagating, where its seedling would go), for drawing.
+// What's being dragged (with everything it carries, for a stick) and where it would land (or, propagating, where
+// its seedling would go), for drawing.
 export const relocationAt = (world) => {
   const m = world.moving;
   if (!m || !world.objects.includes(m.obj)) return null;
   const { x, y } = world.pointer;
   const to = world.tool === 'propagate' ? standAt(world, x, y) : destination(world, m.obj, x - m.x, y - m.y);
   if (!to) return null;
-  return { obj: m.obj, base: to.base, dx: to.base.x - m.obj.base.x, dy: to.base.y - m.obj.base.y };
+  const loads = m.obj.kind === 'stick' ? carried(world, m.obj) : [m.obj];
+  return { obj: m.obj, loads, base: to.base, dx: to.base.x - m.obj.base.x, dy: to.base.y - m.obj.base.y };
 };
 
-// Move a plant, grass patch or vine so its base is at to.base.
+// Move a stick so its base is at to.base, and everything it carries with it: what stands on it or hangs from it,
+// and the bugs walking on any of that (one rounding a corner just then lets go). Then any of it moved up so far
+// that it would poke out of the top of the tank is cut off there, as if it met the lid.
+const moveStick = (world, stick, to) => {
+  const [dx, dy] = [to.base.x - stick.base.x, to.base.y - stick.base.y];
+  const loads = carried(world, stick);
+  const segs = new Set(loads.flatMap((o) => o.segs ?? []));
+  const by = (p) => p && { x: p.x + dx, y: p.y + dy };
+  for (const o of loads) {
+    if (o.kind !== 'stick') relocate(world, o, { base: by(o.base), on: o.on, hold: by(o.hold) });
+    else {
+      for (const g of o.segs) setEnds(g, by(g.root), by(g.tip));
+      Object.assign(o, { base: by(o.base), hold: by(o.hold) });
+    }
+  }
+  Object.assign(stick, { base: to.base, on: to.on, hold: to.hold });
+  for (const bug of world.bugs) {
+    if (bug.transfer && (segs.has(bug.surf) || segs.has(bug.transfer.from))) detach(bug, 'fall');
+    if (!segs.has(bug.surf)) continue;
+    for (const p of bug.pts) Object.assign(p, { x: p.x + dx, y: p.y + dy, px: p.px + dx, py: p.py + dy });
+    resetLegs(bug);
+    bug.step = null;
+  }
+  rebuildJunctions(world);
+  replan(world);
+  for (const g of segs) {
+    if (!world.branches.includes(g) || Math.min(g.root.y, g.tip.y) >= LID) continue;
+    const t = g.root.y < LID ? 0 : (g.root.y - LID) / (g.root.y - g.tip.y);
+    pruneSegment(world, g, { x: g.root.x + (g.tip.x - g.root.x) * t, y: g.root.y + (g.tip.y - g.root.y) * t });
+  }
+};
+
+// Move a plant, grass patch, vine or stick so its base is at to.base.
 const relocate = (world, obj, to) => {
+  if (obj.kind === 'stick') return moveStick(world, obj, to);
   const [dx, dy] = [to.base.x - obj.base.x, to.base.y - obj.base.y];
   if (obj.kind === 'plant') {
     // Stems share their joints (and the first one its root with the base), so move each point once.

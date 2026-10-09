@@ -1107,13 +1107,25 @@ const drawReady = (ctx, world) => {
 // The top of a plant or grass patch, or where a vine hangs from: where arrows over it point.
 const topOf = (obj) => {
   if (obj.kind === 'plant') return obj.stems.reduce((a, st) => (st.tip.y < a.y ? st.tip : a), obj.base);
+  if (obj.kind === 'stick') {
+    return obj.segs.flatMap((g) => [g.root, g.tip]).reduce((a, p) => (p.y < a.y ? p : a), obj.base);
+  }
   if (obj.kind === 'grass') {
     return { x: obj.base.x, y: Math.min(...obj.tufts.map((t) => t.y - obj.genome.height * t.size)) };
   }
   return obj.base;
 };
 
-// A plant being relocated: a ghost of it where it would land, with the arrow pointing at it.
+// A stick: its pieces, then the leaves on them.
+const drawStick = (ctx, obj) => {
+  for (const g of obj.segs) {
+    drawBranch(ctx, g, woodColors(obj.wood), stickWidth(obj.style, g.depth), obj.foliage, obj.style);
+  }
+  for (const g of obj.segs) for (const leaf of g.leaves) drawLeaf(ctx, g, leaf, obj.foliage);
+};
+
+// A plant or stick being relocated: a ghost of it (a stick with everything on it) where it would land, with the
+// arrow pointing at it.
 const drawRelocation = (ctx, world, move) => {
   const { obj } = move;
   // Propagating, what goes in is a seedling.
@@ -1123,12 +1135,15 @@ const drawRelocation = (ctx, world, move) => {
   ctx.save();
   ctx.globalAlpha = 0.55;
   ctx.translate(Math.round(move.dx), Math.round(move.dy));
-  if (obj.kind === 'plant') drawPlant(ctx, obj);
-  else if (obj.kind === 'grass') drawGrass(ctx, world, [obj]);
-  else drawVine(ctx, obj);
+  for (const o of move.loads) {
+    if (o.kind === 'stick') drawStick(ctx, o);
+    else if (o.kind === 'plant') drawPlant(ctx, o);
+    else if (o.kind === 'grass') drawGrass(ctx, world, [o]);
+    else drawVine(ctx, o);
+  }
   ctx.restore();
   const top = topOf(obj);
-  dropArrow(ctx, world, top.x + move.dx, top.y + move.dy - (obj.kind === 'plant' ? 3 : 1));
+  dropArrow(ctx, world, top.x + move.dx, top.y + move.dy - (obj.kind === 'vine' ? 1 : 3));
 };
 
 // What a press would do, marked where it would happen: a blinking red notch across the stem, stick or vine

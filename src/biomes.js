@@ -154,20 +154,20 @@ const BIOMES = [
     about: 'Brownstone and sandstone. Dust devils whirl, and a tumbleweed now and then.',
   },
   {
-    key: 'crags',
-    name: 'Rocky crags',
-    test: (s) => s.land && share(s, STONE, BASALT, SANDSTONE, BROWNSTONE) >= 0.55,
-    goings: ['drips'],
-    wild: 'edelweiss',
-    about: 'Mostly rock. Water drips from its overhangs.',
-  },
-  {
     key: 'rainforest',
     name: 'Rainforest',
     test: (s) => s.green >= 10 && s.wet >= 0.05,
     goings: ['rain', 'mushrooms'],
     wild: 'corpseLily',
     about: 'Thick with plants, with water. It rains now and then, and mushrooms come up.',
+  },
+  {
+    key: 'crags',
+    name: 'Rocky crags',
+    test: (s) => s.land && share(s, STONE, BASALT, SANDSTONE, BROWNSTONE) >= 0.55,
+    goings: ['drips'],
+    wild: 'edelweiss',
+    about: 'Mostly rock. Water drips from its overhangs.',
   },
   {
     key: 'wetland',

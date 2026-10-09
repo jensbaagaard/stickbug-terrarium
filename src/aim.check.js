@@ -15,7 +15,8 @@ assert.equal(aimAt(world).kind, 'cut');
 assert.equal(aimAt(world).hit.seg, stick);
 
 setTool(world, 'move');
-assert.equal(aimAt(world), null, "sticks can't be relocated");
+assert.equal(aimAt(world).kind, 'lift', 'sticks can be relocated');
+assert.equal(aimAt(world).obj, stick.obj);
 pointAt({ x: plant.base.x, y: plant.base.y - 2 });
 assert.equal(aimAt(world).kind, 'lift');
 assert.equal(aimAt(world).obj, plant);
