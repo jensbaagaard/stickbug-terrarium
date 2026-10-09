@@ -8,7 +8,7 @@
 // and play dead on their backs, or a shield bug lets off a stink where it is. Dropping toward water, or with water
 // rising round them, they fly off. Pure data + functions, like the rest of the simulation.
 import { stickWidth } from './decor.js';
-import { clamp, lerp, pick } from './geom.js';
+import { clamp, dist, lerp, pick } from './geom.js';
 import { CELL, cellAt, EMPTY, WATER } from './terrain.js';
 import { wind } from './life.js';
 import { params } from './tuning.js';
@@ -32,7 +32,6 @@ const BREED = 1 / 2500; // chance a tick a grown aphid has a young one
 const APHID_LIFE = 20000; // ticks, give or take half
 
 const range = (rand, lo, hi) => lo + rand() * (hi - lo);
-const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 
 // ---------- genome ----------
 

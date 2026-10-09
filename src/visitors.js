@@ -5,7 +5,7 @@
 // little clouds over the plants. How many come goes with how green the tank is and how much of it is air (see life.js's
 // room). Tapped near, they make off. They draw on the tank's life's own random numbers, and none of them is saved: they
 // come back on their own. Pure data + functions, like the rest of the simulation.
-import { pick } from './geom.js';
+import { dist, pick } from './geom.js';
 import { CELL, cellAt, EMPTY, WATER } from './terrain.js';
 import { ripple, room, wind } from './life.js';
 import { flowersOf, wayThrough } from './fliers.js';
@@ -18,7 +18,6 @@ const STILL = 0.85; // share of a pond's surface that mustn't have moved since t
 const REPLAN_TICKS = 60;
 const LOST_TICKS = 300; // no pond for a dragonfly this long (not just a level bobbing a moment), it leaves early
 
-const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 
 // ---------- still water ----------
 

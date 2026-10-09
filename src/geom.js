@@ -21,6 +21,8 @@ export const pick = (rand, list) => list[Math.floor(rand() * list.length)];
 
 // Points are {x, y}.
 export const add = (a, b, k = 1) => ({ x: a.x + b.x * k, y: a.y + b.y * k });
+export const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+export const dirOf = (a) => ({ x: Math.cos(a), y: Math.sin(a) }); // the unit vector at angle a
 export const lerp = (a, b, k) => ({ x: a.x + (b.x - a.x) * k, y: a.y + (b.y - a.y) * k });
 export const dot = (a, b) => a.x * b.x + a.y * b.y;
 export const normalize = (v) => {

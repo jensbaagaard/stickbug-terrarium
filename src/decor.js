@@ -1,9 +1,8 @@
 // Random decorations for the shop: sticks, plant genomes and wallpapers. Pure generators; sim.js turns their
 // shapes into surfaces. Colours are {h, s, l}.
-import { add, pick } from './geom.js';
+import { add, dirOf, pick } from './geom.js';
 
 const range = (rand, lo, hi) => lo + rand() * (hi - lo);
-const dirOf = (a) => ({ x: Math.cos(a), y: Math.sin(a) });
 
 // Woods: name and colour.
 const WOODS = {

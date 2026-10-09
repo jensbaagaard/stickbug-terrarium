@@ -14,6 +14,7 @@ import {
 import {
   add,
   clamp,
+  dirOf,
   distToSeg,
   hash,
   hslHex,
@@ -75,7 +76,6 @@ const GLYPHS = {
   9: ['###', '#.#', '###', '..#', '###'],
 };
 
-const dirOf = (a) => ({ x: Math.cos(a), y: Math.sin(a) });
 const BUD = 0.4; // a flower is a closed bud till it's this far open
 
 // Fill a pixel-snapped square of width w centred on (x, y).

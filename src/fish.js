@@ -5,7 +5,7 @@
 // other with fins flared and court the females with a quivering S-shaped display. Out of the water they flop about,
 // hopping toward the nearest water, until they're back in. Pure data + functions, like the rest of the simulation.
 import { CELL, cellAt, EMPTY, WATER } from './terrain.js';
-import { clamp, pick } from './geom.js';
+import { clamp, dist, pick } from './geom.js';
 import { ripple } from './life.js';
 
 const HUNGER = 1 / 15000; // per tick, for an average appetite
@@ -17,7 +17,6 @@ const EDGE = 3; // px a fish keeps between its middle and the edge of the water
 const MAX_FLAKES = 80;
 
 const range = (rand, lo, hi) => lo + rand() * (hi - lo);
-const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 
 // ---------- genome ----------
 
