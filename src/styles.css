@@ -60,6 +60,31 @@ body {
 }
 .tank .fullscreen:hover,
 .tank .fullscreen:focus-visible { opacity: 1; }
+/* The tank's biome, top left over the tank: tapped, what it's like. News shows in its place a while, in coin yellow. */
+.tank .biome {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  max-width: calc(100% - 42px);
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 4px 7px;
+  background: rgb(0 0 0 / 0.35);
+  color: var(--bright);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  text-align: left;
+  opacity: 0.6;
+}
+.tank .biome:hover,
+.tank .biome:focus-visible,
+.tank .biome[aria-expanded='true'],
+.tank .biome.news { opacity: 1; }
+.tank .biome.news { color: var(--coin); }
+.tank .biome .bump { display: inline-block; animation: bump 0.35s ease-out; }
+.tank .biome .about { margin-top: 4px; font-size: 9px; line-height: 1.5; opacity: 0.85; }
 /* Something bought is waiting to go in: the frame glows in coin yellow. */
 .tank.placing { animation: glow 1.2s ease-in-out infinite alternate; }
 @keyframes glow { to { border-color: var(--coin); } }

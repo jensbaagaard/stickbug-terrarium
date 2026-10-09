@@ -14,7 +14,7 @@ const FIREFLY_SPEED = 0.25; // px a tick at the most: a lazy drift
 const MAX_BUBBLES = 40;
 const BUBBLE_TICKS = 15;
 const MOTES = 10;
-const SNOWFLAKES = 45; // with the snowy wallpaper up, the dust is snow
+const SNOWFLAKES = 45; // with the snowy wallpaper up, or in a flurry, the dust is snow
 const SNOW_SPEED = 0.2; // px a tick a snowflake falls
 export const RIPPLE_TICKS = 40;
 
@@ -182,22 +182,27 @@ const stepBubbles = (world) => {
 // ---------- dust ----------
 
 // A few specks of dust adrift in the air, wandering on the breeze. One that settles into the terrain or the water
-// is gone, and another is somewhere else. Under a snowy sky (the winter wallpaper) they're snowflakes instead,
-// more of them, drifting down from the top and swaying, gone where they land.
-export const snowing = (world) => world.wallpaper?.style === 'winter';
+// is gone, and another is somewhere else. Under a snowy sky (the winter wallpaper), or in a flurry (world.flurry is
+// when it stops: see biomes.js), they're snowflakes instead, more of them, drifting down from the top and swaying,
+// gone where they land. After a flurry the last of its snow comes down before the dust is back.
+export const LET_UP = 1500; // ticks
+const snowComing = (world) => world.wallpaper?.style === 'winter' || world.time < (world.flurry ?? -Infinity);
+export const snowing = (world) => snowComing(world) || world.time < (world.flurry ?? -Infinity) + LET_UP;
 const stepMotes = (world) => {
   const snow = snowing(world);
+  const more = snowComing(world);
   const somewhere = () => {
     for (let k = 0; k < 5; k++) {
       const x = world.lifeRand() * world.W;
-      // Snow comes in at the top, once there's enough of it about to begin with.
-      const top = snow && world.motes.length >= SNOWFLAKES / 2;
+      // Snow comes in at the top: under the snowy sky once there's enough of it about to begin with, in a flurry
+      // from the first.
+      const top = snow && (world.motes.length >= SNOWFLAKES / 2 || world.wallpaper?.style !== 'winter');
       const y = world.lifeRand() * (top ? 4 : world.ground.y0);
       if (open(world, x, y)) return { x, y, vx: 0, vy: 0, seed: world.lifeRand() * 6 };
     }
     return null;
   };
-  while (world.motes.length < (snow ? SNOWFLAKES : MOTES)) {
+  while (world.motes.length < (more ? SNOWFLAKES : MOTES)) {
     const m = somewhere();
     if (!m) break;
     world.motes.push(m);

@@ -129,6 +129,8 @@ export const GROUPS = [
       ['leafLife', 'Leaf life', 1, 0.9, 0.1], // multiplier on how long a leaf lasts before it yellows and drops
       ['bloomLife', 'Bloom life', 1, 0.9, 0.1], // multiplier on how long a flower stays open before it wilts
       ['visitors', 'Visitors', 1, 1, 0.1], // multiplier on how often dragonflies, bees and gnats come
+      ['biomeLife', 'Biome events', 1, 1, 0.1], // multiplier on how often a biome's goings-on start (see biomes.js)
+      ['wildFlowers', 'Wild flowers', 1, 1, 0.1], // multiplier on how often a biome's wild flower seeds itself
     ],
   },
   {

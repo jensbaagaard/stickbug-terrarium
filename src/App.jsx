@@ -331,6 +331,7 @@ export default function App() {
   // Full screen: the tank alone, filling the screen. Esc (the browser's) or the button again leaves it.
   const tankBox = useRef(null);
   const [full, setFull] = useState(false);
+  const [aboutBiome, setAboutBiome] = useState(false);
   useEffect(() => {
     const onChange = () => setFull(!!document.fullscreenElement);
     document.addEventListener('fullscreenchange', onChange);
@@ -548,6 +549,25 @@ export default function App() {
     <>
       <div className={snap?.placing ? 'tank placing' : 'tank'} ref={tankBox}>
         <Terrarium worldRef={world} size={size} />
+        {/* What kind of place the tank is (news shows here a while instead); tapped, what that's like. */}
+        {snap?.biome && (
+          <button
+            type="button"
+            className={snap.biome.news ? 'biome news' : 'biome'}
+            aria-expanded={aboutBiome}
+            onClick={() => setAboutBiome((open) => !open)}
+          >
+            <span key={snap.biome.news ?? snap.biome.key} className="bump">
+              {snap.biome.news ?? snap.biome.name}
+            </span>
+            {aboutBiome && (
+              <span className="about">
+                {snap.biome.about}
+                {snap.biome.wild && ` Wild flower: ${snap.biome.wild}`}
+              </span>
+            )}
+          </button>
+        )}
         {document.fullscreenEnabled && (
           <button
             type="button"

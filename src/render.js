@@ -51,6 +51,7 @@ import { flierShape } from './fliers.js';
 import { RIPPLE_TICKS, snowing, wind } from './life.js';
 import { params } from './tuning.js';
 import { drawWallpaper } from './wallpaper.js';
+import { drawGoingsOnGround, drawGoingsInAir } from './biomeDraw.js';
 
 const NOTE = ['..#.', '..##', '..#.', '..#.', '###.', '##..'];
 const ARROW = ['#####', '.###.', '..#..'];
@@ -321,6 +322,26 @@ const drawFlower = (ctx, f, c, bloom, turn, scale = 1, wilt = 0) => {
           ctx.fillRect(Math.round(c.x + x), Math.round(c.y + y), 1, 1);
         }
       }
+      return;
+    }
+    case 'lotus': {
+      // A bowl of pointed petals round a seed pod: the outer ones splayed out low, the inner ones standing up.
+      for (const [n, reach, fan] of [
+        [f.petals, len * 1.1, 0.95],
+        [Math.max(3, f.petals - 3), len * 1.2, 0.5],
+      ]) {
+        for (let i = Math.floor(wilt * n); i < n; i++) {
+          const a0 = -Math.PI / 2 + ((i + 0.5) / n - 0.5) * Math.PI * fan;
+          const a = a0 + Math.atan2(Math.cos(a0), Math.sin(a0)) * wilt * 0.6; // drooping toward straight down
+          for (let k = 0; k <= reach; k += 0.5) {
+            ctx.fillStyle = petalAt(k / reach);
+            const w = wide * 0.8 * Math.sin(Math.PI * (0.15 + 0.85 * (k / reach)));
+            plot(ctx, c.x + Math.cos(a) * k, c.y + Math.sin(a) * k, Math.max(1, w));
+          }
+        }
+      }
+      ctx.fillStyle = centre;
+      plot(ctx, c.x, c.y - 1, Math.max(1, f.centreSize * s));
       return;
     }
     case 'star':
@@ -2263,6 +2284,7 @@ export const drawWorld = (ctx, world) => {
   drawTerrain(ctx, world, false);
   drawGrass(ctx, world, world.objects.filter((obj) => obj.kind === 'grass'));
   for (const obj of world.objects) if (obj.kind === 'vine') drawVine(ctx, obj);
+  drawGoingsOnGround(ctx, world);
   if (world.tool === 'propagate') drawReady(ctx, world);
 
   const move = relocationAt(world);
@@ -2288,6 +2310,7 @@ export const drawWorld = (ctx, world) => {
   ctx.globalAlpha = 1;
   for (const b of world.fliers) drawFlier(ctx, world, b);
   drawVisitors(ctx, world);
+  drawGoingsInAir(ctx, world);
 
   for (const c of world.crumbs) {
     ctx.fillStyle = CRUMB_COLORS[c.shade];

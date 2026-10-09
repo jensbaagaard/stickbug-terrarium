@@ -15,7 +15,7 @@
 - [x] its important we also look at how much air is in the tank forexample if its filled with water (a aquarium) we should not spawn any flying bugs. or if its 90% water only spawn a few
 
 ## biomes
-- lets add a biome calculator - e.g. if a world is mostly sand and sandstone its a dessert
+- [x] lets add a biome calculator - e.g. if a world is mostly sand and sandstone its a dessert
     - a want a rare flower to be able to randomly grow if conditions are met
         - a white lotus very rarely should appear if its a dessert, and if no other lotus is present
         - come up with some more biomes and random events 

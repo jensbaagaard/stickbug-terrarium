@@ -56,6 +56,7 @@ import {
 import { feedFish, fishAt, fishShape, guppyName, guppyPrice, makeGuppy, newFish, startle, stepFish } from './fish.js';
 import { ripple, stepLife, wind } from './life.js';
 import { startleVisitors, stepVisitors } from './visitors.js';
+import { biomeNow, stepBiomes } from './biomes.js';
 import {
   addFlier,
   flierAt,
@@ -511,6 +512,7 @@ export const createWorld = (W, H, { seed = Date.now(), scene = true } = {}) => {
     time: 0,
     rand: mulberry32(seed),
     lifeRand: mulberry32(seed + 1), // for the tank's ambient life alone, so it never reshuffles what else happens
+    biomeRand: mulberry32(seed + 2), // and for its biome's goings-on and wild flowers
     held: null,
     press: null,
     pointer: { x: 0, y: 0 },
@@ -525,6 +527,9 @@ export const createWorld = (W, H, { seed = Date.now(), scene = true } = {}) => {
     litter: [], // fallen leaves
     fireflies: [],
     visitors: [], // dragonflies, bees and gnats, come and gone
+    happenings: [], // the biome's goings-on: tumbleweeds, embers, rain and so on (see biomes.js)
+    found: [], // the wild flowers that have turned up, by key
+    news: null, // something to tell: {text, at}
     bubbles: [],
     motes: [], // dust in the air
     ripples: [],
@@ -1240,7 +1245,7 @@ const prunePlant = (world, plant, stem, p) => {
   if (clump) chainRoot(stem).trimmed = true;
   plant.stems = plant.stems.filter((s) => !doomed.includes(s));
   if (!plant.stems.length) world.objects = world.objects.filter((o) => o !== plant);
-  earn(world, Math.max(1, Math.round(clipped / CLIPPING_LEN)), p.x, p.y);
+  earn(world, Math.max(1, Math.round((clipped / CLIPPING_LEN) * (plant.species.worth ?? 1))), p.x, p.y);
 };
 
 // ---------- clump plants ----------
@@ -1940,6 +1945,8 @@ export const step = (world) => {
   stepLitter(world);
   stepLife(world);
   stepVisitors(world);
+  const wild = stepBiomes(world);
+  if (wild) addDecor(world, wild);
   world.popups = world.popups.filter((p) => {
     p.y -= 0.25;
     return --p.life > 0;
@@ -2533,6 +2540,7 @@ export const snapshot = (world) => {
     full: world.bugs.length >= params.maxBugs,
     fish: world.fish.length,
     fliersFull: world.fliers.length >= params.maxFliers,
+    biome: biomeNow(world),
     selected:
       (bug && { kind: 'bug', name: bug.name, hunger: bug.hunger, genes: bug.genes, t: bug.t }) ||
       (fish && { kind: 'fish', name: fish.name, hunger: fish.hunger, genome: fish.genome }) ||
@@ -2594,6 +2602,7 @@ export const exportWorld = (world) => ({
   rerolls: world.rerolls ?? null,
   wallpaper: world.wallpaper,
   wallpapers: world.wallpapers,
+  found: world.found,
   shop: world.shop,
   offers: world.offers,
   terrain: {
@@ -2639,6 +2648,7 @@ export const importWorld = (data, W, H, seed = undefined) => {
     wallpaper: data.wallpaper,
     // Saved before wallpapers were kept: the one up is the start of the collection.
     wallpapers: data.wallpapers ?? (data.wallpaper ? [data.wallpaper] : []),
+    found: data.found ?? [],
     shop: data.shop,
     offers: data.offers,
   });
