@@ -1,9 +1,9 @@
 // Drawing the biomes' goings-on (see biomes.js): the ones on the ground (tumbleweeds, dust devils, mushrooms) just over
 // the terrain, so the bugs walk in front of them; the rest (embers, steam, drips, wisps, rain, seed fluff, jellyfish)
 // over everything else in the tank.
-import { clamp, hash, hslHex } from './geom.js';
-import { strength } from './biomes.js';
-import { wind } from './life.js';
+import { clamp, hash, hslHex } from '../geom.js';
+import { strength } from '../biomes.js';
+import { wind } from '../life.js';
 
 const TWIGS = ['#8a6a3e', '#a8854f', '#6e5230'];
 const DUST = ['#c9a86a', '#b8935a', '#dcc08a'];

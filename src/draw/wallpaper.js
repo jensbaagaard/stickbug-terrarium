@@ -2,8 +2,8 @@
 // drawn over them every frame: stars twinkling and shooting, clouds and mist drifting by, snow far off, a city's
 // lights, the aurora rippling, and now and then something passing (birds, bats, a shoal, a whale, a comet, a plane).
 // Like the breeze, all of that is a function of the time alone: nothing of it is kept or saved.
-import { hash, hslHex, rgb } from './geom.js';
-import { wind } from './life.js';
+import { hash, hslHex, rgb } from '../geom.js';
+import { wind } from '../life.js';
 
 const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5]; // 4x4 ordered dither
 const bayer = (x, y) => BAYER[(y % 4) * 4 + (x % 4)] / 16;

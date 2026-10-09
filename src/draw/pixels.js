@@ -1,7 +1,7 @@
 // Drawing straight into image data, which is far quicker than a canvas call for every few px: whole opaque colours as
 // pixels, images to write them into, and a stand-in for the canvas for the passes of the drawing that are nothing but
 // opaque fills of whole px (the plants, sticks, vines and bugs).
-import { rgb } from './geom.js';
+import { rgb } from '../geom.js';
 
 const LITTLE_ENDIAN = new Uint8Array(new Uint32Array([1]).buffer)[0] === 1;
 const pixelCache = new Map();
