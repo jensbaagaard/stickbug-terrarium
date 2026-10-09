@@ -3,9 +3,10 @@
 // none about eat pollen at the open flowers. They bask at the tips, groom, huddle up together to rest, stop to touch
 // antennae when they meet on a stem (then one turns back and the other goes round), and climb to the top of whatever
 // they're on before they take off. Startled, the bold ones fly off and the rest drop and play dead on their backs.
-// Fallen in the water, they float until they can fly off. Pure data + functions, like the rest of the simulation.
+// Dropping toward water, or with water rising round them, they fly off. Pure data + functions, like the rest of the
+// simulation.
 import { stickWidth } from './decor.js';
-import { pick } from './geom.js';
+import { clamp, lerp, pick } from './geom.js';
 import { CELL, cellAt, EMPTY, WATER } from './terrain.js';
 import { wind } from './life.js';
 import { params } from './tuning.js';
@@ -13,11 +14,13 @@ import { params } from './tuning.js';
 const HUNGER = 1 / 12000; // per tick, for an average appetite
 const BITE = 0.3; // hunger an aphid takes away
 const POLLEN = 1 / 1500; // and a tick of pollen
-const WALK = 0.12; // px a tick, for an average speed
-const FLY = 0.8;
+const WALK = 0.07; // px a tick, for an average speed
+const FLY = 0.5;
 const GRAVITY = 0.08;
 const LIFT_TICKS = 30; // opening its wings to take off
 const FLIGHT_TICKS = 900; // flying this long without getting where it's going, it makes for somewhere else
+const REPLAN_TICKS = 60; // how often it works out its way through the air again, as the terrain or its perch moves
+const REACH = 2; // cells of air a ladybug's body takes up from its feet: either side of them, and up
 const MAX_APHIDS = 60;
 const COLONY = 12; // aphids a plant holds at most
 const APHID_EVERY = 1200; // ticks between chances of aphids arriving on a plant
@@ -86,7 +89,7 @@ export const ladybugPrice = (g) => 7 + g.rare * 6 + (g.size > 0.8 ? 2 : 0);
 // Its build in px: from its tail to the front of its head, and the height of its shell.
 export const ladybugShape = (g) => {
   const k = 0.9 + 0.4 * g.size;
-  return { len: 6.5 * k, high: 3.2 * k };
+  return { len: 5 * k, high: 2.6 * k };
 };
 
 const NAMES = [
@@ -115,6 +118,11 @@ const floorTop = (world, x, y) => {
   let fy = Math.max(0, Math.ceil(y));
   while (!solid(world, x, fy)) fy++;
   return fy;
+};
+// The floor a ladybug at x stands on: the highest under any of its feet, so one on the edge of a ledge is on it.
+const floorUnder = (world, b, x, y) => {
+  const half = ladybugShape(b.genome).len / 2;
+  return Math.min(floorTop(world, x - half, y), floorTop(world, x, y), floorTop(world, x + half, y));
 };
 
 // Plants and sticks are trees of parts (a plant's stems, a stick's pieces), each growing from the tip of its parent.
@@ -169,6 +177,84 @@ const flowersOf = (world) => {
     }
   }
   return out;
+};
+
+// ---------- the way through the air ----------
+
+// The air, cell by cell on the terrain's grid: open (no terrain or water) and roomy (open as far round as a
+// ladybug's body reaches from its feet there), worked out afresh when the terrain changes.
+const airs = new WeakMap();
+const airOf = (world) => {
+  const ter = world.terrain;
+  const known = airs.get(ter);
+  if (known?.version === ter.version) return known;
+  const { cols, rows, cells, top } = ter;
+  const open = cells.map((m) => (m === EMPTY ? 1 : 0));
+  const across = new Uint8Array(cols * rows); // open REACH cells either side (and not past the glass)
+  for (let i = 0; i < across.length; i++) {
+    const c = i % cols;
+    let ok = c >= REACH && c < cols - REACH;
+    for (let k = -REACH; k <= REACH && ok; k++) ok = open[i + k] === 1;
+    across[i] = ok ? 1 : 0;
+  }
+  const roomy = new Uint8Array(cols * rows); // and REACH cells up (above the grid is all air)
+  for (let i = 0; i < roomy.length; i++) {
+    let ok = across[i] === 1;
+    for (let k = 1; k <= REACH && ok && i - k * cols >= 0; k++) ok = across[i - k * cols] === 1;
+    roomy[i] = ok ? 1 : 0;
+  }
+  const air = { version: ter.version, cols, rows, top, open, roomy };
+  airs.set(ter, air);
+  return air;
+};
+
+const STEPS = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]];
+
+// A way through the air from a to b (px), as the points to fly straight between, the last of them b: a breadth-first
+// search of the cells, through roomy air, but near either end (squeezing out of a nook, or in to a perch by a wall)
+// through any open air. Null if there's no way.
+const wayThrough = (world, a, b) => {
+  const { cols, rows, open, roomy, top } = airOf(world);
+  const cellOfP = (p) =>
+    clamp(Math.floor(p.x / CELL), 0, cols - 1) + clamp(Math.floor((p.y - top) / CELL), 0, rows - 1) * cols;
+  const [from, to] = [cellOfP(a), cellOfP(b)];
+  const [col, row] = [(i) => i % cols, (i) => Math.floor(i / cols)];
+  const near = (i, j) => Math.abs(col(i) - col(j)) <= 3 && Math.abs(row(i) - row(j)) <= 3;
+  const ok = (i) => roomy[i] === 1 || i === to || (open[i] === 1 && (near(i, from) || near(i, to)));
+  const prev = new Int32Array(cols * rows).fill(-1);
+  prev[from] = from;
+  const queue = [from];
+  for (let q = 0; q < queue.length && prev[to] < 0; q++) {
+    const i = queue[q];
+    const [c, r] = [col(i), row(i)];
+    for (const [dc, dr] of STEPS) {
+      const [nc, nr] = [c + dc, r + dr];
+      const j = nr * cols + nc;
+      if (nc < 0 || nc >= cols || nr < 0 || nr >= rows || prev[j] >= 0 || !ok(j)) continue;
+      if (dc && dr && !(ok(r * cols + nc) && ok(nr * cols + c))) continue; // no cutting corners
+      prev[j] = i;
+      queue.push(j);
+    }
+  }
+  if (prev[to] < 0) return null;
+  const pts = [b];
+  for (let i = prev[to]; i !== from; i = prev[i]) {
+    pts.unshift({ x: col(i) * CELL + CELL / 2, y: top + row(i) * CELL + CELL / 2 });
+  }
+  // Straighten it out: from each point on to the furthest one it can fly straight to.
+  const seen = (p, q) => {
+    const n = Math.ceil(dist(p, q));
+    for (let k = 1; k < n; k++) if (!ok(cellOfP(lerp(p, q, k / n)))) return false;
+    return true;
+  };
+  const way = [];
+  for (let [p, i] = [a, 0]; i < pts.length; ) {
+    let j = i;
+    while (j + 1 < pts.length && seen(p, pts[j + 1])) j++;
+    way.push((p = pts[j]));
+    i = j + 1;
+  }
+  return way;
 };
 
 // ---------- aphids ----------
@@ -227,13 +313,17 @@ export const newLadybug = (world, x, y, genome, name = ladybugName(world.rand)) 
   genome,
   x, // its feet
   y,
-  mode: 'air', // on a 'tree' (a plant or stick), on the 'ground', in the 'air', 'float'ing, on its 'back' or 'held'
+  mode: 'air', // on a 'tree' (a plant or stick), on the 'ground', in the 'air', on its 'back' or 'held'
   perch: null, // on a tree: {obj, part, u: 0..1 from its root to its tip, side: which side of it, +-1}
   dir: world.rand() < 0.5 ? -1 : 1, // the way it's going: on a tree +1 is toward the tip, elsewhere to the right
   vx: 0,
   vy: 0,
   flying: true, // in the air: flying, or falling
   to: null, // the perch it's heading for, walking or flying
+  way: null, // flying there, the points it's flying through
+  replan: 0, // ticks till it works its way out again
+  flown: 0, // ticks it's been flying
+  lost: 0, // times this flight it's found no way to where it was going
   then: null, // and what it'll do there: {kind: 'eat', aphid} | {kind: 'pollen'} | {kind: 'rest', ticks}
   // What it's doing where it is, and for how long ({kind, ticks}): eating an aphid, at pollen, resting, grooming,
   // meeting another, stretching its wings or lifting off.
@@ -241,7 +331,6 @@ export const newLadybug = (world, x, y, genome, name = ladybugName(world.rand)) 
   think: 0, // ticks until it next decides what to do
   hunger: 0.3,
   dead: 0, // ticks left of playing dead
-  float: 0, // ticks left floating, before it gets itself airborne
   met: 0, // ticks before it'll stop to meet another again
   wings: 0, // 0 folded .. 1 wide open
   stride: 0, // px walked, for its legs
@@ -272,8 +361,10 @@ export const ladybugAt = (world, x, y) => {
 const speedOf = (b) => WALK * (0.6 + 0.8 * b.genome.speed);
 
 // Off whatever it's on and into the air: flying (to b.to, if it's going anywhere) or falling.
-const airborne = (b, flying) =>
-  Object.assign(b, { mode: 'air', perch: null, flying, act: null, vy: flying ? -0.5 : 0, flown: 0 });
+const airborne = (b, flying) => {
+  Object.assign(b, { mode: 'air', perch: null, flying, act: null, vy: flying ? -0.5 : 0 });
+  return Object.assign(b, { flown: 0, way: null, lost: 0 });
+};
 
 // Somewhere else in the tank to fly to, not on the tree it's on.
 const elsewhere = (world, b) => {
@@ -367,7 +458,7 @@ const crawl = (world, b, way = null, obj = null) => {
       b.dir = -b.dir;
       return 'blocked';
     }
-    const y = floorTop(world, x, b.y - 3);
+    const y = floorUnder(world, b, x, b.y - 3);
     b.x = x;
     if (y - b.y > 5) {
       airborne(b, false); // over the edge
@@ -537,56 +628,66 @@ const live = (world, b) => {
   }
 };
 
-// In the air. Flying, it makes for where it's going, bobbing as it goes and pushed about by the breeze, up over any
-// terrain in its way (or back from it, if it can't get over), and lands there; if it can't get there, somewhere else,
-// and with nowhere to go it flutters down. Falling, it drops. Either way it lands on whatever floor it comes to, on
-// its back if it's playing dead, or floats if that's water.
+// In the air. Flying, it makes for where it's going the way it's worked out through the air, round any terrain in
+// between, bobbing as it goes and pushed about by the breeze, and lands there; if there's no way there, or it's taking
+// too long, it makes for somewhere else, and with nowhere to go it flutters down. Falling, it drops, on its back if
+// it's playing dead, but about to drop in water it gets its wings out and flies off. Either way it lands on whatever
+// floor it comes to. In the water (risen round it, say), it flies straight up out of it, and keeps out of it after.
 const air = (world, b) => {
   const g = b.genome;
-  const blocked = (px, py) => inTerrain(world, b, px, py) || (b.flying && wet(world, px, py));
-  if (b.flying && b.to && ++b.flown > FLIGHT_TICKS) Object.assign(b, { to: elsewhere(world, b), flown: 0 });
+  if (inTerrain(world, b, b.x, b.y)) {
+    // Buried (let go in it, or it came down on top of it): up and out of it.
+    Object.assign(b, { y: b.y - 1, vx: 0, vy: 0 });
+    return;
+  }
+  const soaked = wet(world, b.x, b.y);
+  const blocked = (px, py) => inTerrain(world, b, px, py) || (b.flying && !soaked && wet(world, px, py));
+  if (!b.flying && [1, 3, 5].some((dy) => wet(world, b.x, b.y + dy))) offWater(world, b);
+  if (b.flying && b.to && ++b.flown > FLIGHT_TICKS) Object.assign(b, { to: elsewhere(world, b), flown: 0, way: null });
   const to = b.to && there(world, b.to) ? b.to : null;
   if (b.flying) {
     const speed = FLY * (0.7 + 0.6 * g.speed);
-    let want = { x: b.dir * 0.3, y: 0.35 };
-    let reach = 8; // how far ahead it looks for terrain in the way: no further than where it's going
+    let want = { x: b.dir * 0.2, y: 0.25 };
     if (to) {
       const at = frameOf(to).at;
-      const d = dist(at, b);
-      if (d < 2) return land(world, b, to);
-      reach = Math.min(reach, d - 1);
-      const k = (speed * Math.min(1, d / 10)) / (d || 1);
-      want = { x: (at.x - b.x) * k, y: (at.y - b.y) * k };
+      if (dist(at, b) < 2) return land(world, b, to);
+      if (!b.way || --b.replan <= 0) {
+        b.way = wayThrough(world, b, at);
+        b.replan = REPLAN_TICKS;
+        // No way there: somewhere else, and after a few of those (shut in somewhere), it settles down to walk.
+        if (!b.way) Object.assign(b, { to: ++b.lost < 4 ? elsewhere(world, b) : null, replan: 20 });
+      }
+      want = { x: 0, y: 0 }; // hovering, till it knows the way
+      if (b.way) {
+        b.way[b.way.length - 1] = at; // the perch sways
+        while (b.way.length > 1 && dist(b.way[0], b) < 3) b.way.shift();
+        const next = b.way[0];
+        const d = dist(next, b) || 1;
+        const k = (speed * (b.way.length > 1 ? 1 : Math.min(1, d / 8))) / d; // slowing to land
+        want = { x: (next.x - b.x) * k, y: (next.y - b.y) * k };
+      }
     }
-    const clear = (w) => {
-      const m = Math.hypot(w.x, w.y) || 1;
-      for (let k = 2; k <= reach; k += 2) if (blocked(b.x + (w.x / m) * k, b.y + (w.y / m) * k)) return false;
-      return true;
-    };
-    if (!clear(want)) {
-      const over = { x: want.x * 0.3, y: -speed };
-      want = clear(over) ? over : { x: -want.x || -b.dir * speed, y: -speed * 0.3 };
-    }
-    b.vx += (want.x - b.vx) * 0.08 + wind(world, b.x) * 0.01;
-    b.vy += (want.y - b.vy) * 0.08 + Math.sin(world.time * 0.25 + b.seed) * 0.04;
+    if (soaked) want = { x: 0, y: -speed };
+    b.vx += (want.x - b.vx) * 0.12 + wind(world, b.x) * 0.006;
+    b.vy += (want.y - b.vy) * 0.12 + Math.sin(world.time * 0.25 + b.seed) * 0.03;
   } else {
     b.vy = Math.min(b.vy + GRAVITY, 2);
     b.vx *= 0.98;
   }
   // Move, sliding along the terrain where it bumps into it; flying, it keeps out of the water (and a fountain's spray)
-  // the same way. Buried, it climbs up out of it.
+  // the same way.
   const [x, y] = [b.x + b.vx, b.y + b.vy];
+  // Nearly there but bumping the terrain, with no room to get its body any nearer: it's there.
+  if (blocked(x, y) && to && b.flying && b.way?.length === 1 && dist(frameOf(to).at, b) < 6) return land(world, b, to);
   if (!blocked(x, y)) [b.x, b.y] = [x, y];
   else if (!blocked(b.x, y)) [b.y, b.vx] = [y, -b.vx * 0.5];
   else if (!blocked(x, b.y)) [b.x, b.vy] = [x, -Math.abs(b.vy) * 0.5];
   else [b.vx, b.vy] = [-b.vx * 0.5, -Math.abs(b.vy) * 0.5];
-  while (b.y > 3 && solid(world, b.x, b.y - 1)) b.y--;
   b.x = Math.min(Math.max(b.x, 2), world.W - 3);
-  b.y = Math.max(b.y, 3);
+  b.y = Math.min(Math.max(b.y, 3), world.ground.y0);
   if (Math.abs(b.vx) > 0.05) b.dir = Math.sign(b.vx);
-  if (wet(world, b.x, b.y)) return startFloat(world, b);
-  const floor = floorTop(world, b.x, b.y - 1);
-  if (b.y >= floor && b.vy >= 0) {
+  const floor = floorUnder(world, b, b.x, b.y - 1);
+  if (b.y >= floor && b.vy >= 0 && !(b.flying && b.to)) {
     Object.assign(b, { mode: b.dead > 0 ? 'back' : 'ground', y: floor, vx: 0, vy: 0, to: b.dead > 0 ? null : b.to });
   }
 };
@@ -597,27 +698,10 @@ const land = (world, b, to) => {
   arrive(world, b);
 };
 
-// In the water: up to the surface, where it floats, paddling, until it gets itself airborne. Back in the water soon
-// after it was last in it (the surface rocking under it, say), it carries on where it was with getting airborne.
-const startFloat = (world, b) => {
-  Object.assign(b, { mode: 'float', perch: null, act: null, dead: 0, vx: 0, vy: 0 });
-  if (b.float <= 0) b.float = 150 + world.rand() * 150;
-};
-
-const floatOn = (world, b) => {
-  let y = [b.y - 1, b.y + 1, b.y + 1 + CELL].find((wy) => wet(world, b.x, wy)); // the water it's in, or on
-  if (y === undefined) {
-    airborne(b, false); // drifted off the edge of the water, or it drained away
-    return;
-  }
-  while (y > 2 && wet(world, b.x, y - CELL)) y -= CELL;
-  b.y = world.terrain.top + Math.floor((y - world.terrain.top) / CELL) * CELL - 0.5;
-  b.x = Math.min(Math.max(b.x + Math.sin(world.time * 0.05 + b.seed) * 0.05, 2), world.W - 3);
-  b.stride += 0.2; // paddling
-  if (--b.float <= 0) {
-    b.to = elsewhere(world, b);
-    airborne(b, true);
-  }
+// Water's no place for a ladybug: playing dead or not, it's off somewhere else.
+const offWater = (world, b) => {
+  Object.assign(b, { dead: 0, to: elsewhere(world, b), then: null });
+  airborne(b, true);
 };
 
 // Held by the pointer: it hangs there, legs going, flicking its wing cases.
@@ -682,11 +766,11 @@ export const stepLadybugs = (world) => {
     if (b.mode === 'held') airborne(b, false); // let go some other way: it drops
     if (b.mode === 'tree' && !there(world, b.perch)) airborne(b, false); // what it was on is gone
     if ((b.mode === 'tree' || b.mode === 'ground' || b.mode === 'back') && wet(world, b.x, b.y - 1)) {
-      startFloat(world, b);
+      offWater(world, b);
     }
+    if ((b.mode === 'ground' || b.mode === 'back') && solid(world, b.x, b.y - 2)) airborne(b, true); // buried: out
     if (b.mode === 'tree' || b.mode === 'ground') live(world, b);
     else if (b.mode === 'air') air(world, b);
-    else if (b.mode === 'float') floatOn(world, b);
     else if (b.mode === 'back' && --b.dead <= 0) Object.assign(b, { mode: 'ground', think: 0 }); // rights itself
     pose(b);
   }

@@ -59,17 +59,17 @@ Shop, Garden (Prune, Relocate, Propagate and Feed), Saves and Settings. The game
   inspect it (hunger, speed, size, boldness and shoaling), drag one to move it. Feed (Garden) sprinkles flakes on
   the water above them; they float a while, then sink, and the fish race for them. Between feedings they eat
   crumbs that fall in.
-- Ladybugs, each with its own genome: mostly red or orange with black spots (two, seven, ten or more), some yellow
-  with lots of spots, pink, or black with red ones, a harlequin's white collar now and then, a few spotless, and
-  rarest of all a metallic steel blue or gold; and a nature (speed, appetite, boldness, sociability, wanderlust,
-  activity). Let one go and it flies to the nearest plant or stick. They clamber about the plants and sticks, climb
-  to the top of whatever they're on before they take off, and fly from one to another. Now and then aphids settle on
-  a plant and breed (a plant crawling with them drops its leaves sooner): a hungry ladybug hunts them down, and with
-  none about eats pollen at the open flowers. They bask at the tips, groom, stretch their wings, huddle up together
-  to rest, and stop to touch antennae when they meet on a stem, then one turns back and the other goes round. Tap
-  the glass near one and it flies off if it's bold, or drops and plays dead on its back if it's not; fallen in the
-  water, it floats until it can fly off. Tap one to inspect it (hunger, speed, size, boldness and wanderlust), drag
-  one to pick it up.
+- Ladybugs, each with its own genome: mostly red or orange with black spots (two, seven, ten or more), some yellow with
+  lots of spots, pink, or black with red ones, a harlequin's white collar now and then, a few spotless, and rarest of
+  all a metallic steel blue or gold; and a nature (speed, appetite, boldness, sociability, wanderlust, activity). Let
+  one go and it flies to the nearest plant or stick. They clamber about the plants and sticks, climb to the top of
+  whatever they're on before they take off, and fly from one to another, finding their way through the air round the
+  terrain (out of nooks and caves too). Now and then aphids settle on a plant and breed (a plant crawling with them
+  drops its leaves sooner): a hungry ladybug hunts them down, and with none about eats pollen at the open flowers. They
+  bask at the tips, groom, stretch their wings, huddle up together to rest, and stop to touch antennae when they meet on
+  a stem, then one turns back and the other goes round. Tap the glass near one and it flies off if it's bold, or drops
+  and plays dead on its back if it's not; dropping toward water, it gets its wings out and flies off. Tap one to inspect
+  it (hunger, speed, size, boldness and wanderlust), drag one to pick it up.
 - Drag a plant, vine or grass to pull it about, a bit like Aqua Box: it bends toward the pointer and springs back
   when you let go.
 - Tap a branch, stick or plant to prune it there; whatever stood on a cut-off piece comes down with it. The Prune
@@ -154,8 +154,9 @@ Shop, Garden (Prune, Relocate, Propagate and Feed), Saves and Settings. The game
 - `src/fish.js` – guppies: their genome, price and names, and how they live: cruising and shoaling, food and
   grazing, resting, begging, fleeing, courting, and flopping when stranded. Pure logic, no DOM.
 - `src/ladybugs.js` – ladybugs: their genome, price and names, and how they live: clambering about the plants and
-  sticks, flying between them, hunting aphids or eating pollen, resting, huddling, meeting, playing dead and
-  floating; and the aphids. Pure logic, no DOM.
+  sticks, flying between them (a breadth-first search of the air for the way round the terrain), hunting aphids or
+  eating pollen, resting, huddling, meeting, playing dead and keeping out of the water; and the aphids. Pure logic, no
+  DOM.
 - `src/terrain.js` – the falling-sand grid (stone, sandstone, wood, ice, dirt, sand, snow, water, fountains):
   painting and stepping. `sim.js` traces its outline (and the open floor's) into the surfaces bugs walk on.
 - `src/decor.js` – random sticks (eight styles, with their own foliage), wallpapers (patterns and themed scenes, now

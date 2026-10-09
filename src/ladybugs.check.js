@@ -1,7 +1,8 @@
-// Run with `node src/ladybugs.check.js`: a ladybug put in flies to a plant and lands on it, aphids settle on the plants
-// and breed, a hungry ladybug hunts them down or with none about eats pollen, startled a shy one plays dead and a bold
-// one flies off, they save and load, and in a busy tank with a pond and a fountain none of them goes hungry or gets
-// stuck in the water, and a wall in the way is flown up over, not into.
+// Run with `node src/ladybugs.check.js`: a ladybug put in flies to a plant or stick and lands on it, aphids settle on
+// the plants and breed, a hungry ladybug hunts them down or with none about eats pollen, startled a shy one plays dead
+// and a bold one flies off, they save and load, dropped over water one flies off rather than fall in, one in a nook
+// behind a wall finds its way round it, in tanks full of caves and nooks none gets stuck, and in a busy tank with a
+// pond and a fountain none of them goes hungry or into the water.
 import assert from 'node:assert/strict';
 import {
   buyReroll,
@@ -17,6 +18,7 @@ import {
 } from './sim.js';
 import { ladybugShape, startleLadybugs } from './ladybugs.js';
 import { cellAt, EMPTY, paintTerrain, WATER } from './terrain.js';
+import { mulberry32 } from './geom.js';
 import { stressWorld } from './stress.js';
 import { params } from './tuning.js';
 
@@ -44,9 +46,9 @@ const putIn = (world, x, y) => {
   const plant = world.objects.find((o) => o.kind === 'plant');
   steps(world, 6000);
   const lady = putIn(world, 40, 80);
-  steps(world, 900);
-  assert.equal(lady.mode, 'tree', 'put in, it lands');
-  assert.equal(lady.perch.obj, plant, 'on the plant');
+  let landed = false;
+  steps(world, 1200, () => (landed ||= lady.mode === 'tree'));
+  assert.ok(landed, 'put in, it flies to the nearest plant or stick and lands');
 
   // Aphids settle on it and breed.
   params.aphids = 5;
@@ -107,15 +109,44 @@ const putIn = (world, x, y) => {
     [[lady.name, lady.genome]],
     'saved and loaded',
   );
-  let landed = false;
-  steps(loaded, 900, () => (landed ||= loaded.ladybugs[0].mode === 'tree'));
-  assert.ok(landed, 'and lands again');
+  let back = false;
+  steps(loaded, 1200, () => (back ||= loaded.ladybugs[0].mode === 'tree'));
+  assert.ok(back, 'and lands again');
   params.aphids = 1;
 }
 
 {
-  // A tall stone wall between a ladybug let go under an overhang and the only plant: it flies up over the wall, never
-  // into it, and gets to the plant.
+  // A shy one, picked up and let go over a pond, drops playing dead, but gets its wings out and flies off before it
+  // drops in.
+  params.aphids = 0;
+  const world = createWorld(256, 341, { seed: 2 });
+  world.coins = 1e6;
+  const floor = world.ground.y0;
+  const paint = (x, y, m) => paintTerrain(world.terrain, x, y, m, 0, () => 0);
+  for (let y = floor - 34; y < floor; y += 2) for (const x of [56, 164]) paint(x, y, 'stone');
+  for (let y = floor - 30; y < floor; y += 2) for (let x = 60; x < 160; x += 2) paint(x, y, 'water');
+  steps(world, 3000);
+  const lady = putIn(world, 110, 150);
+  steps(world, 900);
+  lady.genome.boldness = 0;
+  pointerDown(world, lady.x, lady.y - 1);
+  pointerMove(world, 110, floor - 60);
+  step(world);
+  pointerUp(world, 110, floor - 60);
+  const wet = () => world.terrain.cells[cellAt(world.terrain, lady.x, lady.y)] === WATER;
+  let [dropped, inWater, flew] = [false, false, false];
+  steps(world, 300, () => {
+    dropped ||= lady.mode === 'air' && !lady.flying;
+    inWater ||= wet();
+    flew ||= dropped && lady.flying;
+  });
+  assert.ok(dropped && flew && !inWater, 'it flies off rather than drop in the water');
+  params.aphids = 1;
+}
+
+{
+  // A tall stone wall between a ladybug let go in the nook under an overhang and the only plant: it finds its way out
+  // and over the wall, never into it, to the plant.
   params.aphids = 0;
   const world = createWorld(256, 341, { seed: 2 });
   world.coins = 1e6;
@@ -140,15 +171,56 @@ const putIn = (world, x, y) => {
   params.aphids = 1;
 }
 
+// A tank full of stone shelves and blobs, nooks and caves, with plants and a stick among them and eight ladybugs let go
+// at random: none of them gets stuck flying anywhere, or goes hungry. Layout 4 has perches tucked in against the rock,
+// layout 5 a pocket sealed off from the rest.
+const caves = (layout) => {
+  params.aphids = 1;
+  const world = createWorld(256, 341, { seed: layout });
+  world.coins = 1e9;
+  const r = mulberry32(layout);
+  const floor = world.ground.y0;
+  for (let k = 0; k < 40; k++) {
+    const [x0, y0, w, h] = [r() * 256, floor - r() * 170, 6 + r() * 30, 4 + r() * 12];
+    for (let y = y0; y < y0 + h; y += 2) {
+      for (let x = x0; x < x0 + w; x += 2) paintTerrain(world.terrain, x, y, 'stone', 0, () => 0);
+    }
+  }
+  const place = (kind, type, x, y) => {
+    let offer;
+    while (!(offer = world.shop[kind].find((o) => !o.sold && (o.type ?? o.kind) === type))) buyReroll(world);
+    startPlacing(world, kind, offer);
+    pointerDown(world, x, y);
+    pointerUp(world, x, y);
+  };
+  for (const x of [30, 80, 130, 180, 230]) place('plant', 'plant', x, floor - 200);
+  place('stick', 'stick', 120, floor - 150);
+  steps(world, 4000);
+  for (let i = 0; i < 8; i++) place('ladybug', 'ladybug', 20 + i * 30, floor - 40 - r() * 100);
+  const flying = world.ladybugs.map(() => 0);
+  let longest = 0;
+  steps(world, 20000, () =>
+    world.ladybugs.forEach((b, i) => {
+      flying[i] = b.mode === 'air' ? flying[i] + 1 : 0;
+      longest = Math.max(longest, flying[i]);
+    }),
+  );
+  assert.ok(longest < 1800, `layout ${layout}: no flight goes on and on (${longest} ticks)`);
+  assert.ok(world.ladybugs.every((b) => b.hunger < 0.9), `layout ${layout}: none goes hungry`);
+};
+caves(4);
+caves(5);
+
 {
   // A tank full of everything, a fountain topping up a pond: they get about it, feed, and don't get stuck in the
   // water or anywhere else.
   const saved = { ...params };
   const world = stressWorld(1);
-  let floating = 0;
-  steps(world, 20000, () => (floating += world.ladybugs.filter((b) => b.mode === 'float').length));
+  const wet = (b) => world.terrain.cells[cellAt(world.terrain, b.x, b.y - 1)] === WATER;
+  let soaked = 0;
+  steps(world, 20000, () => (soaked += world.ladybugs.filter(wet).length));
   assert.ok(world.ladybugs.every((b) => b.hunger < 0.9), 'none goes hungry');
-  assert.ok(floating / (20000 * world.ladybugs.length) < 0.1, 'or spends long in the water');
+  assert.ok(soaked / (20000 * world.ladybugs.length) < 0.01, 'or into the water');
   Object.assign(params, saved);
 }
 
