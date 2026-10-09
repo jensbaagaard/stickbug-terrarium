@@ -55,6 +55,7 @@ import {
 } from './terrain.js';
 import { feedFish, fishAt, fishShape, guppyName, guppyPrice, makeGuppy, newFish, startle, stepFish } from './fish.js';
 import { ripple, stepLife, wind } from './life.js';
+import { startleVisitors, stepVisitors } from './visitors.js';
 import {
   addFlier,
   flierAt,
@@ -523,6 +524,7 @@ export const createWorld = (W, H, { seed = Date.now(), scene = true } = {}) => {
     debris: [],
     litter: [], // fallen leaves
     fireflies: [],
+    visitors: [], // dragonflies, water striders, bees and gnats, come and gone
     bubbles: [],
     motes: [], // dust in the air
     ripples: [],
@@ -1713,6 +1715,7 @@ export const pointerDown = (world, x, y) => {
   else world.touch = { x, y, hit: prunableAt(world, x, y, true) }; // a plant there, to pull if it's dragged
   if (!hit?.fish) startle(world, x, y); // a tap on the glass
   if (!hit?.flier) startleFliers(world, x, y);
+  startleVisitors(world, x, y);
 };
 
 // Take hold of a plant, vine or grass where it was pressed (hit, as prunableAt gives it), to pull it about: a
@@ -1936,6 +1939,7 @@ export const step = (world) => {
   stepDebris(world);
   stepLitter(world);
   stepLife(world);
+  stepVisitors(world);
   world.popups = world.popups.filter((p) => {
     p.y -= 0.25;
     return --p.life > 0;
@@ -2622,8 +2626,8 @@ export const tankSize = (W, H) => {
 // Build a tank from saved data, at this tank's size. Everything is kept on the floor and in the middle: if the tank
 // is taller or shorter than when it was saved, things move down or up with it, and wider or narrower, they keep to
 // the middle (and what no longer fits is lost).
-export const importWorld = (data, W, H) => {
-  const world = createWorld(W, H, { scene: false });
+export const importWorld = (data, W, H, seed = undefined) => {
+  const world = createWorld(W, H, { seed, scene: false });
   const dy = world.ground.y0 - (data.H - 6);
   const dx = Math.round((W - data.W) / 2 / CELL) * CELL; // whole cells, so the terrain moves with everything else
   const at = (p) => ({ x: clamp(p.x + dx, 0, W - 1), y: p.y + dy });

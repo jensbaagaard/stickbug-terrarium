@@ -109,7 +109,7 @@ const pool = (world, x0, x1, depth) => {
   steps(world, 6000, () => {
     inAir &&= world.fireflies.every((f) => cell(world, f) === EMPTY);
   });
-  assert.equal(world.fireflies.length, 2, 'two fireflies to a plant');
+  assert.equal(world.fireflies.length, 2, 'as many as one plant has room for');
   assert.ok(inAir, 'they keep out of the terrain and water');
   // In step: at a flash, they all flash within a few ticks of each other.
   const apart = (a, b) => Math.min(Math.abs(a - b), 1 - Math.abs(a - b));

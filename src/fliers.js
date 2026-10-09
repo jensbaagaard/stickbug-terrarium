@@ -210,7 +210,7 @@ const landingSpots = (world) => {
 };
 
 // Open flowers, for pollen.
-const flowersOf = (world) => {
+export const flowersOf = (world) => {
   const out = [];
   for (const obj of world.objects) {
     if (obj.kind !== 'plant') continue;
@@ -256,7 +256,7 @@ const STEPS = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, 
 // A way through the air from a to b (px), as the points to fly straight between, the last of them b: a breadth-first
 // search of the cells, through roomy air, but near either end (squeezing out of a nook, or in to a perch by a wall)
 // through any open air. Null if there's no way.
-const wayThrough = (world, a, b) => {
+export const wayThrough = (world, a, b) => {
   const { cols, rows, open, roomy, top } = airOf(world);
   const cellOfP = (p) =>
     clamp(Math.floor(p.x / CELL), 0, cols - 1) + clamp(Math.floor((p.y - top) / CELL), 0, rows - 1) * cols;

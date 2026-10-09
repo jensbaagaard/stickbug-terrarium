@@ -36,6 +36,30 @@ export const wind = (world, x) => {
 const cellOf = (world, x, y) => world.terrain.cells[cellAt(world.terrain, x, y)];
 const open = (world, x, y) => y < world.ground.y0 - 1 && cellOf(world, x, y) === EMPTY; // air: no terrain, no water
 
+// How much of the tank's open space is air rather than water, 0..1, worked out afresh when the terrain changes.
+const airs = new WeakMap();
+const airShare = (world) => {
+  const ter = world.terrain;
+  const known = airs.get(ter);
+  if (known?.version === ter.version) return known.share;
+  let [air, water] = [0, 0];
+  for (const m of ter.cells) {
+    if (m === EMPTY) air++;
+    else if (m === WATER) water++;
+  }
+  const share = air / (air + water || 1);
+  airs.set(ter, { version: ter.version, share });
+  return share;
+};
+
+// How many of something living in the air the tank has room for, `most` at the most: the greener the tank, the more
+// (a starting tank's one plant gets one, eight or more plants, grass patches and vines get them all), and the more of
+// it that's air rather than water (full of water, none; nine tenths water, a few).
+export const room = (world, most) => {
+  const green = world.objects.filter((o) => o.kind === 'plant' || o.kind === 'grass' || o.kind === 'vine').length;
+  return Math.round(most * Math.min(1, green / 8) * Math.min(1, airShare(world) / 0.6));
+};
+
 const MAX_RIPPLES = 30;
 
 // A ring spreading out along the water's surface, over (x, y) in the water.
@@ -87,7 +111,7 @@ const stepFireflies = (world) => {
   const list = world.fireflies;
   if (world.time % 60 === 0 && world.lifeRand() < 0.25) {
     const places = world.objects.map(homeOf).filter((p) => p && open(world, p.x, p.y - 6));
-    if (list.length < Math.min(params.fireflies, places.length * 2) && places.length) {
+    if (list.length < room(world, params.fireflies) && places.length) {
       spawnFirefly(world, places[Math.floor(world.lifeRand() * places.length)]);
     }
   }

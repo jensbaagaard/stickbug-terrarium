@@ -10,7 +10,7 @@ sand, snow and water, decorate it from the shop, and tune everything.
 npm install
 npm run dev     # local dev server
 npm run build   # static build in dist/
-npm run check   # checks the pointer's marks, pulling plants, flowering under water, clump plants, the fish, bugs' footing, the tank's life, and the fliers
+npm run check   # checks the pointer's marks, pulling plants, flowering under water, clump plants, the fish, bugs' footing, the tank's life, the fliers and the visitors
 npm run stress  # times the simulation on a tank packed with everything (`node src/stress.js 3`: 3x the plants)
 ```
 
@@ -119,14 +119,20 @@ Shop, Garden (Prune, Relocate, Propagate and Feed), Saves and Settings. The game
   pink); more rarely, and for a lot more coins, a mutant missing chlorophyll from all or part of its leaves: marbled
   white (albo), half white (half-moon), splashed pink (pink princess), speckled (constellation), pale-rimmed
   (marginata), all golden (aurea) or nearly white all over (ghost).
-- The tank lives on its own. A breeze sways the plants, grass and vines in the air, and now and then a gust rolls
-  across the tank, leaning everything over as it passes. Old plant leaves yellow, droop and drop, one at a time, and
-  the node grows a new one: fallen leaves flutter down and lie browning on the ground until they're gone, or float on
-  the water a while and sink, and the fish nibble them. Flowers come and go, each on its own clock: a bud swells and
-  opens, and a few minutes later the flower wilts, browning and drooping as its petals drop one by one, and the bare
-  tip rests a while before it buds again. Fireflies hang about over the plants, blinking, and over a
-  minute or two fall into step until they flash together. Whatever grows under water gives off bubbles that pop at
-  the surface, light glints along the water, rings spread where something lands on it, and dust drifts in the air.
+- The tank lives on its own. A breeze sways the plants, grass and vines in the air, and now and then a gust rolls across
+  the tank, leaning everything over as it passes. Old plant leaves yellow, droop and drop, one at a time, and the node
+  grows a new one: fallen leaves flutter down and lie browning on the ground until they're gone, or float on the water a
+  while and sink, and the fish nibble them. Flowers come and go, each on its own clock: a bud swells and opens, and a
+  few minutes later the flower wilts, browning and drooping as its petals drop one by one, and the bare tip rests a
+  while before it buds again. Fireflies hang about over the plants, blinking, and over a minute or two fall into step
+  until they flash together. Whatever grows under water gives off bubbles that pop at the surface, light glints along
+  the water, rings spread where something lands on it, and dust drifts in the air. Visitors come and go on their own
+  when the tank has what they're after: dragonflies patrol over still water, darting from spot to spot and hovering, now
+  and then dipping to touch the surface or resting on a stem nearby; water striders skate about on it; now and then a
+  bee comes to work the open flowers, landing on one after another, and leaves with lumps of pollen on its legs; and
+  gnats dance in little clouds over the plants. How much flying life comes (fireflies and visitors) goes with how green
+  the tank is (the starting tank's one plant gets one firefly; eight or more plants, grass patches and vines get them
+  all) and how much of it is air rather than water: a tank full of water gets none. Tapped near, visitors make off.
 - Saves: save the tank (terrain, plants, sticks, bugs, coins and the shop) into a new slot, each shown with a little
   photo of the tank; load one (its Load button, or tap its photo), or save over, export or delete it (delete asks
   twice). Autosave, on unless you switch it off, saves into its own slot every 10 seconds and when you leave (its
@@ -154,8 +160,10 @@ Shop, Garden (Prune, Relocate, Propagate and Feed), Saves and Settings. The game
   round corners at junctions, quirks), decorations, plants growing node by node (their leaves ageing and dropping,
   their flowers wilting and budding again), fallen leaves and petals, spreading grass, vines as swaying ropes, pruning, the shop and coins. Pure logic, no DOM.
 - `src/life.js` – the tank's ambient life: the breeze (a function of time alone, read by the sim and the drawing),
-  fireflies, bubbles, dust (snow, under a snowy sky) and ripples. It draws from its own random numbers, so it never
-  changes what else happens. Pure logic, no DOM.
+  fireflies, bubbles, dust (snow, under a snowy sky) and ripples, and how much flying life the tank has room for. It
+  draws from its own random numbers, so it never changes what else happens. Pure logic, no DOM.
+- `src/visitors.js` – the visitors that come and go on their own: dragonflies and water striders to still ponds, bees to
+  the open flowers, gnats over the plants. Pure logic, no DOM.
 - `src/fish.js` – guppies: their genome, price and names, and how they live: cruising and shoaling, food and
   grazing, resting, begging, fleeing, courting, and flopping when stranded. Pure logic, no DOM.
 - `src/fliers.js` – the fliers (ladybugs, shield bugs and soldier beetles): their genomes, prices and names, and how

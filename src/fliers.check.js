@@ -136,7 +136,7 @@ const putIn = (world, x, y, kind = 'ladybug') => {
   assert.equal(shieldAte, 'sap', 'a shield bug sips sap');
   assert.ok(soldier.hunger < 0.8 && shield.hunger < 0.8, 'and they are fed');
   shield.genome.boldness = 0;
-  steps(world, 300);
+  for (let i = 0; i < 3000 && shield.mode !== 'tree'; i++) step(world); // perched somewhere
   startleFliers(world, shield.x, shield.y);
   assert.equal(shield.act?.kind, 'stink', 'startled, a shy shield bug lets off a stink');
   assert.equal(shield.mode, 'tree', 'where it is');
