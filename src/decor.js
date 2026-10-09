@@ -843,6 +843,7 @@ const WALLPAPER_STYLES = [
   ['city', 'city', 5, 1, 1],
   ['space', 'space', 4, 1, 1],
   ['jungle', 'jungle', 5, 1, 1],
+  ['fungal', 'fungal forest', 5, 1, 1],
 ];
 const HUE_NAMES = [
   [20, 'Wine'], [45, 'Umber'], [70, 'Olive'], [150, 'Forest'], [190, 'Teal'], [240, 'Navy'], [280, 'Indigo'],
@@ -926,6 +927,19 @@ const THEMES = {
     palette: (r) => {
       const base = hsl(r, [118, 160], [30, 45], [7, 10]);
       return { base, accent: lighter(r, base, 15, [5, 8], 10), glow: { h: 70, s: 40, l: 30 } };
+    },
+  },
+  fungal: {
+    names: ['Fungal forest', 'Mushroom grove', 'Glowcap wood'],
+    palette: (r) => {
+      const base = hsl(r, [230, 290], [25, 40], [7, 10]);
+      // The glow: blue-green, lime or magenta.
+      const glow = [
+        () => hsl(r, [165, 195], [55, 75], [40, 50]),
+        () => hsl(r, [85, 120], [50, 70], [38, 48]),
+        () => hsl(r, [290, 320], [45, 65], [45, 55]),
+      ][Math.floor(r() * 3)]();
+      return { base, accent: lighter(r, base, 15, [5, 8], 5), glow };
     },
   },
 };

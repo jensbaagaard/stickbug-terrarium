@@ -61,6 +61,50 @@ const DUNES = [
 ];
 const duneTop = (wp, x, floor, [k, h, roll]) => hillTop(wp, k, x, floor, [h, roll, 4 + k * 3, 9 + k * 4]);
 
+// The fungal forest's rows of mushrooms, nearest first: which row, its ground and how far apart they stand and how
+// tall (in tank heights), how many stretches of it are bare, the inks of their stems, caps, gills and spots, and how
+// near it is. Little glowing ones in clumps at the front, then the giants, the furthest towering faintly in the haze.
+const FUNGI = [
+  [3, 1, 0.025, 0.015, 0.04, 0.55, [DARK, GLOW, GLOW, LIT], NEAR],
+  [2, 1, 0.24, 0.18, 0.34, 0, [SHADOW, DARK, GLOW, GLOW], NEAR],
+  [1, 0.97, 0.11, 0.14, 0.26, 0, [DARK, BASE, GLOW, LIT], MID],
+  [0, 0.92, 0.09, 0.3, 0.55, 0, [BASE, ACCENT, BRIGHT, BRIGHT], FAR],
+  [4, 0.88, 0.14, 0.5, 0.85, 0, [BASE, BASE, ACCENT, BASE], 0],
+];
+
+// Which part of a mushroom in a row of them standing on ground (y), about sp apart and lo..hi tall, is at (x, y): 0
+// its stem, 1 its cap, 2 the gills under the cap, 3 a spot on the cap, or null for none. A share `bare` of the row's
+// stretches (three mushrooms long) have none. Each stem leans a little and is thicker at its foot; each cap is a
+// dome, wider the taller the mushroom.
+const mushroomAt = (wp, row, x, y, ground, sp, lo, hi, bare) => {
+  if (y > ground || y < ground - hi * 1.3) return null;
+  const j0 = Math.floor(x / sp);
+  const reach = Math.ceil((hi * 0.55) / sp); // the widest cap, leaning the furthest
+  for (let j = j0 - reach; j <= j0 + reach; j++) {
+    const r = (k) => hash(wp.seed, row * 1000 + j, k);
+    if (r(0) < 0.15 || (bare && hash(wp.seed, row, Math.floor(j / 3)) < bare)) continue;
+    const h = lo + (hi - lo) * r(2);
+    const [foot, lean] = [(j + 0.5 + (r(1) - 0.5) * 0.7) * sp, (r(5) - 0.5) * h * 0.4];
+    const half = h * (0.22 + 0.13 * r(3));
+    const capH = half * (0.45 + 0.35 * r(4));
+    const up = ground - h - y; // how far above the underside of the cap
+    if (up >= 0 && up <= capH) {
+      const dx = x - foot - lean;
+      if (Math.abs(dx) > half * Math.sqrt(1 - (up / capH) ** 2)) continue;
+      if (up < 1.5) return 2;
+      const [u, v] = [Math.floor(dx + 500), Math.floor(capH - up)]; // across the cap, and down from its top
+      const spotted = (u + (Math.floor(v / 4) % 2) * 2) % 5 < 2 && v % 4 < 2 && up > 2.5;
+      return spotted && hash(wp.seed, row * 1000 + j, Math.floor(u / 5) * 100 + Math.floor(v / 4)) < 0.35 ? 3 : 1;
+    }
+    if (up < 0) {
+      const t = (ground - y) / h; // 0 at its foot, 1 under its cap
+      const w = Math.max(0.6, h * 0.04 * (1 + 0.6 * r(6))) * (1.3 - 0.4 * t);
+      if (Math.abs(x - foot - lean * t * t) <= w) return 0;
+    }
+  }
+  return null;
+};
+
 // The ringed planet in space: where it is and how big.
 const planetOf = (floor) => [floor * 0.25, floor * 0.3, floor * 0.1];
 
@@ -229,6 +273,16 @@ const wallpaperInk = (wp, x, y, floor) => {
       if (hash(wp.seed, x, y) < 0.01) return STAR;
       const cloud = Math.sin(x * 0.04 + hash(wp.seed, 1, 1) * 6) * Math.sin(y * 0.05) + Math.sin((x + y) * 0.025);
       return cloud + bayer(x, y) > 1.3 ? ACCENT : y / floor > 0.5 ? BASE : DARK;
+    }
+    case 'fungal': {
+      // Giant mushrooms in a wood at night, spotted, glowing underneath, the nearer ones darker, and a haze glowing
+      // up from the ground.
+      for (const [row, ground, sp, lo, hi, bare, inks, depth] of FUNGI) {
+        const part = mushroomAt(wp, row, x, y, floor * ground, floor * sp, floor * lo, floor * hi, bare);
+        if (part !== null) return inks[part] + depth;
+      }
+      const f = y / floor + bayer(x, y) / 8;
+      return f < 0.5 ? DARK : f < 0.8 ? BASE : ACCENT;
     }
     case 'jungle': {
       // Big leaves in layers, the nearest darkest, each with a paler midrib, over dappled light.
@@ -619,30 +673,98 @@ const whale = {
   },
 };
 
-// The aurora's curtains rippling: waves of brighter light rolling along them, flickering in their folds.
-const shimmer = {
-  depth: FAR,
+// Light rolling along whatever in a scene glows (the pixels `which` picks by their code): those pixels again in a
+// brighter ink, laid over in strips as strongly as alpha(x, time) says.
+const glowing = (depth, which, ink, alpha) => ({
+  depth,
   make: (wp, p) => {
     const image = new ImageData(p.W, p.floor);
+    const hex = ink(wp, p);
     let [top, bottom] = [p.floor, 0];
     p.codes.forEach((code, i) => {
-      if (code >> 3 !== FAR >> 3) return;
-      put(image, i, p.hex[LIT]);
+      if (!which(code)) return;
+      put(image, i, hex);
       top = Math.min(top, Math.floor(i / p.W));
       bottom = Math.max(bottom, Math.floor(i / p.W));
     });
-    return { curtains: canvasOf(image), top, h: bottom - top + 1 };
+    return { lit: canvasOf(image), top, h: bottom - top + 1 };
   },
-  draw: (ctx, world, wp, p, { curtains, top, h }) => {
-    const t = world.time;
+  draw: (ctx, world, wp, p, { lit, top, h }) => {
     if (h <= 0) return;
     for (let x = 0; x < p.W; x += 4) {
-      const roll = 0.5 + 0.5 * Math.sin(x * 0.04 - t * 0.02);
-      const swell = 0.5 + 0.5 * Math.sin(x * 0.013 + t * 0.006 + 2);
-      const a = roll * roll * swell * (0.75 + 0.25 * hash(x, Math.floor(t / 5), 7)) * 0.7;
+      const a = alpha(x, world.time);
       if (a < 0.06) continue;
       ctx.globalAlpha = a;
-      ctx.drawImage(curtains, x, top, 4, h, x, top, 4, h);
+      ctx.drawImage(lit, x, top, 4, h, x, top, 4, h);
+    }
+  },
+});
+
+// The aurora's curtains rippling: waves of brighter light rolling along them, flickering in their folds.
+const shimmer = glowing(
+  FAR,
+  (code) => code >> 3 === FAR >> 3,
+  (wp, p) => p.hex[LIT],
+  (x, t) => {
+    const roll = 0.5 + 0.5 * Math.sin(x * 0.04 - t * 0.02);
+    const swell = 0.5 + 0.5 * Math.sin(x * 0.013 + t * 0.006 + 2);
+    return roll * roll * swell * (0.75 + 0.25 * hash(x, Math.floor(t / 5), 7)) * 0.7;
+  },
+);
+
+// The mushrooms' glow swelling and fading, slowly, in waves rolling across the wood.
+const glowBreath = glowing(
+  NEAR,
+  (code) => (code & 7) === GLOW,
+  (wp) => hslHex(wp.glow.h, wp.glow.s, wp.glow.l + 15),
+  (x, t) => 0.5 * (0.5 + 0.5 * Math.sin(x * 0.03 - t * 0.006)) ** 2,
+);
+
+// Glowing spores adrift, rising slowly and swaying, each brightening and dimming on its own slow clock, and fading
+// out as they get up high.
+const spores = (depth, per) => ({
+  depth,
+  make: (wp, p) =>
+    Array.from({ length: Math.round((p.W * p.floor) / per) }, (_, i) => {
+      const r = (k) => hash(wp.seed, i + depth * 100, 100 + k);
+      return { x: r(1) * p.W, y: r(2) * p.floor, rise: 0.04 + 0.06 * r(3), sway: 2 + 3 * r(4), at: r(5) * 600 };
+    }),
+  draw: (ctx, world, wp, p, list) => {
+    const t = world.time;
+    ctx.fillStyle = p.hex[GLOW];
+    for (const s of list) {
+      const y = p.floor - ((p.floor - s.y + t * s.rise) % p.floor);
+      const x = s.x + Math.sin((t + s.at) * 0.01) * s.sway;
+      const glow = 0.2 + 0.6 * Math.max(0, Math.sin((t + s.at) * 0.012));
+      ctx.globalAlpha = glow * Math.min(1, y / (p.floor * 0.4));
+      ctx.fillRect(Math.round(((x % p.W) + p.W) % p.W), Math.round(y), 1, 1);
+    }
+  },
+});
+
+// Now and then one of the near mushrooms puffs out a cloud of glowing spores, which spread, drift up and fade.
+const SPORE_PUFF = 26;
+const sporeBurst = {
+  depth: NEAR,
+  make: (wp, p) => {
+    const from = [];
+    p.codes.forEach((code, i) => code === GLOW + NEAR && from.push(i));
+    return { from, bright: hslHex(wp.glow.h, wp.glow.s, wp.glow.l + 15) };
+  },
+  draw: (ctx, world, wp, p, { from, bright }) => {
+    const e = happening(world, wp, 10, 2400, 0.6, 300);
+    if (!e || !from.length) return;
+    const { u, roll } = e;
+    const i = from[Math.floor(roll(2) * from.length)];
+    const out = 1 - (1 - u) ** 3; // fast at first, then slowing
+    ctx.globalAlpha = (1 - u) ** 1.5 * 0.9;
+    for (let k = 0; k < SPORE_PUFF; k++) {
+      const a = -Math.PI * roll(10 + k); // out and up
+      const d = (6 + 14 * roll(40 + k)) * out;
+      const x = (i % p.W) + Math.cos(a) * d + Math.sin(world.time * 0.03 + k) * u * 2;
+      const y = Math.floor(i / p.W) + Math.sin(a) * d * 0.7 - u * 10;
+      ctx.fillStyle = k % 3 ? p.hex[GLOW] : bright;
+      ctx.fillRect(Math.round(x), Math.round(y), 1, 1);
     }
   },
 };
@@ -800,6 +922,7 @@ const LIFE = {
   city: [twinkle, plane, windows(FAR), windows(NEAR), beacon],
   space: [twinkle, comet, moon(false), moon(true)],
   jungle: [mist(0, 0.35, 0.95, 0.25, 18, 8), fallingLeaf],
+  fungal: [spores(MID, 2500), mist(MID, 0.78, 1, 0.2, 20, 9), glowBreath, sporeBurst, spores(NEAR, 9000)],
 };
 
 // The back of the tank: plain black, or the wallpaper, layer by layer from the back, each with the life at its depth

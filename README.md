@@ -96,15 +96,17 @@ Shop, Garden (Prune, Relocate, Propagate and Feed), Saves and Settings. The game
   you buy it, and is kept: every one you've bought shows in a row under the wallpapers on offer, with plain black, to
   put back up for free. Wallpapers come as patterns (stripes, dots, diagonals, gingham, waves, scales, brick, plaid,
   argyle, herringbone) or scenes (dusk, hills, a snowy night, a pine forest, mountains, desert dunes, under the sea, an
-  aurora, city lights, a ringed planet, a jungle), kept dim so the tank stands out, except now and then a rare vivid one
-  in intense colours (and dearer). Under the snowy night it snows in the tank too. The scenes are alive: stars twinkle
-  and now and then one shoots, clouds and mist drift by and come and go, snow falls on the far hills, birds or bats
-  cross the sky, a gust blows sand off the dunes, the aurora ripples, the city's windows go dark and light up again (a
-  television flickers, a plane goes over, a red light blinks on the tallest roof), a little moon circles the ringed
-  planet and a comet passes, a shoal or, once in a long while, a whale swims by under the sea, and a leaf falls in the
-  jungle. Like the breeze, it's all a function of the time, so none of it is saved. A fountain is a little block that
-  goes exactly where you tap, even in mid-air, and pours out water forever, like Powder Game's clone; erase it in the
-  Editor. The only way to earn coins is to grow plants and sell the clippings.
+  aurora, city lights, a ringed planet, a jungle, a fungal forest of giant glowing mushrooms), kept dim so the tank
+  stands out, except now and then a rare vivid one in intense colours (and dearer). Under the snowy night it snows in
+  the tank too. The scenes are alive: stars twinkle and now and then one shoots, clouds and mist drift by and come and
+  go, snow falls on the far hills, birds or bats cross the sky, a gust blows sand off the dunes, the aurora ripples, the
+  city's windows go dark and light up again (a television flickers, a plane goes over, a red light blinks on the tallest
+  roof), a little moon circles the ringed planet and a comet passes, a shoal or, once in a long while, a whale swims by
+  under the sea, a leaf falls in the jungle, and in the fungal forest glowing spores drift up, the glow swells and fades
+  across the caps and now and then a mushroom puffs out a cloud of spores. Like the breeze, it's all a function of the
+  time, so none of it is saved. A fountain is a little block that goes exactly where you tap, even in mid-air, and pours
+  out water forever, like Powder Game's clone; erase it in the Editor. The only way to earn coins is to grow plants and
+  sell the clippings.
 - Plants come in four types, each with its own genome: flowering plants that grow node by node; clump plants, a
   crown of leaves straight from the ground that grows a few leaves at a time until it's full, then its flower stalks
   or runners (a bird of paradise with big paddle leaves and orange-crested flowers; a tall tussock of grass that
@@ -188,7 +190,8 @@ Shop, Garden (Prune, Relocate, Propagate and Feed), Saves and Settings. The game
   how-to animations).
 - `src/wallpaper.js` – the back of the tank: the wallpapers drawn once into images, each scene in layers by depth,
   and the life in the scenes drawn over them between the layers, so it passes behind hills and trees (stars, clouds,
-  mist, far snow, birds and bats, blown sand, the aurora, city lights, a moon, comets, shoals, a whale, falling leaves).
+  mist, far snow, birds and bats, blown sand, the aurora, city lights, a moon, comets, shoals, a whale, falling leaves,
+  glowing spores).
 - `src/stress.js`, `stress.html` – the stress test: a tank packed with everything, timed.
 - `src/icons.js` – the panel's pixel icons, as rows of `#`, and the scissors cursor.
 - `src/thumbs.js` – shop pictures: each offer built in a scratch world, grown, drawn and cropped.
