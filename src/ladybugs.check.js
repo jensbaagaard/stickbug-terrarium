@@ -28,11 +28,11 @@ const steps = (world, n, each = () => {}) => {
     each();
   }
 };
-// A ladybug from the shop, let go at (x, y).
+// A ladybug from the shop's bugs, let go at (x, y).
 const putIn = (world, x, y) => {
   let offer;
-  while (!(offer = world.shop.ladybug.find((o) => !o.sold))) buyReroll(world);
-  startPlacing(world, 'ladybug', offer);
+  while (!(offer = world.shop.bug.find((o) => !o.sold && o.type === 'ladybug'))) buyReroll(world);
+  startPlacing(world, 'bug', offer);
   pointerDown(world, x, y);
   pointerUp(world, x, y);
   return world.ladybugs.at(-1);
@@ -196,7 +196,7 @@ const caves = (layout) => {
   for (const x of [30, 80, 130, 180, 230]) place('plant', 'plant', x, floor - 200);
   place('stick', 'stick', 120, floor - 150);
   steps(world, 4000);
-  for (let i = 0; i < 8; i++) place('ladybug', 'ladybug', 20 + i * 30, floor - 40 - r() * 100);
+  for (let i = 0; i < 8; i++) place('bug', 'ladybug', 20 + i * 30, floor - 40 - r() * 100);
   const flying = world.ladybugs.map(() => 0);
   let longest = 0;
   steps(world, 20000, () =>

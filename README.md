@@ -80,20 +80,20 @@ Shop, Garden (Prune, Relocate, Propagate and Feed), Saves and Settings. The game
 - Propagate (Gardening): fully grown flowering plants get a blinking green plus. Tap one, then tap where a seedling
   of the same species should go; the parent is cut back to a seedling too, so both grow again. Tap the plant again
   or press Esc to cancel.
-- Shop: four bugs, four ladybugs, four fish, four plants, four sticks and four wallpapers on show, each with a picture
-  and a price (rarer ones cost more), plus fountains. Pick one and tap the tank to put it in; Reroll shop fills the shop
-  with new ones. Plants and sticks stand on whatever is below where you tap, terrain included. Sticks come in eight
-  styles: a crooked branch, a fork, an arch to walk over, a low driftwood log, twisty red manzanita, bamboo canes ringed
-  at their nodes, a fan of spiderwood roots and a holey cholla skeleton, in a dozen woods. A stick keeps its shape as
-  you carry it about; one that would poke out of the tank is cut off where it meets the glass, like a stick leaning
-  against it. Wallpaper goes up on the back of the tank as soon as you buy it, and is kept: every one you've bought
-  shows in a row under the wallpapers on offer, with plain black, to put back up for free. Wallpapers come as patterns
-  (stripes, dots, diagonals, gingham, waves, scales, brick, plaid, argyle, herringbone) or scenes (dusk, hills, a snowy
-  night, a pine forest, mountains, desert dunes, under the sea, an aurora, city lights, a ringed planet, a jungle), kept
-  dim so the tank stands out, except now and then a rare vivid one in intense colours (and dearer). Under the snowy
-  night it snows in the tank too. A fountain is a little block that goes exactly where you tap, even in mid-air, and
-  pours out water forever, like Powder Game's clone; erase it in the Editor. The only way to earn coins is to grow
-  plants and sell the clippings.
+- Shop: four bugs (stick insects, or now and then ladybugs), four fish, four plants, four sticks and four wallpapers on
+  show, each with a picture and a price (rarer ones cost more), plus fountains. Pick one and tap the tank to put it in;
+  Reroll shop fills the shop with new ones. Plants and sticks stand on whatever is below where you tap, terrain
+  included. Sticks come in eight styles: a crooked branch, a fork, an arch to walk over, a low driftwood log, twisty red
+  manzanita, bamboo canes ringed at their nodes, a fan of spiderwood roots and a holey cholla skeleton, in a dozen
+  woods. A stick keeps its shape as you carry it about; one that would poke out of the tank is cut off where it meets
+  the glass, like a stick leaning against it. Wallpaper goes up on the back of the tank as soon as you buy it, and is
+  kept: every one you've bought shows in a row under the wallpapers on offer, with plain black, to put back up for free.
+  Wallpapers come as patterns (stripes, dots, diagonals, gingham, waves, scales, brick, plaid, argyle, herringbone) or
+  scenes (dusk, hills, a snowy night, a pine forest, mountains, desert dunes, under the sea, an aurora, city lights, a
+  ringed planet, a jungle), kept dim so the tank stands out, except now and then a rare vivid one in intense colours
+  (and dearer). Under the snowy night it snows in the tank too. A fountain is a little block that goes exactly where you
+  tap, even in mid-air, and pours out water forever, like Powder Game's clone; erase it in the Editor. The only way to
+  earn coins is to grow plants and sell the clippings.
 - Plants come in four types, each with its own genome: flowering plants that grow node by node; clump plants, a
   crown of leaves straight from the ground that grows a few leaves at a time until it's full, then its flower stalks
   or runners (a bird of paradise with big paddle leaves and orange-crested flowers; a tall tussock of grass that

@@ -76,7 +76,6 @@ const GARDEN_TOOLS = [
 // Shop rows: four of each, rerolled on demand.
 const SHOWCASE = [
   ['bug', 'Bugs'],
-  ['ladybug', 'Ladybugs'],
   ['fish', 'Fish'],
   ['plant', 'Plants'],
   ['stick', 'Sticks'],
@@ -648,7 +647,7 @@ export default function App() {
                     offer={offer}
                     active={snap.placingOffer === offer.id}
                     short={coins < offer.price}
-                    blocked={offer.sold || (kind === 'bug' && snap.full) || (kind === 'ladybug' && snap.ladybugsFull)}
+                    blocked={offer.sold || (offer.type === 'ladybug' ? snap.ladybugsFull : kind === 'bug' && snap.full)}
                     onPick={act((w) => (kind === 'wallpaper' ? buyWallpaper(w, offer) : startPlacing(w, kind, offer)))}
                   />
                 ))}

@@ -45,7 +45,7 @@ const fill = (ter, x0, x1, y0, y1, material) => {
   fill(ter, 60, 68, floor - 50, floor, 'stone');
   fill(ter, 190, 198, floor - 50, floor, 'stone');
   const drop = (x, y) => {
-    startPlacing(world, 'bug', world.shop.bug.find((o) => !o.sold));
+    startPlacing(world, 'bug', world.shop.bug.find((o) => !o.sold && !o.type)); // a stick insect
     pointerDown(world, x, y);
     pointerUp(world, x, y);
     return world.bugs.at(-1);

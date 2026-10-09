@@ -115,7 +115,7 @@ const PLANT_WIND = 0.001; // how hard the breeze pushes a stem in the air, radia
 const VINE_WIND = 0.015; // and a vine's nodes, px per tick per tick
 const FLEX = 0.15; // how hard pulled grass springs back
 export const PRICES = { fountain: 15 }; // fixed prices for anything not showcased; showcased kinds are priced per offer
-const SHOP_KINDS = ['bug', 'fish', 'plant', 'stick', 'wallpaper', 'ladybug']; // showcased in the shop, OFFERS of each
+const SHOP_KINDS = ['bug', 'fish', 'plant', 'stick', 'wallpaper']; // showcased in the shop, OFFERS of each
 const OFFERS = 4;
 
 const dirOf = (a) => ({ x: Math.cos(a), y: Math.sin(a) });
@@ -872,6 +872,11 @@ const placeItem = (world, x, y) => {
 const makeOffer = (world, kind) => {
   const offer = { id: ++world.offers, kind, seed: Math.floor(world.rand() * 2 ** 31), sold: false };
   if (kind === 'bug') {
+    // Bugs come as stick insects or, now and then, ladybugs, each with its own genome.
+    if (world.rand() < 0.35) {
+      const genome = makeLadybug(mulberry32(offer.seed));
+      return { ...offer, type: 'ladybug', genome, name: ladybugName(world.rand), price: ladybugPrice(genome) };
+    }
     const genes = randomGenes(world.rand, params.variety);
     const rarity = GENES.reduce((n, g) => n + Math.abs(genes[g.key]) / g.spread, 0) / GENES.length;
     const pattern = [0, 15, 40][patternRarity(genes)]; // a rare pattern, or a rarer one
@@ -880,10 +885,6 @@ const makeOffer = (world, kind) => {
   if (kind === 'fish') {
     const genome = makeGuppy(mulberry32(offer.seed));
     return { ...offer, genome, name: guppyName(world.rand), price: guppyPrice(genome) };
-  }
-  if (kind === 'ladybug') {
-    const genome = makeLadybug(mulberry32(offer.seed));
-    return { ...offer, genome, name: ladybugName(world.rand), price: ladybugPrice(genome) };
   }
   if (kind === 'plant') {
     // Plants come in four types, each with its own genome: flowering plants, clump plants (a crown of leaves
@@ -957,6 +958,13 @@ export const stageOffer = (world, offer) => {
       y1: Math.max(...ys) + pad,
     };
   };
+  if ((offer.type ?? offer.kind) === 'ladybug') {
+    // On the floor, facing right.
+    const b = Object.assign(newLadybug(world, x, world.ground.y0, offer.genome), { mode: 'ground', dir: 1 });
+    world.ladybugs.push(b);
+    const { len, high } = ladybugShape(offer.genome);
+    return { x0: x - len / 2 - 1, x1: x + len / 2 + 2, y0: b.y - high - 2, y1: b.y + 1 };
+  }
   if (offer.kind === 'bug') {
     const bug = newBug(world, x, 0, offer.genes);
     const floor = floorAt(world, x);
@@ -976,13 +984,6 @@ export const stageOffer = (world, offer) => {
     world.fish.push(fish);
     const { len, tail, spread, dorsal } = fishShape(offer.genome);
     return { x0: x - len / 2 - tail - 2, x1: x + len / 2 + 2, y0: fish.y - spread - dorsal, y1: fish.y + spread + 1 };
-  }
-  if (offer.kind === 'ladybug') {
-    // On the floor, facing right.
-    const b = Object.assign(newLadybug(world, x, world.ground.y0, offer.genome), { mode: 'ground', dir: 1 });
-    world.ladybugs.push(b);
-    const { len, high } = ladybugShape(offer.genome);
-    return { x0: x - len / 2 - 1, x1: x + len / 2 + 2, y0: b.y - high - 2, y1: b.y + 1 };
   }
   if (offer.kind === 'wallpaper') {
     world.wallpaper = offer.wallpaper ?? makeWallpaper(mulberry32(offer.seed)); // one already bought, or on offer
@@ -2634,9 +2635,8 @@ export const importWorld = (data, W, H) => {
     shop: data.shop,
     offers: data.offers,
   });
-  // Saved before there were fish, or ladybugs: stock some.
+  // Saved before there were fish: stock some.
   if (world.shop) world.shop.fish ??= Array.from({ length: OFFERS }, () => makeOffer(world, 'fish'));
-  if (world.shop) world.shop.ladybug ??= Array.from({ length: OFFERS }, () => makeOffer(world, 'ladybug'));
   const t = data.terrain;
   const n = t.cols * t.rows;
   const saved = { cols: t.cols, rows: t.rows, cells: unrle(t.cells, n), tint: unrle(t.tint, n) };

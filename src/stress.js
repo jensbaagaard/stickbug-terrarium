@@ -41,7 +41,7 @@ export const stressWorld = (crowd = 1, W = 256, H = 341) => {
   }
   for (let i = 0; i < 8; i++) place('fish', 'fish', 135 + i * 13, floor - 30);
   for (let i = 0; i < 8; i++) place('bug', 'bug', 10 + i * 12, floor - 120);
-  for (let i = 0; i < 8; i++) place('ladybug', 'ladybug', 20 + i * 28, floor - 100);
+  for (let i = 0; i < 8; i++) place('bug', 'ladybug', 20 + i * 28, floor - 100);
   startPlacing(world, 'fountain');
   pointerDown(world, 200, floor - 100);
   pointerUp(world, 200, floor - 100);

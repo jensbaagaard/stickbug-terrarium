@@ -53,10 +53,11 @@ feedFish(world);
 steps(1200);
 assert.ok(hunger() < before - 0.2, 'they ate the flakes');
 
-// A tap close beside one (not on it, which picks it out) sends it darting off, out into the open water.
-const [fish] = world.fish;
+// A tap close beside one sends it darting off: the leftmost, tapped on its left, so the tap isn't on any fish (which
+// would pick that one out instead).
+const fish = world.fish.reduce((a, f) => (f.x < a.x ? f : a));
 const from = { x: fish.x, y: fish.y };
-const tap = fish.x + (fish.x < 128 ? -14 : 14);
+const tap = fish.x - 14;
 pointerDown(world, tap, fish.y);
 pointerUp(world, tap, fish.y);
 steps(40);
