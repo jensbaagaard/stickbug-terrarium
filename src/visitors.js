@@ -147,7 +147,8 @@ const stepDragonfly = (world, v) => {
     head(v, 'dart', overPond(world, pond));
   } else if (v.state === 'toPerch' || v.state === 'perch') {
     const stem = v.to.part;
-    if (!v.to.obj.stems.includes(stem)) return !!head(v, 'dart', overPond(world, pond)); // the stem's gone
+    const gone = !world.objects.includes(v.to.obj) || !v.to.obj.stems.includes(stem); // pruned, or the plant taken out
+    if (gone) return !!head(v, 'dart', overPond(world, pond));
     const at = { x: stem.tip.x, y: stem.tip.y - 1 };
     if (v.state === 'toPerch' && flyTo(world, v, at, 0.6, 0.15)) {
       Object.assign(v, { state: 'perch', ticks: 300 + r() * 600 });
@@ -184,7 +185,8 @@ const newBee = (world) => {
 const stepBee = (world, v) => {
   const r = world.lifeRand;
   if (v.state === 'leave') return leave(world, v, 0.5);
-  const open = (f) => f.part.flower >= 1 && !(f.part.wilt > 0.2) && f.obj.stems.includes(f.part);
+  const open = (f) =>
+    f.part.flower >= 1 && !(f.part.wilt > 0.2) && world.objects.includes(f.obj) && f.obj.stems.includes(f.part);
   if (!v.to || !open(v.to)) {
     const flowers = flowersOf(world).filter((f) => f.part !== v.last);
     if (!flowers.length || v.visits <= 0) return leave(world, v, 0.5);

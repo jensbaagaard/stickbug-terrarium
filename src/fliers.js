@@ -704,7 +704,10 @@ const air = (world, b) => {
   const soaked = wet(world, b.x, b.y);
   const blocked = (px, py) => inTerrain(world, b, px, py) || (b.flying && !soaked && wet(world, px, py));
   if (!b.flying && [1, 3, 5].some((dy) => wet(world, b.x, b.y + dy))) offWater(world, b);
-  if (b.flying && b.to && ++b.flown > FLIGHT_TICKS) Object.assign(b, { to: elsewhere(world, b), flown: 0, way: null });
+  // Making for somewhere else, it drops what it meant to do where it was going.
+  if (b.flying && b.to && ++b.flown > FLIGHT_TICKS) {
+    Object.assign(b, { to: elsewhere(world, b), then: null, flown: 0, way: null });
+  }
   const to = b.to && there(world, b.to) ? b.to : null;
   if (b.flying) {
     const speed = FLY * (0.7 + 0.6 * g.speed);
@@ -716,7 +719,7 @@ const air = (world, b) => {
         b.way = wayThrough(world, b, at);
         b.replan = REPLAN_TICKS;
         // No way there: somewhere else, and after a few of those (shut in somewhere), it settles down to walk.
-        if (!b.way) Object.assign(b, { to: ++b.lost < 4 ? elsewhere(world, b) : null, replan: 20 });
+        if (!b.way) Object.assign(b, { to: ++b.lost < 4 ? elsewhere(world, b) : null, then: null, replan: 20 });
       }
       want = { x: 0, y: 0 }; // hovering, till it knows the way
       if (b.way) {

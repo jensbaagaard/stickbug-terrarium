@@ -32,7 +32,7 @@
         - etc. 
 
 ## full code review
-- lets go though our code and optimize for further development. the most important part is to make our architecture optimized to use less context so we can better scope our new features.
+- [x] lets go though our code and optimize for further development. the most important part is to make our architecture optimized to use less context so we can better scope our new features.
     - seperate features so we dont read unnecceracy code
     - create archtecture .md files
     - remove dead code

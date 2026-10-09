@@ -223,11 +223,15 @@ export const stepTerrain = (ter, rand, tick) => {
         }
       }
       if (rand() >= PACE[m]) {
-        // Waiting its turn to move: keep going if it has somewhere to go, down or (water) sideways.
+        // Waiting its turn to move: keep going if it has somewhere to go, as moving would take it: down, down to a
+        // side past nothing solid (not dirt, which only falls straight), or (water) sideways.
         const below = i + cols;
+        const slides = m !== DIRT;
         const fall =
           r + 1 < rows &&
-          (into(m, cells[below]) || (c > 0 && into(m, cells[below - 1])) || (c < cols - 1 && into(m, cells[below + 1])));
+          (into(m, cells[below]) ||
+            (slides && c > 0 && into(m, cells[below - 1]) && !SOLID(cells[i - 1])) ||
+            (slides && c < cols - 1 && into(m, cells[below + 1]) && !SOLID(cells[i + 1])));
         const run = m === WATER && (c === 0 || c === cols - 1 || cells[i - 1] === EMPTY || cells[i + 1] === EMPTY);
         if (fall || run) pouring = true;
         continue;

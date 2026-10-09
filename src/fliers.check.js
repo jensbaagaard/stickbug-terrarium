@@ -250,4 +250,20 @@ caves(5);
   Object.assign(params, saved);
 }
 
+{
+  // Making for somewhere else mid-flight (it's flown too long, or found no way there), a flier drops what it meant to
+  // do where it was going: it won't eat an aphid it's flown off from.
+  params.aphids = 0;
+  const world = createWorld(256, 341, { seed: 2 });
+  world.coins = 1e6;
+  steps(world, 600);
+  const lady = putIn(world, 40, 80);
+  steps(world, 5);
+  assert.ok(lady.flying && lady.to, 'let go, it flies off somewhere');
+  Object.assign(lady, { then: { kind: 'eat', aphid: { x: 0, y: 0 } }, flown: 1e9 });
+  steps(world, 1);
+  assert.equal(lady.then, null, 'flown too long, it makes for somewhere else and drops its plan');
+  params.aphids = 1;
+}
+
 console.log('ok');

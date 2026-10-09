@@ -92,5 +92,20 @@ const below = (world, p) => {
   assert.equal(came, 0, 'none come to a pond still filling');
 }
 
+{
+  // A dragonfly resting on a plant's stem tip flies off when the plant is taken out from under it.
+  params.visitors = 10;
+  const world = importWorld(sample, sample.W, sample.H, 1);
+  let perched = null;
+  for (let t = 0; t < 20000 && !perched; t++) {
+    step(world);
+    perched = world.visitors.find((v) => v.kind === 'dragonfly' && v.state === 'perch');
+  }
+  assert.ok(perched, 'a dragonfly comes to rest on a stem by the pond');
+  world.objects = world.objects.filter((o) => o !== perched.to.obj);
+  steps(world, 2);
+  assert.notEqual(perched.state, 'perch', 'its plant taken out, it flies off');
+}
+
 params.visitors = 1;
 console.log('ok');
