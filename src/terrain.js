@@ -36,13 +36,15 @@ export const MATERIALS = [
 ];
 const VALUE = Object.fromEntries(MATERIALS.map(([key, , v]) => [key, v]));
 
-const WATER_FLOW = 4; // cells water can run sideways in a tick
+const WATER_FLOW = 2; // cells water can run sideways in a move
 const FOUNTAIN_SIZE = 3; // cells across a fountain
-const FOUNTAIN_RATE = 0.03; // chance a fountain fills each empty cell beside it in a tick: a trickle
-const SNOW_FALL = 0.45; // chance a snowflake moves at all in a tick: it drifts down slowly
+const FOUNTAIN_RATE = 0.015; // chance a fountain fills each empty cell beside it in a tick: a trickle, at water's pace
 const SNOW_DRIFT = 0.25; // chance a falling snowflake drifts sideways as it falls
 const SNOW_SLIDE = 0.3; // chance it slips sideways off a pile (sand always does, dirt never)
 const SNOW_MELT = 0.02; // chance a tick that snow touching water melts into it
+// Chance a loose grain moves at all in a tick: so sand, dirt and water fall, slide and run at a steady pace rather
+// than all at once, and snow drifts down slowly.
+const PACE = { [SAND]: 0.5, [DIRT]: 0.5, [WATER]: 0.5, [SNOW]: 0.25 };
 const FREEZE = 0.004; // chance a tick that the top of water touching ice freezes
 const ICE_DEPTH = 2; // cells: how thick a pond's ice gets; the water under it stays water
 // Never moves.
@@ -214,12 +216,14 @@ export const stepTerrain = (ter, rand, tick) => {
             continue;
           }
         }
-        if (rand() >= SNOW_FALL) {
-          // Waiting its turn to move: keep going if it has somewhere to go.
-          const below = i + cols;
-          if (r + 1 < rows && [0, -1, 1].some((dx) => c + dx >= 0 && c + dx < cols && into(below + dx))) pouring = true;
-          continue;
-        }
+      }
+      if (rand() >= PACE[m]) {
+        // Waiting its turn to move: keep going if it has somewhere to go, down or (water) sideways.
+        const below = i + cols;
+        const fall = r + 1 < rows && [0, -1, 1].some((dx) => c + dx >= 0 && c + dx < cols && into(below + dx));
+        const run = m === WATER && [-1, 1].some((dx) => c + dx < 0 || c + dx >= cols || cells[i + dx] === EMPTY);
+        if (fall || run) pouring = true;
+        continue;
       }
       if (r + 1 < rows) {
         const below = i + cols;
