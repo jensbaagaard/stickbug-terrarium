@@ -2493,8 +2493,8 @@ const drawGnats = (ctx, world, v) => {
   const t = world.time;
   const shown = Math.min(v.n, Math.ceil(Math.min(v.age, v.life - v.age) / 40));
   for (let k = 0; k < shown; k++) {
-    const gx = v.x + Math.sin(t * (0.11 + k * 0.013) + k * 2.3 + v.seed) * 4 * v.spread;
-    const gy = v.y + Math.cos(t * (0.09 + k * 0.011) + k * 1.7 + v.seed) * 6 * v.spread;
+    const gx = v.x + Math.sin(t * (0.04 + k * 0.005) + k * 2.3 + v.seed) * 4 * v.spread;
+    const gy = v.y + Math.cos(t * (0.033 + k * 0.004) + k * 1.7 + v.seed) * 6 * v.spread;
     ctx.fillRect(Math.round(gx), Math.round(gy), 1, 1);
   }
 };
