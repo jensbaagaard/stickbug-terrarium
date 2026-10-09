@@ -1390,7 +1390,7 @@ const drawBug = (ctx, world, bug) => {
 const shades = (h, s, l, [a, b] = [-2, 2]) => [l, l + a, l + b].map((v) => hslHex(h, s, v));
 export const MATERIAL_COLORS = {
   [STONE]: shades(240, 3, 44),
-  [BASALT]: shades(225, 8, 24, [-3, 3]),
+  [BASALT]: shades(225, 8, 30, [-3, 3]),
   [DIRT]: shades(28, 40, 25),
   [SAND]: shades(44, 52, 70),
   [WATER]: shades(212, 60, 47),
@@ -1398,7 +1398,7 @@ export const MATERIAL_COLORS = {
   // Plain, grain line, light streak, dim streak: all within a few percent, so the grain is felt more than seen.
   [WOOD]: [0, -3, 1, -1].map((d) => hslHex(28, 26, 36 + d)),
   [SANDSTONE]: shades(33, 48, 56, [-4, 3]),
-  [BROWNSTONE]: shades(18, 40, 34, [-4, 3]),
+  [BROWNSTONE]: shades(18, 40, 41, [-4, 3]),
   [SNOW]: shades(205, 30, 91, [-3, 3]),
   [ICE]: shades(195, 50, 68, [-4, 12]), // plain, shadowed, glinting
 };
