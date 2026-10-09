@@ -524,7 +524,7 @@ export const createWorld = (W, H, { seed = Date.now(), scene = true } = {}) => {
     debris: [],
     litter: [], // fallen leaves
     fireflies: [],
-    visitors: [], // dragonflies, water striders, bees and gnats, come and gone
+    visitors: [], // dragonflies, bees and gnats, come and gone
     bubbles: [],
     motes: [], // dust in the air
     ripples: [],

@@ -127,13 +127,13 @@ Shop, Garden (Prune, Relocate, Propagate and Feed), Saves and Settings. The game
   while before it buds again. Fireflies hang about over the plants, blinking, and over a minute or two fall into step
   until they flash together. Whatever grows under water gives off bubbles that pop at the surface, light glints along
   the water, rings spread where something lands on it, and dust drifts in the air. Visitors come and go on their own
-  when the tank has what they're after: dragonflies keep to still water for as long as it's there, darting from spot to
-  spot over it and hovering, now and then dipping to touch the surface or resting on a stem nearby; water striders skate
-  about on it; now and then a bee comes to work the open flowers, landing on one after another, and leaves with lumps of
-  pollen on its legs; and gnats dance in little clouds over the plants. How much flying life comes (fireflies and
-  visitors) goes with how green the tank is (the starting tank's one plant gets one firefly; eight or more plants, grass
-  patches and vines get them all) and how much of it is air rather than water: a tank full of water gets none. Tapped
-  near, visitors make off.
+  when the tank has what they're after: now and then a dragonfly comes to still water and stays a few minutes, darting
+  from spot to spot over it and hovering, now and then dipping to touch the surface or resting on a stem nearby, before
+  it flies off again; now and then a bee comes to work the open flowers, landing on one after another, and leaves with
+  lumps of pollen on its legs; and gnats dance in little clouds over the plants. How much flying life comes (fireflies
+  and visitors) goes with how green the tank is (the starting tank's one plant gets one firefly; eight or more plants,
+  grass patches and vines get them all) and how much of it is air rather than water: a tank full of water gets none.
+  Tapped near, visitors make off.
 - Saves: save the tank (terrain, plants, sticks, bugs, coins and the shop) into a new slot, each shown with a little
   photo of the tank; load one (its Load button, or tap its photo), or save over, export or delete it (delete asks
   twice). Autosave, on unless you switch it off, saves into its own slot every 10 seconds and when you leave (its
@@ -163,8 +163,8 @@ Shop, Garden (Prune, Relocate, Propagate and Feed), Saves and Settings. The game
 - `src/life.js` – the tank's ambient life: the breeze (a function of time alone, read by the sim and the drawing),
   fireflies, bubbles, dust (snow, under a snowy sky) and ripples, and how much flying life the tank has room for. It
   draws from its own random numbers, so it never changes what else happens. Pure logic, no DOM.
-- `src/visitors.js` – the visitors that come and go on their own: dragonflies and water striders to still ponds, bees to
-  the open flowers, gnats over the plants. Pure logic, no DOM.
+- `src/visitors.js` – the visitors that come and go on their own: dragonflies to still ponds, bees to the open flowers,
+  gnats over the plants. Pure logic, no DOM.
 - `src/fish.js` – guppies: their genome, price and names, and how they live: cruising and shoaling, food and
   grazing, resting, begging, fleeing, courting, and flopping when stranded. Pure logic, no DOM.
 - `src/fliers.js` – the fliers (ladybugs, shield bugs and soldier beetles): their genomes, prices and names, and how

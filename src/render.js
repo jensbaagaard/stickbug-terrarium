@@ -2425,8 +2425,6 @@ const drawFlier = (ctx, world, b) => {
 // ---------- visitors ----------
 
 const VISITOR_WING = '#dfe6ee';
-const STRIDER_BODY = '#5a5042';
-const STRIDER_LEGS = '#9a9284';
 const BEE_YELLOW = '#f2c230';
 const BEE_DARK = '#3a3226';
 const POLLEN_LOAD = '#f09a20';
@@ -2453,16 +2451,6 @@ const drawDragonfly = (ctx, world, v) => {
   ctx.fillStyle = hslHex(h, s, l - 18);
   ctx.fillRect(x + d, y, 1, 1); // its head
   ctx.fillRect(x - d * 7, y + 1, 1, 1); // and the tip of its tail
-};
-
-// A water strider on the water: a little dark body and its legs out on the surface, fore and aft.
-const drawStrider = (ctx, v) => {
-  const [x, y] = [Math.round(v.x), Math.round(v.y)];
-  ctx.fillStyle = STRIDER_LEGS;
-  ctx.fillRect(x - 4, y, 3, 1);
-  ctx.fillRect(x + 2, y, 3, 1);
-  ctx.fillStyle = STRIDER_BODY;
-  ctx.fillRect(x - 1, y - 1, 3, 1);
 };
 
 // A bee: a striped body, a dark head in front, its wings a blur over its back (folded as it sits on a flower), and
@@ -2502,7 +2490,6 @@ const drawGnats = (ctx, world, v) => {
 const drawVisitors = (ctx, world) => {
   for (const v of world.visitors) {
     if (v.kind === 'dragonfly') drawDragonfly(ctx, world, v);
-    else if (v.kind === 'strider') drawStrider(ctx, v);
     else if (v.kind === 'bee') drawBee(ctx, world, v);
     else drawGnats(ctx, world, v);
   }

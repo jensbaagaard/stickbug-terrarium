@@ -1,7 +1,7 @@
 // Run with `node src/visitors.check.js`: how much flying life a tank gets goes with how green it is and how much of it
 // is air (the starting tank one firefly, the sample tank all of them, a tank full of water none), and visitors come
-// when there's what they're after: dragonflies over still water, water striders on it, a bee to the open flowers (it
-// leaves with pollen on its legs), and gnats over the plants; but not to a pond still filling up.
+// when there's what they're after: dragonflies over still water (they stay a while, then fly off again), a bee to the
+// open flowers (it leaves with pollen on its legs), and gnats over the plants; but not to a pond still filling up.
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createWorld, importWorld, step } from './sim.js';
@@ -42,36 +42,37 @@ const below = (world, p) => {
   cells.forEach((m, i) => (cells[i] = i % cols === 0 || i % cols === cols - 1 ? STONE : m === EMPTY ? WATER : m));
   let flying = 0;
   steps(aquarium, 6000, () => {
-    flying += aquarium.fireflies.length + aquarium.visitors.filter((v) => v.kind !== 'strider').length;
+    flying += aquarium.fireflies.length + aquarium.visitors.length;
   });
   assert.equal(flying, 0, 'nothing flies in a tank full of water');
 }
 
 {
-  // The sample tank, visitors coming ten times as often: a dragonfly comes and keeps over the pond, water striders
-  // skate on it, gnats dance in the air, and a bee works the flowers and leaves with its legs laden.
+  // The sample tank, visitors coming ten times as often: a dragonfly comes and keeps over the pond a while, then flies
+  // off; gnats dance in the air; and a bee works the flowers and leaves with its legs laden.
   params.visitors = 10;
   const world = importWorld(sample, sample.W, sample.H, 1);
-  const seen = { dragonfly: false, strider: false, gnats: false };
-  let [overPond, onWater, bee, beeLeftLaden] = [true, true, null, false];
+  const seen = { dragonfly: false, gnats: false };
+  let [overPond, dragonfly, dragonflyLeft, bee, beeLeftLaden] = [true, null, false, null, false];
   steps(world, 18000, () => {
     for (const v of world.visitors) {
       seen[v.kind] = true;
       if (v.kind === 'dragonfly' && v.state === 'hover') overPond &&= below(world, v) === WATER;
-      if (v.kind === 'strider' && v.state === 'skate') onWater &&= cell(world, v.x, v.y + 1) === WATER;
+      if (v.kind === 'dragonfly') dragonfly ??= v;
       if (v.kind === 'bee') bee = v;
     }
+    if (dragonfly && !world.visitors.includes(dragonfly)) dragonflyLeft = true;
     if (bee && !world.visitors.includes(bee)) beeLeftLaden ||= bee.pollen > 0.5;
   });
   assert.ok(seen.dragonfly && overPond, 'a dragonfly comes, and hovers over the pond');
-  assert.ok(seen.strider && onWater, 'water striders skate on the water');
+  assert.ok(dragonflyLeft, 'and in time flies off again');
   assert.ok(seen.gnats, 'gnats come');
   assert.ok(beeLeftLaden, 'a bee comes, and goes with its legs laden with pollen');
 }
 
 {
   // The sample tank walled in at the sides (or the water runs out of them), its pond filling up, a cell higher every
-  // hundred ticks: it never lies still, so no dragonfly or water strider comes to it.
+  // hundred ticks: it never lies still, so no dragonfly comes to it.
   params.visitors = 5;
   const world = importWorld(sample, sample.W, sample.H, 1);
   const { cols, rows, cells, top } = world.terrain;
@@ -86,7 +87,7 @@ const below = (world, p) => {
         }
       }
     }
-    came += world.visitors.filter((v) => v.kind === 'dragonfly' || v.kind === 'strider').length;
+    came += world.visitors.filter((v) => v.kind === 'dragonfly').length;
   });
   assert.equal(came, 0, 'none come to a pond still filling');
 }
