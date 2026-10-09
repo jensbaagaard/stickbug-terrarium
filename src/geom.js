@@ -18,6 +18,13 @@ export const hash = (a, b = 0, c = 0) => {
 export const clamp = (v, lo, hi) => Math.min(Math.max(v, lo), hi);
 export const smoothstep = (t) => t * t * (3 - 2 * t);
 export const pick = (rand, list) => list[Math.floor(rand() * list.length)];
+export const range = (rand, lo, hi) => lo + rand() * (hi - lo); // a random number from lo to hi
+// A random colour, {h, s, l}, each somewhere in its [lo, hi].
+export const hsl = (rand, [h0, h1], [s0, s1], [l0, l1]) => ({
+  h: range(rand, h0, h1),
+  s: range(rand, s0, s1),
+  l: range(rand, l0, l1),
+});
 
 // Points are {x, y}.
 export const add = (a, b, k = 1) => ({ x: a.x + b.x * k, y: a.y + b.y * k });

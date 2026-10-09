@@ -1,8 +1,10 @@
 // @refresh reset -- remount on hot reload so the panel never shows values from before an edit.
 import { useEffect, useRef, useState } from 'react';
 import Terrarium from './Terrarium.jsx';
+import { ConfirmButton, Icon, Offer, Price, Swatch, Wallpaper } from './ui/parts.jsx';
+import { Save } from './ui/Save.jsx';
+import { Inspector } from './ui/Inspector.jsx';
 import { GROUPS, SLIDERS, params } from './tuning.js';
-import { clamp } from './geom.js';
 import {
   PRICES,
   TANK_SIZES,
@@ -23,10 +25,8 @@ import {
   startPlacing,
   tankSize,
 } from './sim.js';
-import { drawThumb } from './thumbs.js';
 import { MATERIALS } from './terrain.js';
-import { MATERIAL_COLORS, drawSwatch } from './render.js';
-import { ICONS, pixelPath } from './icons.js';
+import { MATERIAL_COLORS } from './render.js';
 import {
   AUTO,
   autosaveOn,
@@ -84,238 +84,6 @@ const SHOWCASE = [
 
 const BRUSH_SIZES = [1, 2, 3, 4, 5];
 
-const FLIER_KINDS = { ladybug: 'Ladybug', shieldbug: 'Shield bug', soldier: 'Soldier beetle' };
-
-// A pixel-art icon in the text colour, scale screen px per pixel.
-function Icon({ name, scale = 2 }) {
-  const rows = ICONS[name];
-  const [w, h] = [rows[0].length, rows.length];
-  return (
-    <svg className="icon" viewBox={`0 0 ${w} ${h}`} width={w * scale} height={h * scale} aria-hidden="true">
-      <path d={pixelPath(rows)} fill="currentColor" shapeRendering="crispEdges" />
-    </svg>
-  );
-}
-
-// A patch of a material as the tank shows it, drawn once; erase has none, and shows the chip's hatching.
-function Swatch({ material }) {
-  const canvas = useRef(null);
-  const value = MATERIALS.find(([key]) => key === material)[2];
-  useEffect(() => {
-    if (value) drawSwatch(canvas.current, value);
-  }, [value]);
-  return <canvas ref={canvas} className="chip" aria-hidden="true" />;
-}
-
-// A price in coins, red when there aren't enough.
-const Price = ({ n, short }) => (
-  <span className={short ? 'price short' : 'price'}>
-    <Icon name="coin" />
-    {n}
-  </span>
-);
-
-// A showcased offer: its picture (drawn once), name and price; sold, just the picture, faded.
-function Offer({ offer, active, short, blocked, onPick }) {
-  const canvas = useRef(null);
-  useEffect(() => {
-    drawThumb(canvas.current, offer);
-  }, [offer]);
-  return (
-    <button
-      type="button"
-      className="offer"
-      title={offer.name}
-      aria-pressed={active}
-      disabled={!active && (blocked || short)}
-      onClick={onPick}
-    >
-      <canvas ref={canvas} aria-hidden="true" />
-      <span className="name">{offer.name}</span>
-      {!offer.sold && <Price n={offer.price} short={short} />}
-    </button>
-  );
-}
-
-// A wallpaper bought before, or plain black (wp null): its picture and name, pressed if it's the one up.
-function Wallpaper({ wp, active, onPick }) {
-  const canvas = useRef(null);
-  useEffect(() => {
-    if (wp) drawThumb(canvas.current, { kind: 'wallpaper', seed: wp.seed, wallpaper: wp });
-  }, [wp]);
-  return (
-    <button type="button" className="offer" title={wp?.name ?? 'Plain'} aria-pressed={active} onClick={onPick}>
-      <canvas ref={canvas} className={wp ? '' : 'plain'} aria-hidden="true" />
-      <span className="name">{wp?.name ?? 'Plain'}</span>
-    </button>
-  );
-}
-
-// How long ago a save was made, roughly.
-const ago = (t) => {
-  const s = Math.round((Date.now() - t) / 1000);
-  if (s < 60) return 'just now';
-  if (s < 3600) return `${Math.floor(s / 60)} min ago`;
-  if (s < 86400) return `${Math.floor(s / 3600)} h ago`;
-  return new Date(t).toLocaleDateString();
-};
-
-// A button for something that can't be undone: the first tap turns it red and asks (confirm), a second within a
-// few seconds does it.
-function ConfirmButton({ onConfirm, confirm = 'Sure?', className = '', children, ...props }) {
-  const [sure, setSure] = useState(false);
-  useEffect(() => {
-    if (!sure) return;
-    const id = setTimeout(() => setSure(false), 3000);
-    return () => clearTimeout(id);
-  }, [sure]);
-  const go = () => {
-    setSure(false);
-    onConfirm();
-  };
-  return (
-    <button
-      type="button"
-      className={`${className}${sure ? ' danger' : ''}`}
-      onClick={sure ? go : () => setSure(true)}
-      {...props}
-    >
-      {sure ? confirm : children}
-    </button>
-  );
-}
-
-// A save in the list: its photo (tap it to load the save), name, when, its bugs and coins, and buttons to save
-// over it, export it and delete it. It flashes when it's just been saved, loaded or imported.
-function Save({ save, flash, onLoad, onOverwrite, onExport, onDelete }) {
-  return (
-    <li className={flash ? 'save flash' : 'save'}>
-      <button type="button" className="photo" onClick={onLoad} title="Load" aria-label={`Load ${save.name}`}>
-        {save.photo && <img src={save.photo} alt="" />}
-      </button>
-      <div className="about">
-        <span className="name">{save.name}</span>
-        <span className="when">
-          {ago(save.savedAt)}
-          <span aria-label="Bugs">
-            <Icon name="bug" /> {save.bugs}
-          </span>
-          <span className="coin" aria-label="Coins">
-            <Icon name="coin" /> {save.coins}
-          </span>
-        </span>
-        <div className="actions">
-          <button type="button" className="stack" onClick={onLoad}>
-            <Icon name="load" />
-            Load
-          </button>
-          {save.id !== AUTO && (
-            <button type="button" className="stack" onClick={onOverwrite}>
-              <Icon name="saves" />
-              Save over
-            </button>
-          )}
-          <button type="button" className="stack" onClick={onExport}>
-            <Icon name="export" />
-            Export
-          </button>
-          <ConfirmButton
-            className="stack"
-            onConfirm={onDelete}
-            confirm={
-              <>
-                <Icon name="check" />
-                Sure?
-              </>
-            }
-          >
-            <Icon name="trash" />
-            Delete
-          </ConfirmButton>
-        </div>
-      </div>
-    </li>
-  );
-}
-
-// Where a trait sits in its slider's range, 0..1, so the default is half way.
-const share = (key, v) => clamp((v - SLIDER[key].min) / (SLIDER[key].max - SLIDER[key].min), 0, 1);
-const speedOf = (t) => (t.stride * t.size) / t.stepTicks;
-
-// A few of a bug's, fish's or flier's traits as bars. A bug's speed is a step's length over its time, so it's halfway
-// at the default and full at four times that; a fish's or flier's genes already run 0..1.
-const statsOf = (who) => {
-  if (who.kind === 'flier') {
-    const g = who.genome;
-    return [
-      ['Hunger', who.hunger],
-      ['Speed', g.speed],
-      ['Size', g.size],
-      ['Boldness', g.boldness],
-      ['Wanderlust', g.wanderlust],
-    ];
-  }
-  if (who.kind === 'fish') {
-    const g = who.genome;
-    return [
-      ['Hunger', who.hunger],
-      ['Speed', g.speed],
-      ['Size', g.size],
-      ['Boldness', g.boldness],
-      ['Shoaling', g.sociability],
-    ];
-  }
-  const { t } = who;
-  return [
-    ['Hunger', who.hunger],
-    ['Speed', clamp(0.5 + Math.log2(speedOf(t) / speedOf(DEFAULTS)) / 4, 0, 1)],
-    ['Size', share('size', t.size)],
-    ['Laziness', share('restChance', t.restChance)],
-    ['Groove', share('danceTempo', t.danceTempo)],
-  ];
-};
-
-// The selected bug, fish or flier: its picture and a few of its traits as bars, plus what you can do with it.
-function Inspector({ who, onRelease, onClose }) {
-  const canvas = useRef(null);
-  const genes = who.genes ?? who.genome;
-  useEffect(() => {
-    drawThumb(canvas.current, { kind: who.kind, genes: who.genes, genome: who.genome, seed: 1 });
-  }, [genes]);
-  const stats = statsOf(who);
-  const sex = who.kind === 'fish' ? (who.genome.male ? ' \u2642' : ' \u2640') : '';
-  const kind = who.kind === 'flier' ? ` \u00b7 ${FLIER_KINDS[who.genome.kind]}` : '';
-  return (
-    <section className="card" aria-label={`Selected ${who.kind}`}>
-      <canvas ref={canvas} className="portrait" aria-hidden="true" />
-      <div className="about">
-        <header>
-          <h2>
-            {who.name}
-            {sex}
-            {kind}
-          </h2>
-          <button type="button" onClick={onClose} aria-label="Deselect">
-            ×
-          </button>
-        </header>
-        <dl className="stats">
-          {stats.map(([k, v]) => (
-            <div key={k}>
-              <dt>{k}</dt>
-              <dd className="meter" role="meter" aria-valuenow={Math.round(v * 100)}>
-                <span style={{ width: `${v * 100}%` }} />
-              </dd>
-            </div>
-          ))}
-        </dl>
-        <button type="button" onClick={onRelease}>
-          Release
-        </button>
-      </div>
-    </section>
-  );
-}
 
 export default function App() {
   const [values, setValues] = useState({ ...params });

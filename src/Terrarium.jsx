@@ -1,3 +1,5 @@
+// The tank's canvas: sized to a whole number of screen px per tank px (the most that fits), turning pointer events
+// into tank coordinates for the tools, and running the world a fixed 60 ticks a second, drawn every frame.
 import { useLayoutEffect, useRef } from 'react';
 import {
   TANK_SIZES,

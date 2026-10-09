@@ -218,7 +218,7 @@ const newGnats = (world, at) => {
 };
 
 // The cloud drifts a little on the breeze, and comes back together after it's been scattered; the gnats in it dance
-// about its middle (render.js works out where each one is).
+// about its middle (draw/life.js works out where each one is).
 const stepGnats = (world, v) => {
   const drift = wind(world, v.x) * 0.02 + Math.sin(world.time * 0.01 + v.seed) * 0.03;
   v.x = Math.min(Math.max(v.x + drift, 6), world.W - 7);

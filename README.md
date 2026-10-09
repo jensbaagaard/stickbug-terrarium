@@ -175,49 +175,7 @@ Shop, Garden (Prune, Relocate, Propagate and Feed), Saves and Settings. The game
 
 ## Code
 
-- `src/tuning.js` – every slider: `[key, label, default, spread, step]`, so each default sits mid-range. Gene groups
-  are carried per bug.
-- `src/genome.js` – random genes (Variety sets how far they stray from the sliders; now and then a rare pattern),
-  traits, colours, names.
-- `src/anatomy.js` – body and leg geometry shared by the simulation and the renderer.
-- `src/sim.js` – world, surfaces and junctions, bugs (kicked tripod steps with feet planted in the world, crawling
-  round corners at junctions, quirks), decorations, plants growing node by node (their leaves ageing and dropping,
-  their flowers wilting and budding again), fallen leaves and petals, spreading grass, vines as swaying ropes, pruning, the shop and coins. Pure logic, no DOM.
-- `src/life.js` – the tank's ambient life: the breeze (a function of time alone, read by the sim and the drawing),
-  fireflies, bubbles, dust (snow, under a snowy sky) and ripples, and how much flying life the tank has room for. It
-  draws from its own random numbers, so it never changes what else happens. Pure logic, no DOM.
-- `src/visitors.js` – the visitors that come and go on their own: dragonflies to still ponds, bees to the open flowers,
-  gnats over the plants. Pure logic, no DOM.
-- `src/biomes.js` – the biomes: what the tank is made of (looked over every couple of seconds) and so which biome it
-  is, each biome's goings-on and its wild flower. Pure logic, no DOM. `src/biomeDraw.js` draws the goings-on.
-- `src/fish.js` – guppies: their genome, price and names, and how they live: cruising and shoaling, food and
-  grazing, resting, begging, fleeing, courting, and flopping when stranded. Pure logic, no DOM.
-- `src/fliers.js` – the fliers (ladybugs, shield bugs and soldier beetles): their genomes, prices and names, and how
-  they live: clambering about the plants and sticks, flying between them (a breadth-first search of the air for the way
-  round the terrain), hunting aphids, eating pollen or sipping sap, resting, huddling, meeting, playing dead or
-  stinking, and keeping out of the water; and the aphids. Pure logic, no DOM.
-- `src/terrain.js` – the falling-sand grid (stone, basalt, sandstone, brownstone, wood, ice, dirt, sand, snow, water,
-  fountains): painting and stepping. `sim.js` traces its outline (and the open floor's) into the surfaces bugs walk on.
-- `src/decor.js` – random sticks (eight styles, with their own foliage), wallpapers (patterns and themed scenes, now
-  and then vivid), and the plant genomes: flowering species with a flower genome (form, petals, colours, size), clump
-  plants (four forms and fifteen house plants), grasses and hanging vines, the plants now and then with rare leaves.
-- `src/geom.js` – maths, segment and colour helpers.
-- `src/render.js` – canvas drawing (scenery, flowers, ageing and fallen leaves, light on the water, fireflies and
-  dust, genome colours and patterns, quirk poses, previews, coin popups, the marks under the pointer and the tools'
-  how-to animations).
-- `src/wallpaper.js` – the back of the tank: the wallpapers drawn once into images, each scene in layers by depth,
-  and the life in the scenes drawn over them between the layers, so it passes behind hills and trees (stars, clouds,
-  mist, far snow, birds and bats, blown sand, the aurora, city lights, a moon, comets, shoals, a whale, falling leaves,
-  glowing spores).
-- `src/stress.js`, `stress.html` – the stress test: a tank packed with everything, timed.
-- `src/icons.js` – the panel's pixel icons, as rows of `#`, and the scissors cursor.
-- `src/thumbs.js` – shop pictures: each offer built in a scratch world, grown, drawn and cropped.
-- `src/saves.js` – save slots, the autosave and remembered settings in localStorage, and the save photos. The tank
-  itself is turned into plain data and back by `exportWorld` / `importWorld` in `sim.js`, which fit saves made at
-  another size to the tank's.
-- `src/samples/tank-1.stickbug.json` – the sample tank, a save file like the ones Export writes.
-- `src/Terrarium.jsx` – canvas component: a fixed 256×341 tank shown at a whole number of screen pixels per tank
-  pixel (the most that fits, so resizing the window only changes it a step at a time), pointer input and cursor,
-  fixed 60 Hz step loop. It reads the world from a ref each frame, so a loaded or reset tank can be swapped in.
-- `src/App.jsx` – tank, bug inspector, and the Editor / Shop / Gardening / Saves / Settings tabs (sliders mutate
-  `params` live).
+`ARCHITECTURE.md` maps the code: what lives in which module, the order a tick and a frame go in, what's saved, and
+where to start when adding a creature, a wallpaper, a biome, a material or a slider. The simulation is pure data and
+functions in `src/` (it runs in node: `npm run check` runs the checks, `npm run stress` the stress test); the
+drawing is `src/render.js` and `src/draw/`; the app is `src/App.jsx`, `src/Terrarium.jsx` and `src/ui/`.

@@ -1,7 +1,7 @@
 // The marks under the pointer and the previews: what a press would do (cut, lift, drop), the brush, plants ready to
 // propagate, a plant or stick being relocated, and what's bought following the pointer before it goes in.
 import { MID } from '../anatomy.js';
-import { stickWidth } from '../decor.js';
+import { stickWidth } from '../sticks.js';
 import { bodyHex, traitsOf } from '../genome.js';
 import { add, hslHex, normalize } from '../geom.js';
 import { propagatable } from '../sim.js';

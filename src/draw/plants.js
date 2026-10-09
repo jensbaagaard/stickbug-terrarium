@@ -1,7 +1,7 @@
 // Drawing plants and sticks: branches and the leaves on them; flowering plants (stems, leaves yellowing with age, buds,
 // and flowers of every form opening and wilting); clump plants (their leaves, fronds, flowers and baby plants); grass;
 // vines; and fallen leaves and petals.
-import { stickWidth } from '../decor.js';
+import { stickWidth } from '../sticks.js';
 import { add, clamp, dirOf, hash, hslHex, lerp, normalize, pointAt, segDir, segLength, segNormal } from '../geom.js';
 import { wind } from '../life.js';
 import { COIN, line, plot } from './pixelart.js';

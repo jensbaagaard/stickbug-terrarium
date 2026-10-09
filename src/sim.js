@@ -1,6 +1,9 @@
+// The stickbug terrarium simulation: the world made (createWorld) and stepped a tick at a time (step), and what the
+// panel sees of it (snapshot). Its parts live in their own modules (see ARCHITECTURE.md); everything they offer the
+// app is exported from here. Pure data + functions: the drawing lives in render.js.
 import { GENES, params } from './tuning.js';
 import { mulberry32, project } from './geom.js';
-import { DEFAULT_FOLIAGE } from './decor.js';
+import { DEFAULT_FOLIAGE } from './sticks.js';
 import { makeTerrain, stepTerrain } from './terrain.js';
 import { stepFish } from './fish.js';
 import { stepLife } from './life.js';

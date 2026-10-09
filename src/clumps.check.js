@@ -1,7 +1,7 @@
 // Run with `node src/clumps.check.js`: clump plants grow a full crown, a trimmed leaf's stump is replaced by a new
 // leaf, they save and load, and a cutting grows a crown of its own.
 import assert from 'node:assert/strict';
-import { makeClump } from './decor.js';
+import { makeClump } from './clumps.js';
 import { mulberry32 } from './geom.js';
 import {
   createWorld,

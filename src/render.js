@@ -2,7 +2,7 @@
 // sticks, the terrain, grass and vines, the biome's goings-on on the ground, the marks and previews, bugs and fallen
 // leaves, the water, fish, fliers and visitors, crumbs and debris, the marks under the pointer, coin popups, the air
 // and the tools' how-tos. How each is drawn lives in draw/.
-import { stickWidth } from './decor.js';
+import { stickWidth } from './sticks.js';
 import { add } from './geom.js';
 import { aimAt, previewAt, relocationAt } from './sim.js';
 import { CELL } from './terrain.js';

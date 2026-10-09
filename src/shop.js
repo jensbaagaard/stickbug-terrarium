@@ -3,7 +3,10 @@
 import { GENES, params } from './tuning.js';
 import { patternRarity, randomGenes, randomName } from './genome.js';
 import { mulberry32, project } from './geom.js';
-import { makeClump, makeGrass, makeSpecies, makeStick, makeVine, makeWallpaper, rarePrice } from './decor.js';
+import { makeClump } from './clumps.js';
+import { makeGrass, makeSpecies, makeVine, rarePrice } from './species.js';
+import { makeStick } from './sticks.js';
+import { makeWallpaper } from './wallpapers.js';
 import { fountainAt, placeFountain } from './terrain.js';
 import { fishShape, guppyName, guppyPrice, makeGuppy, newFish } from './fish.js';
 import { addFlier, flierName, flierPrice, flierShape, makeFlier, newFlier } from './fliers.js';
