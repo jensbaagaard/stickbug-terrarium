@@ -1,10 +1,11 @@
 // Visitors: small bugs that come and go on their own when the tank has what they're after. Dragonflies keep to still
 // water for as long as it's there, like fireflies to their plants, darting from one spot over it to hover at the next,
-// now and then dipping to touch the surface or resting on a stem tip nearby; water striders skate about on it in jerky glides; now and then a bee comes in to work the open
-// flowers, landing on one after another, and goes off again with its legs laden with pollen; and gnats dance in
-// little clouds over the plants. How many come goes with how green the tank is and how much of it is air (see
-// life.js's room). Tapped near, they make off. They draw on the tank's life's own random numbers, and none of them is
-// saved: they come back on their own. Pure data + functions, like the rest of the simulation.
+// now and then dipping to touch the surface or resting on a stem tip nearby; water striders skate about on it in jerky
+// glides; now and then a bee comes in to work the open flowers, landing on one after another, and goes off again with
+// its legs laden with pollen; and gnats dance in little clouds over the plants. How many come goes with how green the
+// tank is and how much of it is air (see life.js's room). Tapped near, they make off. They draw on the tank's life's
+// own random numbers, and none of them is saved: they come back on their own. Pure data + functions, like the rest of
+// the simulation.
 import { pick } from './geom.js';
 import { CELL, cellAt, EMPTY, WATER } from './terrain.js';
 import { ripple, room, wind } from './life.js';
