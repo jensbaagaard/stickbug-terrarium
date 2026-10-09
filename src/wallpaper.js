@@ -335,7 +335,10 @@ const across = (W, u, dir, margin) => {
   return dir > 0 ? run : W - run;
 };
 
-// The stars twinkle: each dims for a moment every few seconds, on its own clock, and now and then one glints.
+// The stars twinkle, slowly: each fades down and back up again every half a minute or so, on its own clock, and
+// now and then one glints.
+const TWINKLE_TICKS = 90; // to fade down and back up
+const GLINT_TICKS = 60;
 const twinkle = {
   depth: 0,
   make: (wp, p) => {
@@ -346,23 +349,26 @@ const twinkle = {
       const sky = p.hex[p.codes[x ? i - 1 : i + 1] & 7];
       const r = (k) => hash(wp.seed, i, 40 + k);
       const dim = mix(p.hex[STAR], sky, 0.65);
-      stars.push({ x, y, dim, period: 150 + Math.floor(r(1) * 450), at: r(2) * 600, glints: r(3) < 0.04 });
+      stars.push({ x, y, dim, period: 900 + Math.floor(r(1) * 1800), at: r(2) * 2700, glints: r(3) < 0.02 });
     });
     return { stars, glint: hslHex(wp.accent.h, 20, 88) };
   },
   draw: (ctx, world, wp, p, { stars, glint }) => {
     for (const s of stars) {
       const c = (world.time + s.at) % s.period;
-      if (c < 10) {
+      const g = c - s.period / 2;
+      if (c < TWINKLE_TICKS) {
+        ctx.globalAlpha = Math.sin((Math.PI * c) / TWINKLE_TICKS);
         ctx.fillStyle = s.dim;
         ctx.fillRect(s.x, s.y, 1, 1);
-      } else if (s.glints && c > s.period / 2 && c < s.period / 2 + 20) {
+      } else if (s.glints && g >= 0 && g < GLINT_TICKS) {
+        const k = Math.sin((Math.PI * g) / GLINT_TICKS);
+        ctx.globalAlpha = k;
         ctx.fillStyle = glint;
         ctx.fillRect(s.x, s.y, 1, 1);
-        ctx.globalAlpha = 0.4;
+        ctx.globalAlpha = k * 0.4;
         ctx.fillRect(s.x - 1, s.y, 3, 1);
         ctx.fillRect(s.x, s.y - 1, 1, 3);
-        ctx.globalAlpha = 1;
       }
     }
   },
