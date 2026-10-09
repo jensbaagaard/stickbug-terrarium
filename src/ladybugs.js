@@ -17,6 +17,7 @@ const WALK = 0.12; // px a tick, for an average speed
 const FLY = 0.8;
 const GRAVITY = 0.08;
 const LIFT_TICKS = 30; // opening its wings to take off
+const FLIGHT_TICKS = 900; // flying this long without getting where it's going, it makes for somewhere else
 const MAX_APHIDS = 60;
 const COLONY = 12; // aphids a plant holds at most
 const APHID_EVERY = 1200; // ticks between chances of aphids arriving on a plant
@@ -103,6 +104,11 @@ const solid = (world, x, y) => {
   if (y >= world.ground.y0) return true;
   const m = cellOf(world, x, y);
   return m !== undefined && m !== EMPTY && m !== WATER;
+};
+// Would a ladybug with its feet at (x, y) be in the terrain: under its middle, front, back or the top of its shell.
+const inTerrain = (world, b, x, y) => {
+  const { len, high } = ladybugShape(b.genome);
+  return [[0, 1], [-len / 2, 1], [len / 2, 1], [0, high]].some(([dx, dy]) => solid(world, x + dx, y - dy));
 };
 // The first solid row at or below y at x: the top of the terrain there, or the tank floor.
 const floorTop = (world, x, y) => {
@@ -267,7 +273,7 @@ const speedOf = (b) => WALK * (0.6 + 0.8 * b.genome.speed);
 
 // Off whatever it's on and into the air: flying (to b.to, if it's going anywhere) or falling.
 const airborne = (b, flying) =>
-  Object.assign(b, { mode: 'air', perch: null, flying, act: null, vy: flying ? -0.5 : 0 });
+  Object.assign(b, { mode: 'air', perch: null, flying, act: null, vy: flying ? -0.5 : 0, flown: 0 });
 
 // Somewhere else in the tank to fly to, not on the tree it's on.
 const elsewhere = (world, b) => {
@@ -356,7 +362,8 @@ const crawl = (world, b, way = null, obj = null) => {
   b.stride += speed;
   if (b.mode === 'ground') {
     const x = b.x + b.dir * speed;
-    if (x < 2 || x > world.W - 3 || solid(world, x, b.y - 3) || wet(world, x, b.y - 1)) {
+    const front = x + (b.dir * ladybugShape(b.genome).len) / 2;
+    if (x < 2 || x > world.W - 3 || solid(world, front, b.y - 3) || wet(world, front, b.y - 1)) {
       b.dir = -b.dir;
       return 'blocked';
     }
@@ -530,21 +537,35 @@ const live = (world, b) => {
   }
 };
 
-// In the air. Flying, it makes for where it's going, bobbing as it goes and pushed about by the breeze, and lands
-// there; with nowhere to go it flutters down. Falling, it drops. Either way it lands on whatever floor it comes to,
-// on its back if it's playing dead, or floats if that's water.
+// In the air. Flying, it makes for where it's going, bobbing as it goes and pushed about by the breeze, up over any
+// terrain in its way (or back from it, if it can't get over), and lands there; if it can't get there, somewhere else,
+// and with nowhere to go it flutters down. Falling, it drops. Either way it lands on whatever floor it comes to, on
+// its back if it's playing dead, or floats if that's water.
 const air = (world, b) => {
   const g = b.genome;
+  const blocked = (px, py) => inTerrain(world, b, px, py) || (b.flying && wet(world, px, py));
+  if (b.flying && b.to && ++b.flown > FLIGHT_TICKS) Object.assign(b, { to: elsewhere(world, b), flown: 0 });
   const to = b.to && there(world, b.to) ? b.to : null;
   if (b.flying) {
     const speed = FLY * (0.7 + 0.6 * g.speed);
     let want = { x: b.dir * 0.3, y: 0.35 };
+    let reach = 8; // how far ahead it looks for terrain in the way: no further than where it's going
     if (to) {
       const at = frameOf(to).at;
       const d = dist(at, b);
-      if (d < 1.5) return land(world, b, to);
+      if (d < 2) return land(world, b, to);
+      reach = Math.min(reach, d - 1);
       const k = (speed * Math.min(1, d / 10)) / (d || 1);
       want = { x: (at.x - b.x) * k, y: (at.y - b.y) * k };
+    }
+    const clear = (w) => {
+      const m = Math.hypot(w.x, w.y) || 1;
+      for (let k = 2; k <= reach; k += 2) if (blocked(b.x + (w.x / m) * k, b.y + (w.y / m) * k)) return false;
+      return true;
+    };
+    if (!clear(want)) {
+      const over = { x: want.x * 0.3, y: -speed };
+      want = clear(over) ? over : { x: -want.x || -b.dir * speed, y: -speed * 0.3 };
     }
     b.vx += (want.x - b.vx) * 0.08 + wind(world, b.x) * 0.01;
     b.vy += (want.y - b.vy) * 0.08 + Math.sin(world.time * 0.25 + b.seed) * 0.04;
@@ -555,7 +576,6 @@ const air = (world, b) => {
   // Move, sliding along the terrain where it bumps into it; flying, it keeps out of the water (and a fountain's spray)
   // the same way. Buried, it climbs up out of it.
   const [x, y] = [b.x + b.vx, b.y + b.vy];
-  const blocked = (px, py) => solid(world, px, py - 1) || (b.flying && wet(world, px, py));
   if (!blocked(x, y)) [b.x, b.y] = [x, y];
   else if (!blocked(b.x, y)) [b.y, b.vx] = [y, -b.vx * 0.5];
   else if (!blocked(x, b.y)) [b.x, b.vy] = [x, -Math.abs(b.vy) * 0.5];

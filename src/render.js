@@ -1153,7 +1153,7 @@ const drawPreview = (ctx, world, spec, alpha = 1) => {
     drawFish(ctx, world, posedFish(spec.genome, spec.base.x, spec.base.y, world.time));
     top = spec.base.y - 6;
   } else if (spec.kind === 'ladybug') {
-    // Hovering, wings whirring, where it'll be let go.
+    // Hovering, wings beating, where it'll be let go.
     const { x, y } = spec.base;
     const b = { genome: spec.genome, x, y, fwd: { x: 1, y: 0 }, up: { x: 0, y: -1 }, wings: 1, stride: 0, seed: 0 };
     drawLadybug(ctx, world, b);
@@ -2288,8 +2288,8 @@ const spotsOf = (g, len) => {
 
 // A ladybug side on: a dome of a shell over its feet at (b.x, b.y), turned to whatever it's on (b.fwd along it, b.up
 // away from it), with its collar and head in front and its legs under it, stepping as it walks. To fly its wing cases
-// lift and its wings whirr out behind; on its back, playing dead, it's upside down with its legs in the air. Every
-// pixel round it is looked up in its own frame, like a fish's.
+// lift and its wings beat out behind, up and down; on its back, playing dead, it's upside down with its legs in the
+// air. Every pixel round it is looked up in its own frame, like a fish's.
 const drawLadybug = (ctx, world, b) => {
   const g = b.genome;
   const { len, high } = ladybugShape(g);
@@ -2303,9 +2303,10 @@ const drawLadybug = (ctx, world, b) => {
   const r2 = g.spots <= 4 ? 0.7 : 0.3; // a pixel, or a little more for a two- or four-spot
   const [uc, sa, v0] = [-0.1 * len, 0.42 * len, 0.6]; // the shell's middle, half its length, and its underside
   const hinge = { u: uc + sa * 0.8, v: v0 + high * 0.5 }; // where the wing cases open from
-  const lift = b.wings * 0.9;
+  const beat = Math.floor((world.time + Math.floor(b.seed)) / 3) % 2; // the wings' beat: up, then down
+  const flapping = b.wings > 0.5;
+  const lift = b.wings * (flapping ? 0.8 + 0.15 * beat : 0.9); // the wing cases bob with it
   const [lc, ls] = [Math.cos(lift), Math.sin(lift)];
-  const whirr = b.wings > 0.5 && (world.time + Math.floor(b.seed)) % 2 === 0;
   const step = Math.floor(b.stride * 2) % 2 ? 0.6 : -0.6;
   const head = { u: 0.43 * len, v: v0 + 0.35 - (b.act?.kind === 'eat' && world.time % 16 < 8 ? 0.5 : 0) };
   const feelers = b.act?.kind === 'meet' || b.act?.kind === 'groom';
@@ -2336,9 +2337,9 @@ const drawLadybug = (ctx, world, b) => {
       const legs = [-0.26 * len, 0, 0.22 * len];
       if (legs.some((lu, k) => Math.abs(u - lu - (k % 2 ? -step : step)) < 0.5)) return LADY_BLACK;
     }
-    // The wings, a whirring blur out behind, every other frame.
-    if (whirr) {
-      const a = Math.PI - lift * 0.6;
+    // The wings, beating out behind: raised back and up, then swept back and down.
+    if (flapping) {
+      const a = beat ? Math.PI - 0.5 - lift * 0.4 : Math.PI + 0.35;
       const [wu, wv] = [u - hinge.u, v - hinge.v - 0.5];
       const along = wu * Math.cos(a) + wv * Math.sin(a);
       const across = -wu * Math.sin(a) + wv * Math.cos(a);

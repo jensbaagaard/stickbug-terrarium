@@ -30,3 +30,7 @@
     - optimizations
     - can we do something more clean
     - remove comments that are wrong, no not help. or are too verbose
+  
+# shop
+    - lets add the textures to our editor tab
+    - lets also add some variant of darker stone og darker sandstone

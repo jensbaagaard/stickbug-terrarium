@@ -1,7 +1,7 @@
 // Run with `node src/ladybugs.check.js`: a ladybug put in flies to a plant and lands on it, aphids settle on the plants
 // and breed, a hungry ladybug hunts them down or with none about eats pollen, startled a shy one plays dead and a bold
 // one flies off, they save and load, and in a busy tank with a pond and a fountain none of them goes hungry or gets
-// stuck in the water.
+// stuck in the water, and a wall in the way is flown up over, not into.
 import assert from 'node:assert/strict';
 import {
   buyReroll,
@@ -15,7 +15,8 @@ import {
   startPlacing,
   step,
 } from './sim.js';
-import { startleLadybugs } from './ladybugs.js';
+import { ladybugShape, startleLadybugs } from './ladybugs.js';
+import { cellAt, EMPTY, paintTerrain, WATER } from './terrain.js';
 import { stressWorld } from './stress.js';
 import { params } from './tuning.js';
 
@@ -109,6 +110,33 @@ const putIn = (world, x, y) => {
   let landed = false;
   steps(loaded, 900, () => (landed ||= loaded.ladybugs[0].mode === 'tree'));
   assert.ok(landed, 'and lands again');
+  params.aphids = 1;
+}
+
+{
+  // A tall stone wall between a ladybug let go under an overhang and the only plant: it flies up over the wall, never
+  // into it, and gets to the plant.
+  params.aphids = 0;
+  const world = createWorld(256, 341, { seed: 2 });
+  world.coins = 1e6;
+  const floor = world.ground.y0;
+  const stone = (x, y) => paintTerrain(world.terrain, x, y, 'stone', 0, () => 0);
+  for (let y = 120; y < floor; y += 2) for (let x = 140; x < 150; x += 2) stone(x, y);
+  for (let x = 20; x < 100; x += 2) for (let y = 200; y < 206; y += 2) stone(x, y);
+  steps(world, 3000);
+  const plant = world.objects.find((o) => o.kind === 'plant');
+  const lady = putIn(world, 60, 225);
+  const cell = (x, y) => world.terrain.cells[cellAt(world.terrain, x, y)];
+  const rock = (x, y) => y >= floor || ![undefined, EMPTY, WATER].includes(cell(x, y));
+  const { len, high } = ladybugShape(lady.genome);
+  const body = () => [[0, 1], [0.5 - len / 2, 1], [len / 2 - 0.5, 1], [0, high - 0.5]];
+  let [inWall, onPlant] = [0, false];
+  steps(world, 6000, () => {
+    if (lady.mode === 'air' && body().some(([dx, dy]) => rock(lady.x + dx, lady.y - dy))) inWall++;
+    onPlant ||= lady.mode === 'tree' && lady.perch.obj === plant;
+  });
+  assert.equal(inWall, 0, 'it never flies into the wall');
+  assert.ok(onPlant, 'and gets over it to the plant');
   params.aphids = 1;
 }
 
