@@ -101,7 +101,8 @@ const leave = (world, v, speed) => {
     const out = v.kind === 'bee' ? { x: v.x < world.W / 2 ? -6 : world.W + 6, y: v.y - 20 } : { x: v.x, y: -8 };
     head(v, 'leave', out);
   }
-  flyTo(world, v, v.to, speed);
+  if (v.kind === 'bee') flyTo(world, v, bumble(world, v, v.to), speed, 0.08);
+  else flyTo(world, v, v.to, speed);
   return v.y > -6 && v.x > -4 && v.x < world.W + 4;
 };
 
@@ -209,6 +210,16 @@ const stepStrider = (world, v) => {
 
 // ---------- bees ----------
 
+// A bumblebee's way of getting anywhere: not straight there, but in lazy loops either side of the way, which tighten
+// as it gets near so it bumbles in and settles, and bobbing and wobbling as it goes. Where to make for now.
+const bumble = (world, v, p) => {
+  const loop = Math.min(18, dist(p, v) / 2);
+  const t = world.time * 0.05 + v.seed;
+  v.x += Math.cos(t * 2.4) * 0.4; // weaving a few px side to side, and bobbing up and down
+  v.y += Math.sin(t * 3.6) * 0.45;
+  return { x: p.x + Math.cos(t) * loop, y: p.y + Math.sin(t * 1.7) * loop * 0.7 };
+};
+
 const newBee = (world) => {
   const r = world.lifeRand;
   const x = r() < 0.5 ? -4 : world.W + 4;
@@ -228,7 +239,10 @@ const stepBee = (world, v) => {
     head(v, 'fly', pick(r, flowers));
   }
   const at = { x: v.to.part.tip.x, y: v.to.part.tip.y - 1 };
-  if (v.state === 'fly' && flyTo(world, v, at, 0.45, 0.12)) Object.assign(v, { state: 'sit', ticks: 90 + r() * 90 });
+  if (v.state === 'fly') {
+    flyTo(world, v, bumble(world, v, at), 0.45, 0.08);
+    if (dist(at, v) < 1.5) Object.assign(v, { state: 'sit', ticks: 90 + r() * 90 });
+  }
   if (v.state === 'sit') {
     Object.assign(v, at, { vx: 0, vy: 0 });
     v.pollen = Math.min(1, v.pollen + 1 / 250);
