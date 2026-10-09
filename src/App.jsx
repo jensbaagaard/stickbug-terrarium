@@ -84,6 +84,8 @@ const SHOWCASE = [
 
 const BRUSH_SIZES = [1, 2, 3, 4, 5];
 
+const FLIER_KINDS = { ladybug: 'Ladybug', shieldbug: 'Shield bug', soldier: 'Soldier beetle' };
+
 // A pixel-art icon in the text colour, scale screen px per pixel.
 function Icon({ name, scale = 2 }) {
   const rows = ICONS[name];
@@ -230,10 +232,10 @@ function Save({ save, flash, onLoad, onOverwrite, onExport, onDelete }) {
 const share = (key, v) => clamp((v - SLIDER[key].min) / (SLIDER[key].max - SLIDER[key].min), 0, 1);
 const speedOf = (t) => (t.stride * t.size) / t.stepTicks;
 
-// A few of a bug's, fish's or ladybug's traits as bars. A bug's speed is a step's length over its time, so it's halfway
-// at the default and full at four times that; a fish's or ladybug's genes already run 0..1.
+// A few of a bug's, fish's or flier's traits as bars. A bug's speed is a step's length over its time, so it's halfway
+// at the default and full at four times that; a fish's or flier's genes already run 0..1.
 const statsOf = (who) => {
-  if (who.kind === 'ladybug') {
+  if (who.kind === 'flier') {
     const g = who.genome;
     return [
       ['Hunger', who.hunger],
@@ -263,7 +265,7 @@ const statsOf = (who) => {
   ];
 };
 
-// The selected bug, fish or ladybug: its picture and a few of its traits as bars, plus what you can do with it.
+// The selected bug, fish or flier: its picture and a few of its traits as bars, plus what you can do with it.
 function Inspector({ who, onRelease, onClose }) {
   const canvas = useRef(null);
   const genes = who.genes ?? who.genome;
@@ -272,6 +274,7 @@ function Inspector({ who, onRelease, onClose }) {
   }, [genes]);
   const stats = statsOf(who);
   const sex = who.kind === 'fish' ? (who.genome.male ? ' \u2642' : ' \u2640') : '';
+  const kind = who.kind === 'flier' ? ` \u00b7 ${FLIER_KINDS[who.genome.kind]}` : '';
   return (
     <section className="card" aria-label={`Selected ${who.kind}`}>
       <canvas ref={canvas} className="portrait" aria-hidden="true" />
@@ -280,6 +283,7 @@ function Inspector({ who, onRelease, onClose }) {
           <h2>
             {who.name}
             {sex}
+            {kind}
           </h2>
           <button type="button" onClick={onClose} aria-label="Deselect">
             ×
@@ -647,7 +651,7 @@ export default function App() {
                     offer={offer}
                     active={snap.placingOffer === offer.id}
                     short={coins < offer.price}
-                    blocked={offer.sold || (offer.type === 'ladybug' ? snap.ladybugsFull : kind === 'bug' && snap.full)}
+                    blocked={offer.sold || (offer.type === 'flier' ? snap.fliersFull : kind === 'bug' && snap.full)}
                     onPick={act((w) => (kind === 'wallpaper' ? buyWallpaper(w, offer) : startPlacing(w, kind, offer)))}
                   />
                 ))}

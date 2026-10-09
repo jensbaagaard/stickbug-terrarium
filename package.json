@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "check": "node src/aim.check.js && node src/plants.check.js && node src/clumps.check.js && node src/fish.check.js && node src/bugs.check.js && node src/life.check.js && node src/ladybugs.check.js",
+    "check": "node src/aim.check.js && node src/plants.check.js && node src/clumps.check.js && node src/fish.check.js && node src/bugs.check.js && node src/life.check.js && node src/fliers.check.js",
     "stress": "node src/stress.js"
   },
   "dependencies": {

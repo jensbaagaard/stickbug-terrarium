@@ -1,10 +1,12 @@
-// Ladybugs: their genome, how they live in the tank, and the aphids they hunt. They clamber about the plants and
-// sticks and fly between them. Hungry, they hunt down the aphids that now and then settle on the plants, or with
-// none about eat pollen at the open flowers. They bask at the tips, groom, huddle up together to rest, stop to touch
-// antennae when they meet on a stem (then one turns back and the other goes round), and climb to the top of whatever
-// they're on before they take off. Startled, the bold ones fly off and the rest drop and play dead on their backs.
-// Dropping toward water, or with water rising round them, they fly off. Pure data + functions, like the rest of the
-// simulation.
+// Fliers: the small flying bugs, three kinds of them sharing one way of life, and the aphids. Ladybugs (domed, red
+// and spotted, mostly) hunt the aphids that now and then settle on the plants, and with none about eat pollen at the
+// open flowers; soldier beetles (long, orange with dark tips, mostly) live on the flowers' pollen, and eat aphids when
+// there's none; shield bugs (flat, green or brown, mostly) sip sap from the stems. They all clamber about the plants
+// and sticks and fly between them, finding their way through the air, bask at the tips, groom, huddle up with their
+// own kind to rest, stop to touch antennae when they meet on a stem (then one turns back and the other goes round),
+// and climb to the top of whatever they're on before they take off. Startled, the bold ones fly off; the rest drop
+// and play dead on their backs, or a shield bug lets off a stink where it is. Dropping toward water, or with water
+// rising round them, they fly off. Pure data + functions, like the rest of the simulation.
 import { stickWidth } from './decor.js';
 import { clamp, lerp, pick } from './geom.js';
 import { CELL, cellAt, EMPTY, WATER } from './terrain.js';
@@ -14,13 +16,14 @@ import { params } from './tuning.js';
 const HUNGER = 1 / 12000; // per tick, for an average appetite
 const BITE = 0.3; // hunger an aphid takes away
 const POLLEN = 1 / 1500; // and a tick of pollen
+const SAP = 1 / 2000; // and a tick of sap
 const WALK = 0.07; // px a tick, for an average speed
 const FLY = 0.5;
 const GRAVITY = 0.08;
 const LIFT_TICKS = 30; // opening its wings to take off
 const FLIGHT_TICKS = 900; // flying this long without getting where it's going, it makes for somewhere else
 const REPLAN_TICKS = 60; // how often it works out its way through the air again, as the terrain or its perch moves
-const REACH = 2; // cells of air a ladybug's body takes up from its feet: either side of them, and up
+const REACH = 2; // cells of air a flier's body takes up from its feet: either side of them, and up
 const MAX_APHIDS = 60;
 const COLONY = 12; // aphids a plant holds at most
 const APHID_EVERY = 1200; // ticks between chances of aphids arriving on a plant
@@ -41,10 +44,15 @@ const pink = (rand) => ({ h: range(rand, 338, 352), s: 65, l: 68 });
 const steel = (rand) => ({ h: range(rand, 205, 225), s: 50, l: 34 });
 const GOLD = { h: 46, s: 85, l: 55 };
 const SOOT = { h: 240, s: 6, l: 19 }; // a black shell, just lighter than a black wallpaper
-// The kinds of ladybug, how often each comes up, and how rare (0..3) it is: the rarer, the dearer. Most are red or
-// orange with black spots; some are yellow with lots of little ones, pink, or black with red ones; a few are spotless,
-// and the rarest of all a metallic steel blue or gold. A white collar is a harlequin's.
-const KINDS = [
+const green = (rand) => ({ h: range(rand, 95, 125), s: range(rand, 45, 65), l: range(rand, 36, 46) });
+const brown = (rand) => ({ h: range(rand, 20, 35), s: range(rand, 30, 50), l: range(rand, 30, 40) });
+const PALE = { h: 50, s: 40, l: 78 };
+
+// Each kind's looks, how often each comes up, and how rare (0..3) it is: the rarer, the dearer.
+const LOOKS = {
+  // Most are red or orange with black spots; some are yellow with lots of little ones, pink, or black with red ones;
+  // a few are spotless, and the rarest of all a metallic steel blue or gold. A white collar is a harlequin's.
+  ladybug: [
   { weight: 30, rare: 0, look: (rand) => ({ shell: red(rand), spots: 7 }) },
   { weight: 14, rare: 0, look: (rand) => ({ shell: red(rand), spots: 2 }) },
   { weight: 12, rare: 1, look: (rand) => ({ shell: orange(rand), spots: 10 + Math.floor(rand() * 6) }) },
@@ -59,20 +67,40 @@ const KINDS = [
   { weight: 5, rare: 2, look: (rand) => ({ shell: pink(rand), spots: 12 }) },
   { weight: 3, rare: 3, look: (rand) => ({ shell: steel(rand), spots: 0, metallic: true }) },
   { weight: 2, rare: 3, look: (rand) => ({ shell: GOLD, spots: rand() < 0.5 ? 0 : 7, metallic: true }) },
-];
+  ],
+  // Mostly green or brown, the edge of the shield banded, now and then a pale tip to it; rarer, a red one striped
+  // black, and rarest a metallic blue.
+  shieldbug: [
+    { weight: 45, rare: 0, look: (rand) => ({ shell: green(rand), edge: { h: 75, s: 40, l: 30 } }) },
+    { weight: 28, rare: 0, look: (rand) => ({ shell: brown(rand), edge: { h: 40, s: 35, l: 62 } }) },
+    { weight: 15, rare: 1, look: (rand) => ({ shell: green(rand), edge: { h: 75, s: 40, l: 30 }, tip: PALE }) },
+    { weight: 8, rare: 2, look: (rand) => ({ shell: red(rand), edge: { h: 0, s: 0, l: 24 }, stripes: true }) },
+    { weight: 4, rare: 3, look: (rand) => ({ shell: steel(rand), edge: SOOT, metallic: true }) },
+  ],
+  // Mostly orange with dark wing tips; some with slate grey wing cases and an orange collar, yellow, or red.
+  soldier: [
+    { weight: 50, rare: 0, look: (rand) => ({ shell: orange(rand), tip: SOOT, collar: orange(rand), head: SOOT }) },
+    { weight: 25, rare: 1, look: (rand) => ({ shell: { h: 220, s: 15, l: 34 }, collar: orange(rand), head: SOOT }) },
+    { weight: 15, rare: 1, look: (rand) => ({ shell: yellow(rand), tip: SOOT, collar: yellow(rand), head: SOOT }) },
+    { weight: 10, rare: 2, look: (rand) => ({ shell: red(rand), tip: SOOT, collar: red(rand), head: SOOT }) },
+  ],
+};
+export const KINDS = Object.keys(LOOKS);
 
-// A ladybug's genome: its looks, and its nature, the genes running 0..1: size, speed, appetite, boldness (whether
-// it flies off or plays dead when startled), sociability (how much it likes to huddle up with others), wanderlust
-// (how often it flies off somewhere else) and activity (how little it rests).
-export const makeLadybug = (rand) => {
-  let roll = rand() * KINDS.reduce((n, k) => n + k.weight, 0);
-  const kind = KINDS.find((k) => (roll -= k.weight) < 0) ?? KINDS[0];
+// A flier's genome: its kind, its looks, and its nature, the genes running 0..1: size, speed, appetite, boldness
+// (whether it flies off when startled, or plays dead or stinks), sociability (how much it likes to huddle up with its
+// own kind), wanderlust (how often it flies off somewhere else) and activity (how little it rests).
+export const makeFlier = (rand, kind = 'ladybug') => {
+  const looks = LOOKS[kind];
+  let roll = rand() * looks.reduce((n, l) => n + l.weight, 0);
+  const look = looks.find((l) => (roll -= l.weight) < 0) ?? looks[0];
   return {
-    rare: kind.rare,
+    kind,
+    rare: look.rare,
     spot: BLACK,
     collar: 'black',
     metallic: false,
-    ...kind.look(rand),
+    ...look.look(rand),
     size: rand(),
     speed: rand(),
     appetite: rand(),
@@ -84,20 +112,35 @@ export const makeLadybug = (rand) => {
   };
 };
 
-export const ladybugPrice = (g) => 7 + g.rare * 6 + (g.size > 0.8 ? 2 : 0);
+export const flierPrice = (g) => 7 + g.rare * 6 + (g.size > 0.8 ? 2 : 0);
 
-// Its build in px: from its tail to the front of its head, and the height of its shell.
-export const ladybugShape = (g) => {
+// Its build in px, from its tail to the front of its head, and the height of its shell: a ladybug's a little dome, a
+// shield bug's longer and flatter, a soldier beetle's longer still, and narrow.
+const BUILDS = { ladybug: [5, 2.6], shieldbug: [6, 2.2], soldier: [6.5, 2.2] };
+export const flierShape = (g) => {
   const k = 0.9 + 0.4 * g.size;
-  return { len: 5 * k, high: 2.6 * k };
+  const [len, high] = BUILDS[g.kind];
+  return { len: len * k, high: high * k };
 };
 
-const NAMES = [
-  'Dot', 'Ruby', 'Pepper', 'Poppy', 'Cherry', 'Spot', 'Freckles', 'Scarlet', 'Button', 'Pip', 'Polka', 'Rosie',
-  'Bean', 'Clover', 'Juniper', 'Marigold', 'Penny', 'Tomato', 'Berry', 'Ember', 'Pimento', 'Chili', 'Speckle', 'Lulu',
-];
+// What each kind eats, first choice first.
+const DIETS = { ladybug: ['aphids', 'pollen'], soldier: ['pollen', 'aphids'], shieldbug: ['sap'] };
+
+const NAMES = {
+  ladybug: [
+    'Dot', 'Ruby', 'Pepper', 'Poppy', 'Cherry', 'Spot', 'Freckles', 'Scarlet', 'Button', 'Pip', 'Polka', 'Rosie',
+    'Bean', 'Juniper', 'Marigold', 'Penny', 'Tomato', 'Berry', 'Ember', 'Pimento', 'Chili', 'Speckle', 'Lulu',
+  ],
+  shieldbug: [
+    'Shelby', 'Sage', 'Basil', 'Moss', 'Olive', 'Pickle', 'Fern', 'Clover', 'Bramble', 'Thistle', 'Acorn', 'Hazel',
+  ],
+  soldier: [
+    'Rusty', 'Ginger', 'Sergeant', 'Major', 'Copper', 'Amber', 'Sunny', 'Marmalade', 'Pumpkin', 'Cinnamon', 'Private',
+  ],
+};
 const TITLES = ['Little ', 'Lady ', 'Sir ', 'Miss ', 'Old '];
-export const ladybugName = (rand) => (rand() < 0.2 ? pick(rand, TITLES) : '') + pick(rand, NAMES);
+export const flierName = (rand, kind = 'ladybug') =>
+  (rand() < 0.2 ? pick(rand, TITLES) : '') + pick(rand, NAMES[kind]);
 
 // ---------- where they get about ----------
 
@@ -108,9 +151,9 @@ const solid = (world, x, y) => {
   const m = cellOf(world, x, y);
   return m !== undefined && m !== EMPTY && m !== WATER;
 };
-// Would a ladybug with its feet at (x, y) be in the terrain: under its middle, front, back or the top of its shell.
+// Would a flier with its feet at (x, y) be in the terrain: under its middle, front, back or the top of its shell.
 const inTerrain = (world, b, x, y) => {
-  const { len, high } = ladybugShape(b.genome);
+  const { len, high } = flierShape(b.genome);
   return [[0, 1], [-len / 2, 1], [len / 2, 1], [0, high]].some(([dx, dy]) => solid(world, x + dx, y - dy));
 };
 // The first solid row at or below y at x: the top of the terrain there, or the tank floor.
@@ -119,9 +162,9 @@ const floorTop = (world, x, y) => {
   while (!solid(world, x, fy)) fy++;
   return fy;
 };
-// The floor a ladybug at x stands on: the highest under any of its feet, so one on the edge of a ledge is on it.
+// The floor a flier at x stands on: the highest under any of its feet, so one on the edge of a ledge is on it.
 const floorUnder = (world, b, x, y) => {
-  const half = ladybugShape(b.genome).len / 2;
+  const half = flierShape(b.genome).len / 2;
   return Math.min(floorTop(world, x - half, y), floorTop(world, x, y), floorTop(world, x + half, y));
 };
 
@@ -182,7 +225,7 @@ const flowersOf = (world) => {
 // ---------- the way through the air ----------
 
 // The air, cell by cell on the terrain's grid: open (no terrain or water) and roomy (open as far round as a
-// ladybug's body reaches from its feet there), worked out afresh when the terrain changes.
+// flier's body reaches from its feet there), worked out afresh when the terrain changes.
 const airs = new WeakMap();
 const airOf = (world) => {
   const ter = world.terrain;
@@ -306,9 +349,9 @@ const stepAphids = (world) => {
   world.aphids.push(...born);
 };
 
-// ---------- ladybugs ----------
+// ---------- fliers ----------
 
-export const newLadybug = (world, x, y, genome, name = ladybugName(world.rand)) => ({
+export const newFlier = (world, x, y, genome, name = flierName(world.rand)) => ({
   name,
   genome,
   x, // its feet
@@ -325,8 +368,8 @@ export const newLadybug = (world, x, y, genome, name = ladybugName(world.rand)) 
   flown: 0, // ticks it's been flying
   lost: 0, // times this flight it's found no way to where it was going
   then: null, // and what it'll do there: {kind: 'eat', aphid} | {kind: 'pollen'} | {kind: 'rest', ticks}
-  // What it's doing where it is, and for how long ({kind, ticks}): eating an aphid, at pollen, resting, grooming,
-  // meeting another, stretching its wings or lifting off.
+  // What it's doing where it is, and for how long ({kind, ticks}): eating an aphid, at pollen, sipping sap, resting,
+  // grooming, meeting another, stretching its wings, letting off a stink or lifting off.
   act: null,
   think: 0, // ticks until it next decides what to do
   hunger: 0.3,
@@ -340,20 +383,20 @@ export const newLadybug = (world, x, y, genome, name = ladybugName(world.rand)) 
 });
 
 // Put in at (x, y), it flies off to the nearest place to land.
-export const addLadybug = (world, x, y, genome, name) => {
-  const b = newLadybug(world, x, y, genome, name);
+export const addFlier = (world, x, y, genome, name) => {
+  const b = newFlier(world, x, y, genome, name);
   const spots = landingSpots(world);
   b.to = spots.length ? spots.reduce((a, s) => (dist(frameOf(s).at, b) < dist(frameOf(a).at, b) ? s : a)) : null;
-  world.ladybugs.push(b);
+  world.fliers.push(b);
   return b;
 };
 
-// The nearest ladybug within reach of (x, y), to pick up or look at.
-export const ladybugAt = (world, x, y) => {
+// The nearest flier within reach of (x, y), to pick up or look at.
+export const flierAt = (world, x, y) => {
   let best = null;
-  for (const b of world.ladybugs) {
+  for (const b of world.fliers) {
     const d = Math.hypot(b.x - x, b.y - 1 - y);
-    if (d < 5 && (!best || d < best.d)) best = { d, ladybug: b };
+    if (d < 5 && (!best || d < best.d)) best = { d, flier: b };
   }
   return best;
 };
@@ -385,6 +428,8 @@ const arrive = (world, b) => {
     b.act = { kind: 'eat', ticks: 45, aphid: then.aphid };
   } else if (then.kind === 'pollen') {
     b.act = { kind: 'pollen', ticks: 300 + world.rand() * 400 };
+  } else if (then.kind === 'sap') {
+    b.act = { kind: 'sap', ticks: 400 + world.rand() * 400 };
   } else if (then.kind === 'rest') {
     b.act = { kind: 'rest', ticks: then.ticks };
   }
@@ -422,11 +467,11 @@ const forkTo = (world, kids, way) => {
   return kids.length ? pick(world.rand, kids) : null;
 };
 
-// Another ladybug just ahead on the same part: they stop and touch antennae.
+// Another flier just ahead on the same part: they stop and touch antennae.
 const meet = (world, b, len) => {
   if (b.met > 0) return false;
-  const size = ladybugShape(b.genome).len;
-  const other = world.ladybugs.find(
+  const size = flierShape(b.genome).len;
+  const other = world.fliers.find(
     (c) =>
       c !== b &&
       c.mode === 'tree' &&
@@ -453,7 +498,7 @@ const crawl = (world, b, way = null, obj = null) => {
   b.stride += speed;
   if (b.mode === 'ground') {
     const x = b.x + b.dir * speed;
-    const front = x + (b.dir * ladybugShape(b.genome).len) / 2;
+    const front = x + (b.dir * flierShape(b.genome).len) / 2;
     if (x < 2 || x > world.W - 3 || solid(world, front, b.y - 3) || wet(world, front, b.y - 1)) {
       b.dir = -b.dir;
       return 'blocked';
@@ -535,32 +580,56 @@ const head = (world, b) => {
 
 // Something to eat: the nearest aphid (nearer still if it's on the plant it's on), or with none about, the nearest
 // open flower's pollen.
-const seekFood = (world, b) => {
-  const here = b.perch?.obj;
-  let best = null;
-  for (const a of world.aphids) {
-    const d = dist(a, b) * (a.obj === here ? 0.5 : 1);
-    if (!best || d < best.d) best = { d, a };
-  }
-  const a = best?.a;
-  if (a) return goTo(b, { obj: a.obj, part: a.part, u: a.u, side: a.side }, { kind: 'eat', aphid: a });
-  const flowers = flowersOf(world);
-  if (!flowers.length) return null;
-  const flower = flowers.reduce((a, f) => (dist(frameOf(f).at, b) < dist(frameOf(a).at, b) ? f : a));
-  return goTo(b, flower, { kind: 'pollen' });
+const FOODS = {
+  aphids: (world, b) => {
+    const here = b.perch?.obj;
+    let best = null;
+    for (const a of world.aphids) {
+      const d = dist(a, b) * (a.obj === here ? 0.5 : 1);
+      if (!best || d < best.d) best = { d, a };
+    }
+    const a = best?.a;
+    return a && [{ obj: a.obj, part: a.part, u: a.u, side: a.side }, { kind: 'eat', aphid: a }];
+  },
+  pollen: (world, b) => {
+    const flowers = flowersOf(world);
+    if (!flowers.length) return null;
+    return [flowers.reduce((a, f) => (dist(frameOf(f).at, b) < dist(frameOf(a).at, b) ? f : a)), { kind: 'pollen' }];
+  },
+  // Somewhere along a stem of the plant it's on, or of the nearest plant, out of the water.
+  sap: (world, b) => {
+    const plants = world.objects.filter((o) => o.kind === 'plant' && o.stems.length);
+    if (!plants.length) return null;
+    const near = (a, o) => (dist(o.base, b) < dist(a.base, b) ? o : a);
+    const obj = b.perch?.obj.kind === 'plant' ? b.perch.obj : plants.reduce(near);
+    const spot = { obj, part: pick(world.rand, obj.stems), u: 0.2 + 0.6 * world.rand(), side: b.dir };
+    const { at } = frameOf(spot);
+    return wet(world, at.x, at.y) ? null : [spot, { kind: 'sap' }];
+  },
 };
 
-// A sociable one goes to rest next to another one resting on a plant or stick, so they bunch up.
+// Something to eat, what its kind likes best first: the nearest aphid (nearer still if it's on the plant it's on),
+// the nearest open flower's pollen, or sap.
+const seekFood = (world, b) => {
+  for (const food of DIETS[b.genome.kind]) {
+    const found = FOODS[food](world, b);
+    if (found) return goTo(b, ...found);
+  }
+  return null;
+};
+
+// A sociable one goes to rest next to another of its kind resting on a plant or stick, so they bunch up.
 const huddle = (world, b) => {
-  const resting = world.ladybugs.filter((c) => c !== b && c.mode === 'tree' && c.act?.kind === 'rest');
+  const kin = (c) => c !== b && c.genome.kind === b.genome.kind;
+  const resting = world.fliers.filter((c) => kin(c) && c.mode === 'tree' && c.act?.kind === 'rest');
   if (!resting.length) return null;
   const c = pick(world.rand, resting);
-  const gap = (ladybugShape(b.genome).len + 0.5) / frameOf(c.perch).len;
+  const gap = (flierShape(b.genome).len + 0.5) / frameOf(c.perch).len;
   const u = c.perch.u + (c.perch.u > 0.5 ? -gap : gap);
   return goTo(b, { ...c.perch, u: Math.min(1, Math.max(0, u)) }, { kind: 'rest', ticks: 900 + world.rand() * 1200 });
 };
 
-// Now and then it picks something to do, by its nature: hunt or find pollen when it's hungry, huddle up if it's
+// Now and then it picks something to do, by its nature: find something to eat when it's hungry, huddle up if it's
 // sociable, fly off somewhere else if it's a wanderer, bask at the top of whatever it's on if it's a lazy one, or
 // groom, or stretch its wings; or else just wander on, sometimes turning back.
 const decide = (world, b) => {
@@ -589,6 +658,7 @@ const decide = (world, b) => {
 const doAct = (world, b) => {
   const a = b.act;
   if (a.kind === 'eat' && !world.aphids.includes(a.aphid)) a.ticks = 0; // gone from under its nose
+  if (a.kind === 'sap') b.hunger = Math.max(0, b.hunger - SAP);
   if (a.kind === 'pollen') {
     b.hunger = Math.max(0, b.hunger - POLLEN);
     const st = b.perch?.part;
@@ -619,7 +689,9 @@ const live = (world, b) => {
   if (b.act) return doAct(world, b);
   if (--b.think <= 0) decide(world, b);
   if (b.act) return;
-  if (b.to && !there(world, b.to)) Object.assign(b, { to: null, then: null });
+  // Gone, or (going for pollen) the flower's closed or going over: think again.
+  const over = b.to && b.then?.kind === 'pollen' && (b.to.part.flower < 1 || b.to.part.wilt > 0.2);
+  if (b.to && (!there(world, b.to) || over)) Object.assign(b, { to: null, then: null, think: 0 });
   if (b.to) return head(world, b);
   // Wandering: at a tip it turns back, or a wanderer may take off from it.
   if (crawl(world, b) === 'tip') {
@@ -698,7 +770,7 @@ const land = (world, b, to) => {
   arrive(world, b);
 };
 
-// Water's no place for a ladybug: playing dead or not, it's off somewhere else.
+// Water's no place for a flier: playing dead or not, it's off somewhere else.
 const offWater = (world, b) => {
   Object.assign(b, { dead: 0, to: elsewhere(world, b), then: null });
   airborne(b, true);
@@ -723,14 +795,17 @@ export const letGo = (world, b) => {
   }
 };
 
-// Something sudden at (x, y): the ladybugs near it fly off if they're bold, or drop and play dead.
-export const startleLadybugs = (world, x, y, reach = 30) => {
-  for (const b of world.ladybugs) {
+// Something sudden at (x, y): the fliers near it fly off if they're bold; if not, a shield bug stays put and lets off
+// a stink, and the others drop and play dead.
+export const startleFliers = (world, x, y, reach = 30) => {
+  for (const b of world.fliers) {
     if ((b.mode !== 'tree' && b.mode !== 'ground') || Math.hypot(b.x - x, b.y - y) > reach) continue;
     Object.assign(b, { act: null, then: null });
     if (b.genome.boldness > 0.5) {
       b.to = elsewhere(world, b);
       b.act = { kind: 'lift', ticks: 8 };
+    } else if (b.genome.kind === 'shieldbug') {
+      b.act = { kind: 'stink', ticks: 120 };
     } else {
       airborne(b, false);
       b.dead = 200 + world.rand() * 300;
@@ -754,12 +829,12 @@ const pose = (b) => {
   b.wings += (open - b.wings) * 0.25;
 };
 
-// A tick for the aphids and every ladybug.
-export const stepLadybugs = (world) => {
+// A tick for the aphids and every flier.
+export const stepFliers = (world) => {
   stepAphids(world);
-  for (const b of world.ladybugs) {
+  for (const b of world.fliers) {
     b.hunger = Math.min(1, b.hunger + HUNGER * (0.6 + 0.8 * b.genome.appetite));
-    if (world.held?.ladybug === b) {
+    if (world.held?.flier === b) {
       hold(world, b);
       continue;
     }

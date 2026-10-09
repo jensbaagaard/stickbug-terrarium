@@ -10,7 +10,7 @@ sand, snow and water, decorate it from the shop, and tune everything.
 npm install
 npm run dev     # local dev server
 npm run build   # static build in dist/
-npm run check   # checks the pointer's marks, pulling plants, flowering under water, clump plants, the fish, bugs' footing, the tank's life, and the ladybugs
+npm run check   # checks the pointer's marks, pulling plants, flowering under water, clump plants, the fish, bugs' footing, the tank's life, and the fliers
 npm run stress  # times the simulation on a tank packed with everything (`node src/stress.js 3`: 3x the plants)
 ```
 
@@ -59,17 +59,22 @@ Shop, Garden (Prune, Relocate, Propagate and Feed), Saves and Settings. The game
   inspect it (hunger, speed, size, boldness and shoaling), drag one to move it. Feed (Garden) sprinkles flakes on
   the water above them; they float a while, then sink, and the fish race for them. Between feedings they eat
   crumbs that fall in.
-- Ladybugs, each with its own genome: mostly red or orange with black spots (two, seven, ten or more), some yellow with
-  lots of spots, pink, or black with red ones, a harlequin's white collar now and then, a few spotless, and rarest of
-  all a metallic steel blue or gold; and a nature (speed, appetite, boldness, sociability, wanderlust, activity). Let
-  one go and it flies to the nearest plant or stick. They clamber about the plants and sticks, climb to the top of
+- Fliers: three kinds of small flying bug sharing one way of life, each with its own genome: a nature (speed, appetite,
+  boldness, sociability, wanderlust, activity) and its kind's looks. Ladybugs are mostly red or orange with black spots
+  (two, seven, ten or more), some yellow with lots of spots, pink, or black with red ones, a harlequin's white collar
+  now and then, a few spotless, and rarest of all a metallic steel blue or gold. Shield bugs are flat, green or brown
+  with a banded edge, now and then a pale tip, rarer a red one striped across, and rarest a metallic blue. Soldier
+  beetles are long and narrow, mostly orange with dark wing tips, some slate grey with an orange collar, yellow or red.
+  Let one go and it flies to the nearest plant or stick. They clamber about the plants and sticks, climb to the top of
   whatever they're on before they take off, and fly from one to another, finding their way through the air round the
   terrain (out of nooks and caves too). Now and then aphids settle on a plant and breed (a plant crawling with them
-  drops its leaves sooner): a hungry ladybug hunts them down, and with none about eats pollen at the open flowers. They
-  bask at the tips, groom, stretch their wings, huddle up together to rest, and stop to touch antennae when they meet on
-  a stem, then one turns back and the other goes round. Tap the glass near one and it flies off if it's bold, or drops
-  and plays dead on its back if it's not; dropping toward water, it gets its wings out and flies off. Tap one to inspect
-  it (hunger, speed, size, boldness and wanderlust), drag one to pick it up.
+  drops its leaves sooner): a hungry ladybug hunts them down, and with none about eats pollen at the open flowers; a
+  soldier beetle goes for the pollen first, and the aphids when there's none; a shield bug sips sap from the stems. They
+  bask at the tips, groom, stretch their wings, huddle up with their own kind to rest, and stop to touch antennae when
+  they meet on a stem, then one turns back and the other goes round. Tap the glass near one and it flies off if it's
+  bold, or if it's not drops and plays dead on its back (a shield bug stays put and lets off a stink); dropping toward
+  water, it gets its wings out and flies off. Tap one to inspect it (hunger, speed, size, boldness and wanderlust), drag
+  one to pick it up.
 - Drag a plant, vine or grass to pull it about, a bit like Aqua Box: it bends toward the pointer and springs back
   when you let go.
 - Tap a branch, stick or plant to prune it there; whatever stood on a cut-off piece comes down with it. The Prune
@@ -80,20 +85,20 @@ Shop, Garden (Prune, Relocate, Propagate and Feed), Saves and Settings. The game
 - Propagate (Gardening): fully grown flowering plants get a blinking green plus. Tap one, then tap where a seedling
   of the same species should go; the parent is cut back to a seedling too, so both grow again. Tap the plant again
   or press Esc to cancel.
-- Shop: four bugs (stick insects, or now and then ladybugs), four fish, four plants, four sticks and four wallpapers on
-  show, each with a picture and a price (rarer ones cost more), plus fountains. Pick one and tap the tank to put it in;
-  Reroll shop fills the shop with new ones. Plants and sticks stand on whatever is below where you tap, terrain
-  included. Sticks come in eight styles: a crooked branch, a fork, an arch to walk over, a low driftwood log, twisty red
-  manzanita, bamboo canes ringed at their nodes, a fan of spiderwood roots and a holey cholla skeleton, in a dozen
-  woods. A stick keeps its shape as you carry it about; one that would poke out of the tank is cut off where it meets
-  the glass, like a stick leaning against it. Wallpaper goes up on the back of the tank as soon as you buy it, and is
-  kept: every one you've bought shows in a row under the wallpapers on offer, with plain black, to put back up for free.
-  Wallpapers come as patterns (stripes, dots, diagonals, gingham, waves, scales, brick, plaid, argyle, herringbone) or
-  scenes (dusk, hills, a snowy night, a pine forest, mountains, desert dunes, under the sea, an aurora, city lights, a
-  ringed planet, a jungle), kept dim so the tank stands out, except now and then a rare vivid one in intense colours
-  (and dearer). Under the snowy night it snows in the tank too. A fountain is a little block that goes exactly where you
-  tap, even in mid-air, and pours out water forever, like Powder Game's clone; erase it in the Editor. The only way to
-  earn coins is to grow plants and sell the clippings.
+- Shop: four bugs (stick insects, or now and then a ladybug, shield bug or soldier beetle), four fish, four plants, four
+  sticks and four wallpapers on show, each with a picture and a price (rarer ones cost more), plus fountains. Pick one
+  and tap the tank to put it in; Reroll shop fills the shop with new ones. Plants and sticks stand on whatever is below
+  where you tap, terrain included. Sticks come in eight styles: a crooked branch, a fork, an arch to walk over, a low
+  driftwood log, twisty red manzanita, bamboo canes ringed at their nodes, a fan of spiderwood roots and a holey cholla
+  skeleton, in a dozen woods. A stick keeps its shape as you carry it about; one that would poke out of the tank is cut
+  off where it meets the glass, like a stick leaning against it. Wallpaper goes up on the back of the tank as soon as
+  you buy it, and is kept: every one you've bought shows in a row under the wallpapers on offer, with plain black, to
+  put back up for free. Wallpapers come as patterns (stripes, dots, diagonals, gingham, waves, scales, brick, plaid,
+  argyle, herringbone) or scenes (dusk, hills, a snowy night, a pine forest, mountains, desert dunes, under the sea, an
+  aurora, city lights, a ringed planet, a jungle), kept dim so the tank stands out, except now and then a rare vivid one
+  in intense colours (and dearer). Under the snowy night it snows in the tank too. A fountain is a little block that
+  goes exactly where you tap, even in mid-air, and pours out water forever, like Powder Game's clone; erase it in the
+  Editor. The only way to earn coins is to grow plants and sell the clippings.
 - Plants come in four types, each with its own genome: flowering plants that grow node by node; clump plants, a
   crown of leaves straight from the ground that grows a few leaves at a time until it's full, then its flower stalks
   or runners (a bird of paradise with big paddle leaves and orange-crested flowers; a tall tussock of grass that
@@ -153,10 +158,10 @@ Shop, Garden (Prune, Relocate, Propagate and Feed), Saves and Settings. The game
   changes what else happens. Pure logic, no DOM.
 - `src/fish.js` – guppies: their genome, price and names, and how they live: cruising and shoaling, food and
   grazing, resting, begging, fleeing, courting, and flopping when stranded. Pure logic, no DOM.
-- `src/ladybugs.js` – ladybugs: their genome, price and names, and how they live: clambering about the plants and
-  sticks, flying between them (a breadth-first search of the air for the way round the terrain), hunting aphids or
-  eating pollen, resting, huddling, meeting, playing dead and keeping out of the water; and the aphids. Pure logic, no
-  DOM.
+- `src/fliers.js` – the fliers (ladybugs, shield bugs and soldier beetles): their genomes, prices and names, and how
+  they live: clambering about the plants and sticks, flying between them (a breadth-first search of the air for the way
+  round the terrain), hunting aphids, eating pollen or sipping sap, resting, huddling, meeting, playing dead or
+  stinking, and keeping out of the water; and the aphids. Pure logic, no DOM.
 - `src/terrain.js` – the falling-sand grid (stone, sandstone, wood, ice, dirt, sand, snow, water, fountains):
   painting and stepping. `sim.js` traces its outline (and the open floor's) into the surfaces bugs walk on.
 - `src/decor.js` – random sticks (eight styles, with their own foliage), wallpapers (patterns and themed scenes, now

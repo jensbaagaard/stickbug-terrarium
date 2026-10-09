@@ -1,6 +1,7 @@
-// Run with `node src/ladybugs.check.js`: a ladybug put in flies to a plant or stick and lands on it, aphids settle on
+// Run with `node src/fliers.check.js`: a ladybug put in flies to a plant or stick and lands on it, aphids settle on
 // the plants and breed, a hungry ladybug hunts them down or with none about eats pollen, startled a shy one plays dead
-// and a bold one flies off, they save and load, dropped over water one flies off rather than fall in, one in a nook
+// and a bold one flies off, a soldier beetle goes for pollen first and a shield bug sips sap, a shy shield bug lets off
+// a stink, they save and load, dropped over water one flies off rather than fall in, one in a nook
 // behind a wall finds its way round it, in tanks full of caves and nooks none gets stuck, and in a busy tank with a
 // pond and a fountain none of them goes hungry or into the water.
 import assert from 'node:assert/strict';
@@ -16,7 +17,7 @@ import {
   startPlacing,
   step,
 } from './sim.js';
-import { ladybugShape, startleLadybugs } from './ladybugs.js';
+import { flierShape, startleFliers } from './fliers.js';
 import { cellAt, EMPTY, paintTerrain, WATER } from './terrain.js';
 import { mulberry32 } from './geom.js';
 import { stressWorld } from './stress.js';
@@ -28,14 +29,14 @@ const steps = (world, n, each = () => {}) => {
     each();
   }
 };
-// A ladybug from the shop's bugs, let go at (x, y).
-const putIn = (world, x, y) => {
+// A flier of the given kind from the shop's bugs, let go at (x, y).
+const putIn = (world, x, y, kind = 'ladybug') => {
   let offer;
-  while (!(offer = world.shop.bug.find((o) => !o.sold && o.type === 'ladybug'))) buyReroll(world);
+  while (!(offer = world.shop.bug.find((o) => !o.sold && o.genome?.kind === kind))) buyReroll(world);
   startPlacing(world, 'bug', offer);
   pointerDown(world, x, y);
   pointerUp(world, x, y);
-  return world.ladybugs.at(-1);
+  return world.fliers.at(-1);
 };
 
 {
@@ -75,7 +76,7 @@ const putIn = (world, x, y) => {
   // Startled, a shy one drops and plays dead on its back, then gets up again; a bold one flies off.
   lady.genome.boldness = 0;
   steps(world, 600);
-  startleLadybugs(world, lady.x, lady.y);
+  startleFliers(world, lady.x, lady.y);
   assert.ok(lady.mode === 'air' && !lady.flying, 'a shy one drops');
   let onBack = false;
   steps(world, 300, () => (onBack ||= lady.mode === 'back'));
@@ -84,7 +85,7 @@ const putIn = (world, x, y) => {
   assert.notEqual(lady.mode, 'back', 'then gets up');
   lady.genome.boldness = 1;
   steps(world, 1200);
-  startleLadybugs(world, lady.x, lady.y);
+  startleFliers(world, lady.x, lady.y);
   let flew = false;
   steps(world, 60, () => (flew ||= lady.mode === 'air' && lady.flying));
   assert.ok(flew, 'a bold one flies off');
@@ -105,13 +106,40 @@ const putIn = (world, x, y) => {
   // Saved and loaded, it comes back and lands again.
   const loaded = importWorld(JSON.parse(JSON.stringify(exportWorld(world))), 256, 341);
   assert.deepEqual(
-    loaded.ladybugs.map((b) => [b.name, b.genome]),
+    loaded.fliers.map((b) => [b.name, b.genome]),
     [[lady.name, lady.genome]],
     'saved and loaded',
   );
   let back = false;
-  steps(loaded, 1200, () => (back ||= loaded.ladybugs[0].mode === 'tree'));
+  steps(loaded, 1200, () => (back ||= loaded.fliers[0].mode === 'tree'));
   assert.ok(back, 'and lands again');
+  params.aphids = 1;
+}
+
+{
+  // A hungry soldier beetle goes to the flowers for pollen, even with aphids about; a hungry shield bug sips sap from a
+  // stem. Startled, a shy shield bug doesn't drop: it stays put and lets off a stink.
+  params.aphids = 5;
+  const world = createWorld(256, 341, { seed: 2 });
+  world.coins = 1e6;
+  steps(world, 12000); // grown, in flower, and aphids on it
+  assert.ok(world.aphids.length > 0);
+  const soldier = putIn(world, 60, 120, 'soldier');
+  const shield = putIn(world, 200, 120, 'shieldbug');
+  soldier.hunger = shield.hunger = 1;
+  let [soldierAte, shieldAte] = [null, null];
+  steps(world, 6000, () => {
+    soldierAte ??= ['pollen', 'eat'].find((k) => soldier.act?.kind === k) ?? null;
+    shieldAte ??= ['sap', 'eat', 'pollen'].find((k) => shield.act?.kind === k) ?? null;
+  });
+  assert.equal(soldierAte, 'pollen', 'a soldier beetle goes for pollen');
+  assert.equal(shieldAte, 'sap', 'a shield bug sips sap');
+  assert.ok(soldier.hunger < 0.8 && shield.hunger < 0.8, 'and they are fed');
+  shield.genome.boldness = 0;
+  steps(world, 300);
+  startleFliers(world, shield.x, shield.y);
+  assert.equal(shield.act?.kind, 'stink', 'startled, a shy shield bug lets off a stink');
+  assert.equal(shield.mode, 'tree', 'where it is');
   params.aphids = 1;
 }
 
@@ -159,7 +187,7 @@ const putIn = (world, x, y) => {
   const lady = putIn(world, 60, 225);
   const cell = (x, y) => world.terrain.cells[cellAt(world.terrain, x, y)];
   const rock = (x, y) => y >= floor || ![undefined, EMPTY, WATER].includes(cell(x, y));
-  const { len, high } = ladybugShape(lady.genome);
+  const { len, high } = flierShape(lady.genome);
   const body = () => [[0, 1], [0.5 - len / 2, 1], [len / 2 - 0.5, 1], [0, high - 0.5]];
   let [inWall, onPlant] = [0, false];
   steps(world, 6000, () => {
@@ -196,17 +224,17 @@ const caves = (layout) => {
   for (const x of [30, 80, 130, 180, 230]) place('plant', 'plant', x, floor - 200);
   place('stick', 'stick', 120, floor - 150);
   steps(world, 4000);
-  for (let i = 0; i < 8; i++) place('bug', 'ladybug', 20 + i * 30, floor - 40 - r() * 100);
-  const flying = world.ladybugs.map(() => 0);
+  for (let i = 0; i < 8; i++) place('bug', 'flier', 20 + i * 30, floor - 40 - r() * 100);
+  const flying = world.fliers.map(() => 0);
   let longest = 0;
   steps(world, 20000, () =>
-    world.ladybugs.forEach((b, i) => {
+    world.fliers.forEach((b, i) => {
       flying[i] = b.mode === 'air' ? flying[i] + 1 : 0;
       longest = Math.max(longest, flying[i]);
     }),
   );
   assert.ok(longest < 1800, `layout ${layout}: no flight goes on and on (${longest} ticks)`);
-  assert.ok(world.ladybugs.every((b) => b.hunger < 0.9), `layout ${layout}: none goes hungry`);
+  assert.ok(world.fliers.every((b) => b.hunger < 0.9), `layout ${layout}: none goes hungry`);
 };
 caves(4);
 caves(5);
@@ -218,9 +246,9 @@ caves(5);
   const world = stressWorld(1);
   const wet = (b) => world.terrain.cells[cellAt(world.terrain, b.x, b.y - 1)] === WATER;
   let soaked = 0;
-  steps(world, 20000, () => (soaked += world.ladybugs.filter(wet).length));
-  assert.ok(world.ladybugs.every((b) => b.hunger < 0.9), 'none goes hungry');
-  assert.ok(soaked / (20000 * world.ladybugs.length) < 0.01, 'or into the water');
+  steps(world, 20000, () => (soaked += world.fliers.filter(wet).length));
+  assert.ok(world.fliers.every((b) => b.hunger < 0.9), 'none goes hungry');
+  assert.ok(soaked / (20000 * world.fliers.length) < 0.01, 'or into the water');
   Object.assign(params, saved);
 }
 

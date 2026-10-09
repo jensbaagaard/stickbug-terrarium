@@ -56,17 +56,17 @@ import {
 import { feedFish, fishAt, fishShape, guppyName, guppyPrice, makeGuppy, newFish, startle, stepFish } from './fish.js';
 import { ripple, stepLife, wind } from './life.js';
 import {
-  addLadybug,
-  ladybugAt,
-  ladybugName,
-  ladybugPrice,
-  ladybugShape,
+  addFlier,
+  flierAt,
+  flierName,
+  flierPrice,
+  flierShape,
   letGo,
-  makeLadybug,
-  newLadybug,
-  startleLadybugs,
-  stepLadybugs,
-} from './ladybugs.js';
+  makeFlier,
+  newFlier,
+  startleFliers,
+  stepFliers,
+} from './fliers.js';
 
 export { feedFish };
 
@@ -504,7 +504,7 @@ export const createWorld = (W, H, { seed = Date.now(), scene = true } = {}) => {
     bugs: [],
     fish: [],
     flakes: [], // fish food
-    ladybugs: [],
+    fliers: [], // ladybugs and the other small flying bugs
     aphids: [], // on the plants, for the ladybugs
     junctions: [],
     time: 0,
@@ -705,7 +705,7 @@ const build = (world, kind, seed, x, y, genes) => {
   const rand = mulberry32(seed);
   if (kind === 'bug') return { kind, base: { x, y }, genes };
   if (kind === 'fish') return { kind, base: { x, y }, genome: genes }; // let go where you tap, in water or not
-  if (kind === 'ladybug') return { kind, base: { x, y }, genome: genes }; // let go where you tap, to fly off
+  if (kind === 'flier') return { kind, base: { x, y }, genome: genes }; // let go where you tap, to fly off
   // A fountain goes where you tap, mid-air or not; base is under the middle of the block.
   if (kind === 'fountain') {
     const box = fountainAt(world.terrain, x, y);
@@ -814,7 +814,7 @@ export const startPlacing = (world, kind, offer = null) => {
   const same = world.placing?.kind === kind && world.placing.offer === offer;
   const full =
     (kind === 'bug' && world.bugs.length >= params.maxBugs) ||
-    (kind === 'ladybug' && world.ladybugs.length >= params.maxLadybugs);
+    (kind === 'flier' && world.fliers.length >= params.maxFliers);
   const ok = !same && !full && !offer?.sold && world.coins >= price;
   const seed = offer?.seed ?? Math.floor(world.rand() * 2 ** 31);
   world.placing = ok ? { kind, offer, price, seed, at: world.time } : null;
@@ -848,7 +848,7 @@ export const hangWallpaper = (world, wp) => {
 
 const placeItem = (world, x, y) => {
   const { kind, seed, offer, price } = world.placing;
-  const decor = !['bug', 'fish', 'ladybug', 'fountain'].includes(kind) && build(world, kind, seed, x, y);
+  const decor = !['bug', 'fish', 'flier', 'fountain'].includes(kind) && build(world, kind, seed, x, y);
   if (decor === null) return; // nothing to stand on near there: keep holding it
   world.placing = null;
   if (world.coins < price || offer?.sold) return;
@@ -856,9 +856,9 @@ const placeItem = (world, x, y) => {
     if (!addBug(world, x, y, offer.genes, offer.name)) return; // the tank is full
   } else if (kind === 'fish') {
     world.fish.push(newFish(world, x, y, offer.genome, offer.name));
-  } else if (kind === 'ladybug') {
-    if (world.ladybugs.length >= params.maxLadybugs) return;
-    addLadybug(world, x, y, offer.genome, offer.name);
+  } else if (kind === 'flier') {
+    if (world.fliers.length >= params.maxFliers) return;
+    addFlier(world, x, y, offer.genome, offer.name);
   } else if (kind === 'fountain') {
     placeFountain(world.terrain, x, y, world.rand);
   } else {
@@ -872,10 +872,13 @@ const placeItem = (world, x, y) => {
 const makeOffer = (world, kind) => {
   const offer = { id: ++world.offers, kind, seed: Math.floor(world.rand() * 2 ** 31), sold: false };
   if (kind === 'bug') {
-    // Bugs come as stick insects or, now and then, ladybugs, each with its own genome.
-    if (world.rand() < 0.35) {
-      const genome = makeLadybug(mulberry32(offer.seed));
-      return { ...offer, type: 'ladybug', genome, name: ladybugName(world.rand), price: ladybugPrice(genome) };
+    // Bugs come as stick insects or one of the fliers (ladybugs, shield bugs and soldier beetles), each with its own
+    // genome.
+    const type = world.rand();
+    if (type < 0.55) {
+      const kind = type < 0.25 ? 'ladybug' : type < 0.4 ? 'shieldbug' : 'soldier';
+      const genome = makeFlier(mulberry32(offer.seed), kind);
+      return { ...offer, type: 'flier', genome, name: flierName(world.rand, kind), price: flierPrice(genome) };
     }
     const genes = randomGenes(world.rand, params.variety);
     const rarity = GENES.reduce((n, g) => n + Math.abs(genes[g.key]) / g.spread, 0) / GENES.length;
@@ -958,11 +961,11 @@ export const stageOffer = (world, offer) => {
       y1: Math.max(...ys) + pad,
     };
   };
-  if ((offer.type ?? offer.kind) === 'ladybug') {
+  if ((offer.type ?? offer.kind) === 'flier') {
     // On the floor, facing right.
-    const b = Object.assign(newLadybug(world, x, world.ground.y0, offer.genome), { mode: 'ground', dir: 1 });
-    world.ladybugs.push(b);
-    const { len, high } = ladybugShape(offer.genome);
+    const b = Object.assign(newFlier(world, x, world.ground.y0, offer.genome), { mode: 'ground', dir: 1 });
+    world.fliers.push(b);
+    const { len, high } = flierShape(offer.genome);
     return { x0: x - len / 2 - 1, x1: x + len / 2 + 2, y0: b.y - high - 2, y1: b.y + 1 };
   }
   if (offer.kind === 'bug') {
@@ -1665,9 +1668,9 @@ const bugAt = (world, x, y) => {
   return hit;
 };
 
-// The bug, fish or ladybug nearest (x, y), within reach.
+// The bug, fish or flier nearest (x, y), within reach.
 const creatureAt = (world, x, y) => {
-  const hits = [bugAt(world, x, y), fishAt(world, x, y), ladybugAt(world, x, y)].filter(Boolean);
+  const hits = [bugAt(world, x, y), fishAt(world, x, y), flierAt(world, x, y)].filter(Boolean);
   return hits.reduce((a, h) => (!a || h.d < a.d ? h : a), null);
 };
 
@@ -1709,7 +1712,7 @@ export const pointerDown = (world, x, y) => {
   if (hit) world.press = { ...hit, x, y };
   else world.touch = { x, y, hit: prunableAt(world, x, y, true) }; // a plant there, to pull if it's dragged
   if (!hit?.fish) startle(world, x, y); // a tap on the glass
-  if (!hit?.ladybug) startleLadybugs(world, x, y);
+  if (!hit?.flier) startleFliers(world, x, y);
 };
 
 // Take hold of a plant, vine or grass where it was pressed (hit, as prunableAt gives it), to pull it about: a
@@ -1735,8 +1738,8 @@ export const pointerMove = (world, x, y) => {
     world.press = null;
     if (press.fish) {
       world.held = { fish: press.fish };
-    } else if (press.ladybug) {
-      world.held = { ladybug: press.ladybug };
+    } else if (press.flier) {
+      world.held = { flier: press.flier };
     } else {
       detach(press.bug, 'held');
       world.held = { bug: press.bug, i: press.i };
@@ -1765,15 +1768,15 @@ export const pointerUp = (world, x, y) => {
     return;
   }
   if (world.press) {
-    world.selected = world.press.bug ?? world.press.fish ?? world.press.ladybug;
+    world.selected = world.press.bug ?? world.press.fish ?? world.press.flier;
     world.press = null;
     return;
   }
   if (world.held) {
-    const { bug, fish, ladybug } = world.held;
+    const { bug, fish, flier } = world.held;
     world.held = null;
     if (bug) setState(bug, 'fall', 0);
-    if (ladybug) letGo(world, ladybug);
+    if (flier) letGo(world, flier);
     if (fish) Object.assign(fish, { fear: 40, fearDelay: 0, from: { x, y: y - 5 } }); // let go, it shoots off
   }
   if (world.pull) {
@@ -1805,7 +1808,7 @@ export const aimAt = (world) => {
   const { x, y } = world.pointer;
   const tool = world.tool;
   const who = tool === 'hand' && creatureAt(world, x, y);
-  if (who) return { kind: who.bug ? 'bug' : who.fish ? 'fish' : 'ladybug' };
+  if (who) return { kind: who.bug ? 'bug' : who.fish ? 'fish' : 'flier' };
   if (tool === 'hand' || tool === 'prune') {
     const hit = prunableAt(world, x, y);
     return hit && { kind: 'cut', hit };
@@ -1928,7 +1931,7 @@ export const step = (world) => {
   }
   matchDancers(world);
   stepFish(world);
-  stepLadybugs(world);
+  stepFliers(world);
   stepCrumbs(world);
   stepDebris(world);
   stepLitter(world);
@@ -2494,21 +2497,21 @@ export const rerollGenes = (world, bug) => {
   bug.t = traitsOf(bug.genes);
 };
 
-// Let a bug, fish or ladybug go: it leaves the tank.
+// Let a bug, fish or flier go: it leaves the tank.
 export const release = (world, who) => {
   if (who.partner) who.partner.partner = null;
   world.bugs = world.bugs.filter((b) => b !== who);
   world.fish = world.fish.filter((f) => f !== who);
-  world.ladybugs = world.ladybugs.filter((b) => b !== who);
-  if (world.held?.bug === who || world.held?.fish === who || world.held?.ladybug === who) world.held = null;
+  world.fliers = world.fliers.filter((b) => b !== who);
+  if (world.held?.bug === who || world.held?.fish === who || world.held?.flier === who) world.held = null;
   if (world.selected === who) world.selected = null;
 };
 
-// What the panel shows: coins, the shop and tool state, and the selected bug, fish or ladybug.
+// What the panel shows: coins, the shop and tool state, and the selected bug, fish or flier.
 export const snapshot = (world) => {
   const bug = world.bugs.includes(world.selected) ? world.selected : null;
   const fish = world.fish.includes(world.selected) ? world.selected : null;
-  const ladybug = world.ladybugs.includes(world.selected) ? world.selected : null;
+  const flier = world.fliers.includes(world.selected) ? world.selected : null;
   return {
     W: world.W, // which size of tank it is
     H: world.H,
@@ -2525,11 +2528,11 @@ export const snapshot = (world) => {
     bugs: world.bugs.length,
     full: world.bugs.length >= params.maxBugs,
     fish: world.fish.length,
-    ladybugsFull: world.ladybugs.length >= params.maxLadybugs,
+    fliersFull: world.fliers.length >= params.maxFliers,
     selected:
       (bug && { kind: 'bug', name: bug.name, hunger: bug.hunger, genes: bug.genes, t: bug.t }) ||
       (fish && { kind: 'fish', name: fish.name, hunger: fish.hunger, genome: fish.genome }) ||
-      (ladybug && { kind: 'ladybug', name: ladybug.name, hunger: ladybug.hunger, genome: ladybug.genome }),
+      (flier && { kind: 'flier', name: flier.name, hunger: flier.hunger, genome: flier.genome }),
   };
 };
 
@@ -2605,7 +2608,7 @@ export const exportWorld = (world) => ({
     facing: bug.surf ? Math.sign(segDir(bug.surf).x * bug.dir) || 1 : 1,
   })),
   fish: world.fish.map((f) => ({ name: f.name, genome: f.genome, at: { x: f.x, y: f.y }, hunger: f.hunger })),
-  ladybugs: world.ladybugs.map((b) => ({ name: b.name, genome: b.genome, at: { x: b.x, y: b.y }, hunger: b.hunger })),
+  fliers: world.fliers.map((b) => ({ name: b.name, genome: b.genome, at: { x: b.x, y: b.y }, hunger: b.hunger })),
 });
 
 // The sizes a tank comes in, world px wide and tall (the large one on its side: wider than it's tall), and which
@@ -2635,8 +2638,12 @@ export const importWorld = (data, W, H) => {
     shop: data.shop,
     offers: data.offers,
   });
-  // Saved before there were fish: stock some.
+  // Saved before there were fish: stock some. Saved when every flier was a ladybug: they're ladybugs.
   if (world.shop) world.shop.fish ??= Array.from({ length: OFFERS }, () => makeOffer(world, 'fish'));
+  const oldLadybug = (genome) => ({ kind: 'ladybug', ...genome });
+  for (const o of world.shop?.bug ?? []) {
+    if (o.type === 'ladybug') Object.assign(o, { type: 'flier', genome: oldLadybug(o.genome) });
+  }
   const t = data.terrain;
   const n = t.cols * t.rows;
   const saved = { cols: t.cols, rows: t.rows, cells: unrle(t.cells, n), tint: unrle(t.tint, n) };
@@ -2691,10 +2698,10 @@ export const importWorld = (data, W, H) => {
     const { x, y } = at(f.at);
     world.fish.push(Object.assign(newFish(world, x, y, f.genome, f.name), { hunger: f.hunger }));
   }
-  // Ladybugs come back in the air where they were, and fly to the nearest place to land.
-  for (const b of data.ladybugs ?? []) {
+  // Fliers come back in the air where they were, and fly to the nearest place to land.
+  for (const b of data.fliers ?? data.ladybugs ?? []) {
     const { x, y } = at(b.at);
-    addLadybug(world, x, y - 2, b.genome, b.name).hunger = b.hunger;
+    addFlier(world, x, y - 2, oldLadybug(b.genome), b.name).hunger = b.hunger;
   }
   return world;
 };

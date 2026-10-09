@@ -142,10 +142,10 @@ export const GROUPS = [
     ],
   },
   {
-    title: 'Ladybugs',
+    title: 'Flying bugs',
     genes: false,
     sliders: [
-      ['maxLadybugs', 'Max ladybugs', 8, 7, 1],
+      ['maxFliers', 'Max flying bugs', 8, 7, 1],
       ['aphids', 'Aphids', 1, 1, 0.1], // multiplier on how often aphids settle on the plants, and breed
     ],
   },
