@@ -27,6 +27,9 @@ import { params } from './tuning.js';
 
 const SURVEY_TICKS = 120; // how often the tank is looked over again
 const LAND = 0.04; // share of the grid the ground must fill for the tank to take its character from it
+// The biomes' plant counts are for a small tank, and go up with the tank's area, to two thirds more in a large one:
+// a rainforest wants 12 plants in a small tank and 20 in a large.
+const [SMALL_TANK, LARGE_TANK] = [256 * 341, 512 * 384];
 const WILD_TICKS = 600; // how often a wild flower might seed itself
 const WILD_CHANCE = 0.02; // then, with the slider in the middle: about once in eight minutes, where it can
 const WILD_WORTH = 4; // a wild flower's clippings sell for this many times a common plant's
@@ -79,6 +82,7 @@ export const surveyOf = (world) => {
   const ground = cells.length - count[EMPTY] - count[WATER] - count[FOUNTAIN];
   const s = {
     at: world.time,
+    room: 1 + ((2 / 3) * (world.W * world.H - SMALL_TANK)) / (LARGE_TANK - SMALL_TANK),
     count,
     ground,
     land: ground >= cells.length * LAND,
@@ -98,6 +102,8 @@ export const surveyOf = (world) => {
 
 // The share of the ground that's any of these materials.
 const share = (s, ...ms) => ms.reduce((a, m) => a + s.count[m], 0) / (s.ground || 1);
+// At least n (for a small tank) plants, patches of grass or vines, scaled to this tank's size.
+const plants = (s, n) => Math.round(n * s.room);
 
 // The first water or ground going down at x, the y of it.
 const surfaceAt = (s, x) => s.tops[Math.min(s.tops.length - 1, Math.max(0, Math.floor(x / CELL)))].surface;
@@ -143,7 +149,7 @@ const BIOMES = [
   {
     key: 'rainforest',
     name: 'Rainforest',
-    test: (s) => s.green >= 10 && s.wet >= 0.05,
+    test: (s) => s.green >= plants(s, 12) && s.wet >= 0.05,
     goings: ['rain', 'mushrooms'],
     wild: ['corpseLily'],
     about: 'Thick with plants, with water. It rains now and then, and mushrooms come up.',
@@ -155,9 +161,9 @@ const BIOMES = [
       (s.land && share(s, STONE, BASALT, SANDSTONE, BROWNSTONE) >= 0.55) || // rocky crags
       (s.land && s.wet >= 0.08 && share(s, DIRT) >= 0.3) || // a wetland
       (s.land && share(s, WOOD) >= 0.2) || // a wood
-      (s.sticks >= 2 && s.green >= 4) ||
-      s.grass >= 2 || // a meadow
-      (s.land && share(s, DIRT) >= 0.35 && s.green >= 3),
+      (s.sticks >= 2 && s.green >= plants(s, 4)) ||
+      s.grass >= plants(s, 2) || // a meadow
+      (s.land && share(s, DIRT) >= 0.35 && s.green >= plants(s, 3)),
     goings: ['drips', 'wisps', 'rain', 'mushrooms', 'fluff'],
     wild: ['edelweiss', 'pinkLotus', 'ghostOrchid', 'goldenPoppy'],
     about:

@@ -13,8 +13,8 @@ import { params } from './tuning.js';
 
 // An empty tank (no plants, no bug), its bottom `deep` rows filled in by fill(r, c), r counted down from the top of
 // the fill.
-const tank = (fill, deep = 40) => {
-  const world = createWorld(256, 341, { seed: 3, scene: false });
+const tank = (fill, deep = 40, W = 256, H = 341) => {
+  const world = createWorld(W, H, { seed: 3, scene: false });
   const { cols, rows, cells } = world.terrain;
   for (let r = rows - deep; r < rows; r++) {
     for (let c = 0; c < cols; c++) cells[r * cols + c] = fill(r - (rows - deep), c, cols);
@@ -49,6 +49,16 @@ const steps = (world, n, each = () => {}) => {
   meadow.objects.push({ kind: 'grass', base: { x: 0, y: 0 } }, { kind: 'grass', base: { x: 0, y: 0 } });
   assert.equal(biome(meadow), 'wilds', 'a meadow');
   assert.equal(biome(tank((r, c, cols) => (c === 0 || c === cols - 1 ? STONE : WATER), 160)), 'sea');
+
+  // Thick with plants, with water, a rainforest: 12 plants in a small tank, 20 in a large one.
+  const planted = (world, n) => {
+    for (let i = 0; i < n; i++) world.objects.push({ kind: 'plant', base: { x: 0, y: 0 } });
+    return world;
+  };
+  assert.equal(biome(planted(tank(pond(DIRT, 14)), 11)), 'wilds');
+  assert.equal(biome(planted(tank(pond(DIRT, 14)), 12)), 'rainforest');
+  assert.equal(biome(planted(tank(pond(DIRT, 14), 40, 512, 384), 19)), 'wilds', 'not yet, in a large tank');
+  assert.equal(biome(planted(tank(pond(DIRT, 14), 40, 512, 384), 20)), 'rainforest');
 }
 
 {
