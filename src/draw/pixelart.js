@@ -1,5 +1,5 @@
 // The pixel-art basics everything is drawn with: a dab of px (plot), a line of them, a polyline coloured px by px
-// (strokeBy), sprites from rows of #, the 3x5 digits of coin popups, and a few shared colours.
+// (strokeBy), sprites from rows of #, and the 3x5 digits and colour of coin popups.
 import { THICKNESS } from '../anatomy.js';
 
 export const COIN = '#f2c94c';

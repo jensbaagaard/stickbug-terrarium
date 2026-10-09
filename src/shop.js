@@ -21,7 +21,7 @@ const SHOP_KINDS = ['bug', 'fish', 'plant', 'stick', 'wallpaper']; // showcased 
 export const OFFERS = 4;
 
 // What a shop item becomes if put down at (x, y). Bugs drop from there, vines hang from it; everything else
-// stands on the floor below, remembering what it stands on (on).
+// stands on what's below, remembering what it stands on (on).
 export const build = (world, kind, seed, x, y, genes) => {
   const rand = mulberry32(seed);
   if (kind === 'bug') return { kind, base: { x, y }, genes };
@@ -50,7 +50,7 @@ export const previewAt = (world, x = world.pointer.x, y = world.pointer.y) => {
 
 // Pick something to buy: an offer from the showcase, or a fixed-price item. Picking it again puts it back.
 export const startPlacing = (world, kind, offer = null) => {
-  kind = offer?.type ?? kind; // a plant offer may be grass or a vine
+  kind = offer?.type ?? kind; // a bug offer may be a flier; a plant offer grass, a vine or a clump plant
   const price = offer ? offer.price : PRICES[kind];
   const same = world.placing?.kind === kind && world.placing.offer === offer;
   const full =
@@ -104,12 +104,11 @@ export const placeItem = (world, x, y) => {
   if (offer) offer.sold = true;
 };
 
-// A showcased offer: a particular bug, plant, stick or wallpaper, priced by how special it is.
+// A showcased offer: a particular bug, fish, plant, stick or wallpaper, priced by how special it is.
 export const makeOffer = (world, kind) => {
   const offer = { id: ++world.offers, kind, seed: Math.floor(world.rand() * 2 ** 31), sold: false };
   if (kind === 'bug') {
-    // Bugs come as stick insects or one of the fliers (ladybugs, shield bugs and soldier beetles), each with its own
-    // genome.
+    // Stick insects or fliers (ladybugs, shield bugs and soldier beetles), each with its own genome.
     const type = world.rand();
     if (type < 0.55) {
       const kind = type < 0.25 ? 'ladybug' : type < 0.4 ? 'shieldbug' : 'soldier';
@@ -150,7 +149,8 @@ export const makeOffer = (world, kind) => {
     const wp = makeWallpaper(mulberry32(offer.seed));
     return { ...offer, name: wp.name, price: 6 + 2 * wp.detail + (wp.vivid ? 15 : 0) };
   }
-  const stick = makeStick(mulberry32(offer.seed), { x: world.W, y: world.ground.y0 }, 2 * world.W, world.H); // whole
+  // Priced by its pieces, so grown mid-way across a tank twice as wide, where the sides cut none of them off.
+  const stick = makeStick(mulberry32(offer.seed), { x: world.W, y: world.ground.y0 }, 2 * world.W, world.H);
   return { ...offer, name: stick.name, price: 4 + 2 * Math.min(stick.pieces.length, 12) };
 };
 

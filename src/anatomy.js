@@ -1,5 +1,5 @@
-// Body and leg geometry, shared by the simulation (which plants feet) and the renderer. Every function
-// takes a bug's traits t.
+// Body and leg geometry, shared by the simulation (which plants feet) and the renderer. Most functions take a bug's
+// traits t.
 import { add, dot, normalize } from './geom.js';
 
 export const SEGMENTS = 7; // body points, index 0 is the head

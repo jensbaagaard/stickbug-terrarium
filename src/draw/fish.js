@@ -75,7 +75,7 @@ const fishInk = (g, ink, shape, u, v, beat, time) => {
     }
     return vv < -hh * 0.35 ? ink.back : vv > hh * 0.4 ? ink.belly : ink.body;
   }
-  // The tail, sweeping side to side so it looks shorter and longer, and fluttering up and down a little.
+  // The tail, sweeping side to side so it looks shorter and longer.
   const t = (-half - u) / (tail * beat);
   const vt = v - (g.tail === 'veil' ? t * t * spread * 0.4 : 0); // a veil droops
   const h = TAIL_SHAPES[g.tail](Math.min(t, 1), ped, spread);

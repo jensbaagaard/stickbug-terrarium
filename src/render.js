@@ -1,7 +1,6 @@
-// Pixel-art canvas rendering of the whole tank, back to front (drawWorld): the wallpaper and the floor, plants and
-// sticks, the terrain, grass and vines, the biome's goings-on on the ground, the marks and previews, bugs and fallen
-// leaves, the water, fish, fliers and visitors, crumbs and debris, the marks under the pointer, coin popups, the air
-// and the tools' how-tos. How each is drawn lives in draw/.
+// Pixel-art canvas rendering of the whole tank, back to front (drawWorld): the wallpaper and floor, plants and sticks,
+// terrain, grass and vines, bugs, the water, fish and fliers, and over it all the marks, coin popups and how-tos. How
+// each is drawn lives in draw/.
 import { stickWidth } from './sticks.js';
 import { add } from './geom.js';
 import { aimAt, previewAt, relocationAt } from './sim.js';

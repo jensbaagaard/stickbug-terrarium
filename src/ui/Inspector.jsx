@@ -45,7 +45,7 @@ const statsOf = (who) => {
   ];
 };
 
-// The selected bug, fish or flier: its picture and a few of its traits as bars, plus what you can do with it.
+// The selected bug, fish or flier, and what you can do with it.
 export function Inspector({ who, onRelease, onClose }) {
   const canvas = useRef(null);
   const genes = who.genes ?? who.genome;

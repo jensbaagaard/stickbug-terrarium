@@ -92,9 +92,8 @@ export const tankSize = (W, H) => {
   return key;
 };
 
-// Build a tank from saved data, at this tank's size. Everything is kept on the floor and in the middle: if the tank
-// is taller or shorter than when it was saved, things move down or up with it, and wider or narrower, they keep to
-// the middle (and what no longer fits is lost).
+// Build a tank from saved data, at this tank's size: everything keeps to the floor and the middle, and what no
+// longer fits is lost.
 export const importWorld = (data, W, H, seed = undefined) => {
   const world = createWorld(W, H, { seed, scene: false });
   const dy = world.ground.y0 - (data.H - 6);

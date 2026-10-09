@@ -23,12 +23,9 @@ const spotsOf = (g, len) => {
 };
 
 // A flier side on: its shell over its feet at (b.x, b.y), turned to whatever it's on (b.fwd along it, b.up away from
-// it), with its collar and head in front, its legs under it, stepping as it walks, and a shield bug's or soldier
-// beetle's long feelers. A ladybug's shell is a spotted dome; a shield bug's a low shield, flat on top and sloping to
-// the front, its edge banded (or striped right across) and now and then a pale tip to it; a soldier beetle's long and
-// low, often dark at the tips. To fly its wing cases lift and its wings beat out behind, up and down; on its back,
-// playing dead, it's upside down with its legs in the air. Every pixel round it is looked up in its own frame, like a
-// fish's.
+// it), with its collar and head in front and its legs under it, stepping as it walks. To fly its wing cases lift and
+// its wings beat out behind; on its back, playing dead, its legs are in the air. Every pixel round it is looked up in
+// its own frame, like a fish's.
 export const drawFlier = (ctx, world, b) => {
   const g = b.genome;
   const { len, high } = flierShape(g);

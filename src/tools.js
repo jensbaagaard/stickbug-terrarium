@@ -15,14 +15,15 @@ import { placeItem } from './shop.js';
 import { fling } from './effects.js';
 
 const GRAB_RADIUS = 16;
-const PRESS_SLOP = 3; // a press on a bug that moves further than this picks it up; otherwise it selects it
+const PRESS_SLOP = 3; // a press that moves further than this grabs the creature (else selects it) or pulls the plant
 const TAP_SLOP = 8; // a press that moves less than this is a tap
 
-// ---------- the brush ----------
+// ---------- tools and the brush ----------
 
 export const setBrush = (world, brush) => Object.assign(world.brush, brush);
 
-export const paintAt = (world, p) => paintTerrain(world.terrain, p.x, p.y, world.brush.material, world.brush.size, world.rand);
+export const paintAt = (world, p) =>
+  paintTerrain(world.terrain, p.x, p.y, world.brush.material, world.brush.size, world.rand);
 
 export const setTool = (world, tool) => {
   if (tool !== world.tool) world.demo = tool === 'hand' ? null : { kind: tool, at: world.time };
@@ -271,9 +272,9 @@ export const pointerCancel = (world) => {
   Object.assign(world, { held: null, press: null, touch: null, pull: null, cut: null, painting: false, moving: null });
 };
 
-// What a press at the pointer would do, to show it before it's done: grab a bug or fish, cut something there (hit, as
-// prunableAt gives it), lift a plant to move it, pick a plant to take a cutting from, or put down the plant
-// lifted or picked. Null if nothing, or the pointer isn't over the tank.
+// What a press at the pointer would do, to show it before it's done: grab a creature, cut something there (hit, as
+// prunableAt gives it), lift something to move it, pick a plant to take a cutting from, or put down what's lifted
+// or picked. Null if nothing, or the pointer isn't over the tank.
 export const aimAt = (world) => {
   if (!world.hover || world.placing || world.held || world.pull || world.cut || world.painting) return null;
   const { x, y } = world.pointer;
@@ -341,9 +342,8 @@ export const relocationAt = (world) => {
   return { obj: m.obj, loads, base: to.base, dx: to.base.x - m.obj.base.x, dy: to.base.y - m.obj.base.y };
 };
 
-// Move a stick so its base is at to.base, and everything it carries with it: what stands on it or hangs from it,
-// and the bugs walking on any of that (one rounding a corner just then lets go). Then any of it moved up so far
-// that it would poke out of the top of the tank is cut off there, as if it met the lid.
+// Move a stick so its base is at to.base, with everything it carries and the bugs walking on any of it (one
+// rounding a corner just then lets go). Whatever now pokes out of the top of the tank is cut off at LID.
 const moveStick = (world, stick, to) => {
   const [dx, dy] = [to.base.x - stick.base.x, to.base.y - stick.base.y];
   const loads = carried(world, stick);
@@ -388,7 +388,7 @@ const relocate = (world, obj, to) => {
   } else if (obj.kind === 'vine') {
     obj.nodes = obj.nodes.map((p) => ({ x: p.x + dx, y: p.y + dy, px: p.px + dx, py: p.py + dy }));
   } else {
-    // Each tuft settles onto whatever is below it; any that land off dirt or sand wither.
+    // Each tuft settles onto whatever is below it; any that land off soil wither.
     for (const tuft of obj.tufts) {
       tuft.x = clamp(tuft.x + dx, 1, world.W - 2);
       tuft.y = groundTop(world, tuft.x, tuft.y + dy - 3);

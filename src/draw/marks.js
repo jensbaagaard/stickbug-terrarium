@@ -34,7 +34,7 @@ export const drawReady = (ctx, world) => {
   ctx.globalAlpha = 1;
 };
 
-// The top of a plant or grass patch, or where a vine hangs from: where arrows over it point.
+// The top of a plant, stick or grass patch, or where a vine hangs from: where arrows over it point.
 const topOf = (obj) => {
   if (obj.kind === 'plant') return obj.stems.reduce((a, st) => (st.tip.y < a.y ? st.tip : a), obj.base);
   if (obj.kind === 'stick') {

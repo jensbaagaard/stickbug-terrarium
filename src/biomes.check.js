@@ -1,10 +1,10 @@
 // Run with `node src/biomes.check.js`: a tank takes its biome from what it's made of (sand, with a pond or not, or
-// brownstone a desert; snow a tundra; basalt volcanic; stone, dirt and water, wood, or dirt and plants (grass doesn't
-// count) the wilds; water all over a sea; anything else a garden). A biome's wild flowers come up at random, one of
-// each kind at most: in a desert a white lotus on the sand (which flowers) and a paintbrush, and by a pond a blue lotus
-// out of the shallows; in the wilds a pink lotus out of a pond's shallows. Which have turned up is saved. Each biome's
-// goings-on come and go, the tumbleweeds rolling over the ground (never into it) and the jellyfish keeping to the
-// water.
+// brownstone a desert; snow a tundra; basalt volcanic; plenty of plants and some water a rainforest; stone, dirt and
+// water, wood, or dirt and plants (grass doesn't count) the wilds; water all over a sea; anything else a garden). A
+// biome's wild flowers come up at random, one of each kind at most: in a desert a white lotus on the sand (which
+// flowers) and a paintbrush, and by a pond a blue lotus out of the shallows; in the wilds a pink lotus out of a pond's
+// shallows. Which have turned up is saved. Each biome's goings-on come, the tumbleweeds rolling over the ground (never
+// into it), the jellyfish keeping to the water, and snow in the tundra.
 import assert from 'node:assert/strict';
 import { createWorld, exportWorld, importWorld, step } from './sim.js';
 import { surveyOf } from './biomes.js';

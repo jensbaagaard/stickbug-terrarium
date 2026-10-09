@@ -1,11 +1,9 @@
-// Plants: flowering plants growing node by node (their leaves ageing and dropping, their flowers budding, opening and
-// wilting), clump plants growing a crown of leaves and then flower stalks or runners, grass spreading tuft by tuft,
-// and vines hanging as swaying ropes; how they sway and spring back when pulled, and pruning them. Pure data +
-// functions.
+// Plants: flowering plants growing node by node, their leaves ageing and flowers opening and wilting; clump plants
+// growing a crown of leaves, then flower stalks or runners; grass spreading tuft by tuft; and vines hanging as swaying
+// ropes. How they sway and spring back when pulled, and pruning them. Pure data + functions.
 import { params } from './tuning.js';
 import { add, clamp, dirOf, dist, lerp } from './geom.js';
 import { cellAt, EMPTY, WATER } from './terrain.js';
-import { wet } from './fish.js';
 import { wind } from './life.js';
 import { floorBelow, LEAF_GROWTH } from './surfaces.js';
 import { faceAt, groundTop, isSoil, removeObject, solidAt, wetAt } from './objects.js';
@@ -16,7 +14,7 @@ const LEAF_FADE = 1200; // ticks an old leaf takes to yellow before it drops
 const BLOOM_LIFE = 12000; // ticks a flower stays open, give or take half
 const WILT_TICKS = 1800; // ticks a flower takes to wilt, dropping its petals as it goes
 const REST_TICKS = 3600; // ticks a bare tip rests, give or take half, before it buds again
-const SPROUT_TICKS = 120; // a pruned stem waits this long before sprouting new shoots
+const SPROUT_TICKS = 120; // ticks a pruned stem waits before sprouting new shoots
 const CHAIN_SEG = 5; // px per segment of a clump plant's leaf, flower stalk or runner
 const CROWN_CHANCE = 1 / 200; // chance a tick that a clump plant with room for it starts a new leaf, stalk or runner
 const MAX_TUFTS = 400; // per grass patch
@@ -30,8 +28,6 @@ const VINE_CURRENT = 0.04; // and a vine's nodes, px per tick per tick
 const PLANT_WIND = 0.001; // how hard the breeze pushes a stem in the air, radians per tick per tick
 const VINE_WIND = 0.015; // and a vine's nodes, px per tick per tick
 const FLEX = 0.15; // how hard pulled grass springs back
-
-// ---------- plants ----------
 
 // Each tick every plant grows (and its leaves and flowers age), and every grass patch and vine.
 export const stepPlants = (world) => {
@@ -106,8 +102,8 @@ export const growPlant = (world, plant, rate) => {
   bendPlant(world, plant);
 };
 
-// A bud swells and opens into a flower, but only in the air: under water it closes up again, until the water's gone.
-// A bare tip doesn't bud while it rests after its last flower.
+// A bud swells and opens into a flower, but only in the air: under water it closes up again. A bare tip doesn't bud
+// while it rests after its last flower.
 const openFlower = (world, stem, rate) => {
   if (!stem.bud || stem.rest > 0) return;
   stem.flower = clamp(stem.flower + (wetAt(world.terrain, stem.tip) ? -0.01 : 0.002 * rate), 0, 1);
@@ -153,9 +149,8 @@ export const ageLeaves = (world, plant) => {
   Object.assign(leaf, { size: 0, age: 0, fade: 0 });
 };
 
-// Flowers come and go. An open flower lasts a while (its age counts up to the bloom life from somewhere either side
-// of 0, so no two last quite as long), then wilts, dropping its petals one by one, and the bare tip rests before it
-// buds and opens again. Not the baby plants at the ends of runners.
+// An open flower lasts a while (its age starts somewhere either side of 0, so no two last quite as long), then wilts,
+// dropping its petals one by one, and the bare tip rests before it buds again. Not the baby plants on runners.
 export const ageFlowers = (world, plant) => {
   const r = world.lifeRand;
   const life = BLOOM_LIFE * params.bloomLife;
@@ -484,7 +479,6 @@ export const mow = (world, patch, x, y, r = 6) => {
   let cut = 0;
   for (const tuft of patch.tufts) {
     if (Math.abs(tuft.x - x) > r || tuft.y < y - 2 || tuft.y - patch.genome.height > y + r) continue;
-    // It keeps what's below the cut; cut down to a stub, it dies.
     const kept = clamp((tuft.y - y) / patch.genome.height, 0, tuft.size);
     if (kept >= tuft.size) continue;
     cut += (tuft.size - kept) * patch.genome.height;

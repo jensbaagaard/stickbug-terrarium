@@ -109,7 +109,7 @@ export const deleteTank = (id) => {
   write(INDEX, (read(INDEX) ?? []).filter((s) => s.id !== id));
 };
 
-// Little settings remembered between visits (autosave, debug mode). Not remembering them is no great loss.
+// Little settings remembered between visits (autosave, debug mode, tank size). Not remembering them is no great loss.
 export const getSetting = (name, fallback) => read(`${PREFIX}:${name}`) ?? fallback;
 export const setSetting = (name, value) => {
   try {

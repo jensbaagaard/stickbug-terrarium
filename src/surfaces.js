@@ -16,7 +16,6 @@ import {
   segNormal,
 } from './geom.js';
 import { CELL, EMPTY, WATER } from './terrain.js';
-import { room } from './life.js';
 import { clampS, detach, resetLegs, setState } from './bugs.js';
 import { removeObject, wetAt } from './objects.js';
 
@@ -44,7 +43,7 @@ export const floorBelow = (world, x, y) => {
   return best ?? { y: world.ground.y0, g: world.ground };
 };
 
-// The outline of the open floor at x, or of the terrain over it there.
+// The outline along the open floor at x or, where the terrain covers it, the tank floor itself.
 export const floorAt = (world, x) => floorBelow(world, x, world.ground.y0 - 1).g;
 
 // A surface under water all along it: no way for a bug to go.
@@ -202,8 +201,8 @@ const simplify = (pts, tol) => {
 // or the tank floor under it). It's traced cell edge by cell edge with the open side on the left, so each run's
 // normal points out into the open (and it only ever goes right, up or down), then simplified into a few straight
 // runs. Floors, slopes and walls are kept; undersides, which nothing could stand on, are dropped, as are walls with
-// no room beside them (in a crack, or up against the tank's side). Unchanged runs keep their old objects, so bugs on
-// them don't notice a rebuild.
+// no room beside them (in a crack, or up against the tank's side). Unchanged segments keep their old objects, so
+// bugs on them don't notice a rebuild.
 const outlineSegs = (world, old) => {
   const ter = world.terrain;
   const { cols, rows } = ter;

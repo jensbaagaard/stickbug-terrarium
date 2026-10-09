@@ -121,7 +121,7 @@ const dotColor = (ter, water, scale, x, y, grain) => {
   return MATERIAL_COLORS[m][ter.tint[i]];
 };
 
-// Each terrain's drawing caches: its layers and its wood grain.
+// Each terrain's drawing caches: its layers, its wood grain and its water's surface.
 const layers = new WeakMap();
 const layersOf = (ter) => {
   let cache = layers.get(ter);

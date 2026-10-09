@@ -1,13 +1,12 @@
-// Random clump plant species: a crown of leaves straight from the ground, then flower stalks or runners, in fifteen
-// forms of house plant, each with its own names, leaves and habit. Pure generators.
+// Random clump plant species: house plants that grow a crown of leaves straight from the ground, then flower stalks
+// or runners. Pure generators.
 import { hsl, pick, range } from './geom.js';
 import { rareLeaves } from './species.js';
 
-// Clump plants grow a crown of leaves straight from the base instead of up a stem, plus flower stalks or runners
-// once the crown is full. Each form has its own names, leaf shape and habit; colours and sizes vary within it.
-// Lengths are px; leafWidth is half a leaf's width at its widest; fan is how far (radians) the outer leaves lean
-// from upright; curl how much each few px of a leaf turns toward hanging down, so a leaf arches over; crown is how
-// far either side of the middle leaves come out of the ground.
+// Each form has its own names, leaf shape and habit; colours and sizes vary within it. Lengths are px; leafWidth is
+// half a leaf's width at its widest; fan is how far (radians) the outer leaves lean from upright; curl how much each
+// few px of a leaf turns toward hanging down, so a leaf arches over; crown is how far either side of the middle
+// leaves come out of the ground.
 const CLUMP_FORMS = {
   // Big paddle leaves on long stalks, and now and then a stalk with an orange-crested bird of a flower.
   strelitzia: (rand) => ({
@@ -214,7 +213,7 @@ const CLUMP_FORMS = {
     curl: range(rand, 0.01, 0.03),
     premium: 6,
   }),
-  // Patterned paddles: dark feathered bars either side of the midrib.
+  // Patterned lance leaves: dark feathered bars either side of the midrib.
   calathea: (rand) => ({
     name: pick(rand, ['Calathea', 'Prayer plant', 'Rattlesnake plant', 'Peacock plant']),
     leaf: hsl(rand, [95, 130], [30, 45], [36, 44]),

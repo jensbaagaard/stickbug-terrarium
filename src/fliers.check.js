@@ -1,9 +1,8 @@
 // Run with `node src/fliers.check.js`: a ladybug put in flies to a plant or stick and lands on it, aphids settle on
 // the plants and breed, a hungry ladybug hunts them down or with none about eats pollen, startled a shy one plays dead
 // and a bold one flies off, a soldier beetle goes for pollen first and a shield bug sips sap, a shy shield bug lets off
-// a stink, they save and load, dropped over water one flies off rather than fall in, one in a nook
-// behind a wall finds its way round it, in tanks full of caves and nooks none gets stuck, and in a busy tank with a
-// pond and a fountain none of them goes hungry or into the water.
+// a stink, they save and load, dropped over water one flies off rather than fall in, one behind a wall finds its way
+// round it, in tanks full of caves and nooks none gets stuck, and in a busy tank none goes hungry or into the water.
 import assert from 'node:assert/strict';
 import {
   buyReroll,
@@ -199,7 +198,7 @@ const putIn = (world, x, y, kind = 'ladybug') => {
   params.aphids = 1;
 }
 
-// A tank full of stone shelves and blobs, nooks and caves, with plants and a stick among them and eight ladybugs let go
+// A tank full of stone shelves and blobs, nooks and caves, with plants and a stick among them and eight fliers let go
 // at random: none of them gets stuck flying anywhere, or goes hungry. Layout 4 has perches tucked in against the rock,
 // layout 5 a pocket sealed off from the rest.
 const caves = (layout) => {
@@ -240,8 +239,7 @@ caves(4);
 caves(5);
 
 {
-  // A tank full of everything, a fountain topping up a pond: they get about it, feed, and don't get stuck in the
-  // water or anywhere else.
+  // A tank full of everything, a fountain topping up a pond: the fliers feed, and keep out of the water.
   const saved = { ...params };
   const world = stressWorld(1);
   const wet = (b) => world.terrain.cells[cellAt(world.terrain, b.x, b.y - 1)] === WATER;

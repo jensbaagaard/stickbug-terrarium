@@ -110,8 +110,8 @@ export default function App() {
   const tabRef = useRef(tab);
   tabRef.current = tab;
 
-  // Swap in another tank, with the current tab's tool: a saved one, or a fresh one, the same size as the one on
-  // screen unless dims ([W, H]) says otherwise.
+  // Swap in another tank, saved or fresh, with the current tab's tool, the same size as the one on screen unless dims
+  // ([W, H]) says otherwise.
   const swap = (make, dims = [world.current.W, world.current.H]) => {
     world.current = make(...dims);
     setTool(world.current, TOOL_FOR_TAB[tabRef.current] ?? 'hand');

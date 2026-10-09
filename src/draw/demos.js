@@ -7,8 +7,8 @@ import { CUT, drawBrush, drawPreview, dropArrow, POINTER, READY, READY_GREEN } f
 import { COIN, GLYPHS, plot, sprite } from './pixelart.js';
 import { MATERIAL_COLORS } from './terrain.js';
 
-// Picking a tool shows how it's used: a little ghost animation in the middle of the tank, straight over whatever
-// is there, played once and stopped by a press in the tank. Each is drawn from its age in ticks, around (0, 0).
+// Each how-to plays in the middle of the tank, straight over whatever is there, and a press in the tank stops it.
+// It's drawn from its age in ticks, around (0, 0).
 
 const DEMO_HEIGHT = 25; // px from the demo plant's base to the top of its flower
 const SEEDLING = 0.36; // the share of that a seedling has

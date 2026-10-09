@@ -1,10 +1,7 @@
-// Visitors: small bugs that come and go on their own when the tank has what they're after. Now and then a dragonfly
-// comes to still water and stays a while, darting from one spot over it to hover at the next, now and then dipping to
-// touch the surface or resting on a stem tip nearby, before it flies off again; now and then a bee comes in to work the
-// open flowers, landing on one after another, and goes off again with its legs laden with pollen; and gnats dance in
-// little clouds over the plants. How many come goes with how green the tank is and how much of it is air (see life.js's
-// room). Tapped near, they make off. They draw on the tank's life's own random numbers, and none of them is saved: they
-// come back on their own. Pure data + functions, like the rest of the simulation.
+// Visitors: small bugs that come and go on their own when the tank has what they're after: dragonflies to still water,
+// bees to open flowers, and gnats dancing over the plants. How many come goes with how green the tank is and how much
+// of it is air (see life.js's room). They draw on the tank's life's own random numbers, and none of them is saved:
+// they come back on their own. Pure data + functions, like the rest of the simulation.
 import { dist, pick } from './geom.js';
 import { CELL, cellAt, EMPTY, WATER } from './terrain.js';
 import { ripple, room, wind } from './life.js';
@@ -13,7 +10,7 @@ import { params } from './tuning.js';
 
 const ARRIVE_TICKS = 300; // how often a visitor might turn up
 const POND_TICKS = 120; // how often the water is looked over for still ponds
-const MIN_POND = 30; // px across a still pond must be for a dragonfly
+const MIN_POND = 30; // px across open water must be to count as a pond
 const STILL = 0.85; // share of a pond's surface that mustn't have moved since the last look, for it to be still
 const REPLAN_TICKS = 60;
 const LOST_TICKS = 300; // no pond for a dragonfly this long (not just a level bobbing a moment), it leaves early
@@ -24,8 +21,8 @@ const LOST_TICKS = 300; // no pond for a dragonfly this long (not just a level b
 const looks = new WeakMap(); // by world: the ponds when the water was last looked over, and its surface then
 
 // The tank's ponds: stretches of open water surface at least MIN_POND px across, {x0, x1, y: the water's top}, each
-// still if hardly any of its surface (STILL of it, at least) has moved since the last look: splashes where a fountain
-// or a trickle comes in don't count, but a pond filling or draining does.
+// still if at least STILL of its surface hasn't moved since the last look, so a splash where a fountain or a trickle
+// comes in doesn't count, but a pond filling or draining does.
 const pondsOf = (world) => {
   const known = looks.get(world);
   if (known && world.time - known.at < POND_TICKS) return known.ponds;
@@ -52,8 +49,8 @@ const pondsOf = (world) => {
   return ponds;
 };
 
-// The pond visitor v came to as it is now, if it's still there (still or not: that only matters for coming to it), or
-// if a splash or the like has broken it up, the piece of it nearest v.
+// The pond v came to as it is now (still or not: that only matters for coming to it), or if a splash has broken it
+// up, the piece of it nearest v; null if it's gone.
 const pondNow = (world, v) => {
   const was = v.pond;
   const near = (p) => Math.max(p.x0 - v.x, v.x - p.x1, 0);
@@ -80,7 +77,7 @@ const flyTo = (world, v, p, speed, turn = 0.15) => {
   return v.way.length === 1 && dist(p, v) < 1.5;
 };
 
-// Make for p, a new place.
+// Make for somewhere new, `to`, in `state`.
 const head = (v, state, to) => Object.assign(v, { state, to, way: null });
 
 // Off out of the top of the tank (or the side it's nearest, for a bee), and gone once it's out.
@@ -131,7 +128,7 @@ const stepDragonfly = (world, v) => {
   const near = (p) => Math.abs((p.x0 + p.x1) / 2 - v.x) + Math.abs(p.y - v.y);
   const now = pondNow(world, v) ?? pondsOf(world).reduce((a, p) => (!a || near(p) < near(a) ? p : a), null);
   v.gone = now ? 0 : v.gone + 1;
-  if (++v.age > v.life || v.gone > LOST_TICKS || v.state === 'leave') return leave(world, v, 0.8); // its time's up
+  if (++v.age > v.life || v.gone > LOST_TICKS || v.state === 'leave') return leave(world, v, 0.8);
   const pond = (v.pond = now ?? v.pond);
   if (v.state === 'dart' && flyTo(world, v, v.to, 0.8, 0.15)) {
     Object.assign(v, { state: 'hover', ticks: 40 + r() * 120 });
@@ -165,8 +162,8 @@ const stepDragonfly = (world, v) => {
 
 // ---------- bees ----------
 
-// A bumblebee's way of getting anywhere: not straight there, but in lazy loops either side of the way, which tighten
-// as it gets near so it bumbles in and settles, and bobbing and wobbling as it goes. Where to make for now.
+// A bumblebee's way of getting anywhere: in lazy loops either side of the way, tightening as it gets near so it
+// bumbles in and settles, weaving and bobbing as it goes. Where to make for now.
 const bumble = (world, v, p) => {
   const loop = Math.min(18, dist(p, v) / 2);
   const t = world.time * 0.05 + v.seed;

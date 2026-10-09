@@ -109,9 +109,8 @@ const surfaceAt = (s, x) => s.tops[Math.min(s.tops.length - 1, Math.max(0, Math.
 
 // ---------- the biomes ----------
 
-// Tested in turn, the first that fits is the tank's: [key, name, test, goings-on, wild flowers, what it's like]. Each
-// goings-on comes at random on its own, where the tank has somewhere for it, and when a wild flower is due it's one of
-// the biome's, at random, of those not in the tank already.
+// Tested in turn, the first that fits is the tank's. Each goings-on comes at random on its own, where the tank has
+// somewhere for it, and when a wild flower is due it's one of the biome's, at random, of those not in the tank already.
 const BIOMES = [
   {
     key: 'sea',
@@ -189,7 +188,7 @@ const lotus = (petal, tip, centre = { h: 52, s: 80, l: 55 }) => ({
   flower: { form: 'lotus', petals: 9, size: 1.6, petalLen: 3.6, petalWidth: 1.8, petal, tip, centre, centreSize: 1.3 },
 });
 
-// Each biome's wild flower: where it can seed itself, and its look (a flowering plant's, with defaults filled in).
+// Each wild flower: where it can seed itself, and its look (a flowering plant's, with defaults filled in).
 const WILD = {
   whiteLotus: {
     name: 'White lotus',
@@ -280,7 +279,7 @@ const wildSpecies = (world, key) => {
   };
 };
 
-// The name of the wild flower of biome b, or ??? if it's not turned up yet.
+// The name of wild flower key, or ??? if it's not turned up yet.
 const wildName = (world, key) => (world.found.includes(key) ? WILD[key].name : '???');
 
 // Seed one of the wild flowers keys somewhere it can grow, at random, of those there isn't one of already (planted
@@ -478,8 +477,8 @@ const GOINGS = {
       return ++h.age < h.life || h.drops.length > 0;
     },
   },
-  // A clump of mushrooms coming up on dirt, wood or the tank floor, now and then in a ring: they grow, stand a
-  // minute or two, and wither away. One whose ground goes is gone.
+  // A clump of mushrooms coming up on dirt, wood or the tank floor, now and then in a ring: they grow, stand three to
+  // five minutes, and wither away. One whose ground goes is gone.
   mushrooms: {
     every: 600,
     chance: 0.05,

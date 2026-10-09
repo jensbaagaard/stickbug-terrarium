@@ -16,7 +16,6 @@ import {
 } from './anatomy.js';
 import { add, clamp, dist, dot, lerp, pointAt, project, segDir, segLength, segNormal, smoothstep } from './geom.js';
 import { CELL } from './terrain.js';
-import { wet } from './fish.js';
 import { findRoute, floorBelow, JUNCTION_DIST, reachable, replan } from './surfaces.js';
 import { solidAt, wetAt } from './objects.js';
 import { dropCrumbs } from './effects.js';
@@ -51,8 +50,8 @@ export const bodyPose = (surf, s, dir, squash, t, lift = 0) => {
 };
 
 // Crossing a junction, the body slides along a path like a train: along the old surface up to the
-// junction, then along the new one, rounding the corner over about a stand height. p is the distance along
-// that path, negative before the junction.
+// junction, then along the new one, rounding the corner within a stand height either side of it. p is the
+// distance along that path, negative before the junction.
 const crossPoint = (tr, h, p) => {
   const onOld = add(pointAt(tr.from, tr.sFrom + tr.dirFrom * p), segNormal(tr.from), h);
   const onNew = add(pointAt(tr.to, tr.sTo + tr.dirTo * p), segNormal(tr.to), h);
@@ -141,7 +140,7 @@ const moveFeet = (world, bug) => {
   });
 };
 
-// ---------- bugs ----------
+// ---------- making and moving bugs ----------
 
 export const newBug = (world, x, y, genes = randomGenes(world.rand, params.variety)) => {
   const t = traitsOf(genes);
@@ -291,9 +290,8 @@ const bankSide = (world, p) => {
   return 0;
 };
 
-// A bug in the water hauls itself out onto the nearest spot it can reach, from whichever end is nearer the bank,
-// where it can stand out of the water (up a bank, onto a stick), facing up and away from the water. Returns whether
-// it did.
+// A bug in the water hauls itself out, by whichever end is nearer the bank, onto the nearest spot in reach where it
+// can stand clear of the water, facing up and away from it. Returns whether it did.
 const climbOut = (world, bug, side) => {
   const [a, b] = [bug.pts[0], bug.pts[SEGMENTS - 1]];
   const head = (a.x - b.x) * side >= 0 ? a : b;
@@ -379,7 +377,7 @@ export const simulateLoose = (world, bug) => {
 
 // Each tick every bug: its traits worked out afresh (the sliders may have moved), getting hungrier, its moods easing
 // toward what it's doing, then thinking and moving: along its surface, or loose (falling, swimming, held). Then any
-// two dancing near each other fall into step.
+// two free bugs close together start a dance.
 export const stepBugs = (world) => {
   for (const bug of world.bugs) {
     bug.t = traitsOf(bug.genes);
@@ -660,8 +658,8 @@ const startQuirk = (world, bug, kind) => {
 
 // ---------- commands ----------
 
-// Make every bug on a surface drop what it's doing and do something else right away. Dancers all start on
-// the same beat, so the whole tank rocks together.
+// Make every bug on a surface drop what it's doing and do action right away. Dancers all start on the same beat,
+// so the whole tank rocks together.
 export const command = (world, action) => {
   const bops = danceBops(world, params.danceBops);
   for (const bug of world.bugs) {

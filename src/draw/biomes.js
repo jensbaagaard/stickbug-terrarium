@@ -24,7 +24,7 @@ const SEED = '#8a7a5a';
 
 const dot = (ctx, x, y) => ctx.fillRect(Math.round(x), Math.round(y), 1, 1);
 
-// A ball of tangled twigs turning as it rolls: twigs from one side of it across to another, turning with it.
+// A ball of tangled twigs turning as it rolls, each twig a line from one side of it across to another.
 const drawTumbleweed = (ctx, h) => {
   for (let k = 0; k < 9; k++) {
     const a = h.spin + k * 2.4 + hash(h.seed, k) * 2;

@@ -1,10 +1,8 @@
-// Falling-sand terrain, a little like Powder Game: a grid of cells of stone, basalt, sandstone, brownstone, wood, ice,
-// dirt, sand, snow or water sitting on the tank floor. Stone, basalt (a dark stone), sandstone, brownstone (a dark
-// sandstone), wood and ice stay where they're drawn, sand pours and slides into slopes, dirt falls straight down and
-// stacks up, snow drifts down slowly and piles up softly, and water runs, levels out and spills out of the sides of the
-// tank. Sand and dirt sink through water; snow melts into it, and ice freezes the top of any water touching it, so a
-// pond ices over from the surface. Fountains (bought, not drawn) sit still like stone and keep pouring out water, like
-// Powder Game's clone. Pure data + functions.
+// Falling-sand terrain, a little like Powder Game: a grid of cells sitting on the tank floor. The solids (stone,
+// basalt, sandstone, brownstone, wood, ice) stay where they're drawn; sand slides into slopes, dirt falls straight
+// down, snow drifts down and piles softly, and water runs, levels out and spills out of the sides. Sand and dirt sink
+// through water, snow melts into it, and ice freezes the top of water touching it, so a pond ices over from the
+// surface. Fountains (bought, not drawn) keep pouring out water. Pure data + functions.
 
 export const CELL = 2; // world px per cell
 export const EMPTY = 0;
@@ -39,7 +37,7 @@ const VALUE = Object.fromEntries(MATERIALS.map(([key, , v]) => [key, v]));
 const WATER_FLOW = 3; // cells water can run sideways in a move
 const FOUNTAIN_SIZE = 3; // cells across a fountain
 const FOUNTAIN_RATE = 0.0225; // chance a fountain fills each empty cell beside it in a tick: a trickle, at water's pace
-const SNOW_DRIFT = 0.25; // chance a falling snowflake drifts sideways as it falls
+const SNOW_DRIFT = 0.25; // chance a falling snowflake drifts sideways
 const SNOW_SLIDE = 0.3; // chance it slips sideways off a pile (sand always does, dirt never)
 const SNOW_MELT = 0.02; // chance a tick that snow touching water melts into it
 // Chance a loose grain moves at all in a tick: so sand, dirt and water fall, slide and run at a steady pace rather
@@ -188,7 +186,8 @@ export const stepTerrain = (ter, rand, tick) => {
         continue;
       }
       if (m === ICE) {
-        const near = [r > 0 ? i - cols : -1, r + 1 < rows ? i + cols : -1, c > 0 ? i - 1 : -1, c < cols - 1 ? i + 1 : -1];
+        const [up, down] = [r > 0 ? i - cols : -1, r + 1 < rows ? i + cols : -1];
+        const near = [up, down, c > 0 ? i - 1 : -1, c < cols - 1 ? i + 1 : -1];
         // Freeze the top of the water it touches: water with open air over it, or at most ICE_DEPTH - 1 cells of
         // ice and then air.
         const surface = (j) => {

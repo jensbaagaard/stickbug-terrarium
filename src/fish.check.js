@@ -1,5 +1,5 @@
 // Run with `node src/fish.check.js`: guppies keep to the water, school (turning as one) and play tag, eat when fed,
-// dart off when startled, and flop back into the water when stranded.
+// dart off when startled, and flop toward the water when stranded.
 import assert from 'node:assert/strict';
 import { createWorld, feedFish, pointerDown, pointerUp, startPlacing, step } from './sim.js';
 import { wet } from './fish.js';
@@ -53,8 +53,7 @@ feedFish(world);
 steps(1200);
 assert.ok(hunger() < before - 0.2, 'they ate the flakes');
 
-// A tap close beside one sends it darting off: the leftmost, tapped on its left, so the tap isn't on any fish (which
-// would pick that one out instead).
+// A tap just left of the leftmost fish, so it hits none (a tap on one picks it out), sends that one darting off.
 const fish = world.fish.reduce((a, f) => (f.x < a.x ? f : a));
 const from = { x: fish.x, y: fish.y };
 const tap = fish.x - 14;

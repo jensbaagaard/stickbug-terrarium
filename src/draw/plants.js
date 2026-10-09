@@ -1,6 +1,5 @@
-// Drawing plants and sticks: branches and the leaves on them; flowering plants (stems, leaves yellowing with age, buds,
-// and flowers of every form opening and wilting); clump plants (their leaves, fronds, flowers and baby plants); grass;
-// vines; and fallen leaves and petals.
+// Drawing plants and sticks: branches and their leaves; flowering plants, their leaves yellowing with age and flowers
+// of every form budding, opening and wilting; clump plants; grass; vines; and fallen leaves and petals.
 import { stickWidth } from '../sticks.js';
 import { add, clamp, dirOf, hash, hslHex, lerp, normalize, pointAt, segDir, segLength, segNormal } from '../geom.js';
 import { wind } from '../life.js';
@@ -85,8 +84,8 @@ const paleMarks = (ctx, base, axis, len, widthAt, m) => {
   }
 };
 
-// One leaf reaching len along axis from base, filled to its form's width, with a darker vein in big ones, and a
-// mutant's pale marks (mark, see paleMarks).
+// One leaf reaching len along axis from base, filled to its form's width, with a vein down big ones, and a mutant's
+// pale marks (mark, see paleMarks).
 const leafShape = (ctx, base, axis, len, form, s, fill, vein, mark = null) => {
   ctx.fillStyle = fill;
   for (let i = 0; i <= len; i++) plot(ctx, base.x + axis.x * i, base.y + axis.y * i, form.width(i / len, s));
@@ -383,8 +382,9 @@ const pixelRuns = (ctx) => {
   return { put, flush };
 };
 
-// One leaf: shaded a little darker the further back (older) it is. Paddles are two-tone with a pale midrib on a bare
-// stalk; grass blades lighten toward the tip; stripes run down the middle or the edges; swords have wavy bands.
+// One leaf: shaded a little darker the further back (older) it is. Blades on a bare stalk are two-tone, with a pale
+// midrib but for coins; grass blades lighten toward the tip; stripes run down the middle or the edges; swords have
+// wavy bands.
 const drawClumpLeaf = (ctx, sp, chain, back) => {
   const root = chain[0];
   const { pts, total } = chainPoints(chain);
@@ -530,10 +530,10 @@ const clumpMarks = (ctx, m, pts, widths, root) => {
 
 const rotate = (v, a) => ({ x: v.x * Math.cos(a) - v.y * Math.sin(a), y: v.x * Math.sin(a) + v.y * Math.cos(a) });
 
-// A blade with gaps in it (a monstera's splits and holes), filled a row of pixels at a time: each pixel near the
-// leaf is projected onto its stems, which says how far along the leaf it is and how far out from the midrib, and
-// on which side, so whether it's in the blade and in the shaded half or the lit one (the lit half on side), unless
-// slit({along, u}, k, w) leaves it out, k px out from the midrib of a blade w across there.
+// A blade with gaps in it (a monstera's splits and holes), filled pixel by pixel: each pixel near the leaf is
+// projected onto the nearest of its stems, giving how far along the leaf it is and how far (k px) from the midrib on
+// which side, so whether it's in the blade (w px either side there) and in the shaded or the lit half (the lit one on
+// side), unless slit({along, u}, k, w) leaves it out.
 const splitBlade = (ctx, sp, chain, total, grown, side, dark, lit, slit) => {
   const n = chain.length;
   const [ax, ay, dx, dy, lens, starts] = [0, 0, 0, 0, 0, 0].map(() => new Float64Array(n));
@@ -626,8 +626,8 @@ const bladePattern = (ctx, sp, pts, widths, root, hex) => {
   });
 };
 
-// A pinnate frond: its stalk and midrib, with leaflets in pairs every few px past the stalk, longest a third of
-// the way along and leaning toward the tip (and, for a palm, drooping): oval ones (a ZZ plant) or fine ones.
+// A pinnate frond: its stalk and midrib, with leaflets in pairs every few px past the stalk, longest near the middle
+// and leaning toward the tip (and drooping, on a fern or palm): oval ones (a ZZ plant) or fine ones.
 const drawFrond = (ctx, sp, pts, grown, hex) => {
   const f = sp.leaflet;
   ctx.fillStyle = hslHex(sp.stem.h, sp.stem.s, sp.stem.l);
@@ -934,7 +934,7 @@ export const drawGrass = (ctx, world, patches) => {
 };
 
 // A hanging vine: its stem through the rope's nodes, a leaf off each node on alternating sides (smaller near
-// the growing tip), pale-edged if variegated, and a flower every few nodes out of the water.
+// the growing tip), with a pale vein if variegated, and a flower every few nodes out of the water.
 export const drawVine = (ctx, vine) => {
   const g = vine.genome;
   const nodes = vine.nodes;

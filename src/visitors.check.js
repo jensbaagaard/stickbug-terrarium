@@ -24,7 +24,7 @@ const below = (world, p) => {
 };
 
 {
-  // The starting tank, its one plant: one firefly. The sample tank, a dozen plants, grass and vines: all of them.
+  // The starting tank, its one plant: one firefly. The sample tank, thick with plants, grass and vines: all of them.
   const starting = createWorld(256, 341, { seed: 4 });
   let most = 0;
   steps(starting, 6000, () => (most = Math.max(most, starting.fireflies.length)));

@@ -1,5 +1,5 @@
-// Run with `node src/plants.check.js`: plants bend when pulled and spring back, only flower out of the water, and
-// grass grows on under water.
+// Run with `node src/plants.check.js`: plants bend when pulled and spring back, a tap prunes them, they only flower
+// out of the water, and grass grows on under water.
 import assert from 'node:assert/strict';
 import { buyReroll, createWorld, pointerDown, pointerMove, pointerUp, startPlacing, step } from './sim.js';
 import { EMPTY, WATER } from './terrain.js';

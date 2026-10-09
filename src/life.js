@@ -53,8 +53,8 @@ const airShare = (world) => {
 };
 
 // How many of something living in the air the tank has room for, `most` at the most: the greener the tank, the more
-// (a starting tank's one plant gets one, eight or more plants, grass patches and vines get them all), and the more of
-// it that's air rather than water (full of water, none; nine tenths water, a few).
+// (eight or more plants, grass patches and vines get them all), and the more of it that's air rather than water (all
+// of them from six tenths air, none when it's full of water).
 export const room = (world, most) => {
   const green = world.objects.filter((o) => o.kind === 'plant' || o.kind === 'grass' || o.kind === 'vine').length;
   return Math.round(most * Math.min(1, green / 8) * Math.min(1, airShare(world) / 0.6));

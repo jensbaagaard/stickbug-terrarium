@@ -56,7 +56,7 @@ export const stepCrumbs = (world) => {
   });
 };
 
-// Pruned pieces tumble to the floor and lie there a moment. look says how to draw them.
+// Pruned or knocked-down pieces tumble to the floor and lie there a moment. look says how to draw them.
 export const fling = (world, a, b, look) => {
   if (world.debris.length >= MAX_DEBRIS || dist(a, b) < 1) return;
   world.debris.push({

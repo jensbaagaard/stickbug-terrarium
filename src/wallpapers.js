@@ -121,8 +121,7 @@ const THEMES = {
 
 const VIVID_CHANCE = 0.07; // now and then a wallpaper comes in intense colours, and costs more
 
-// A random wallpaper for the back of the tank: a style and its colours, kept dim so whatever is in the tank still
-// stands out against it (unless it's a rare vivid one). seed places the stars, hills, trees and so on.
+// A random wallpaper: a style, its name and its colours. seed places the stars, hills, trees and so on.
 export const makeWallpaper = (rand) => {
   const [style, label, detail, lo, hi] = pick(rand, WALLPAPER_STYLES);
   const theme = THEMES[style];

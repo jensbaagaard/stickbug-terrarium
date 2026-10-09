@@ -15,10 +15,9 @@ import {
 import { drawWorld } from './render.js';
 import { SCISSORS_CURSOR } from './icons.js';
 
-// The tank is one of a few sizes in world pixels (TANK_SIZES; size picks which to start with, and the world
-// swapped in later may be another), shown a whole number of screen pixels to each so they all come out the same
-// size: the most that fits, up to MAX_SCALE css px to a world pixel and HEIGHT_SHARE of the window's height (leaving
-// room for the panel). Resizing the window leaves it be until it no longer fits, or the next size up does. A bigger
+// The tank is one of TANK_SIZES in world pixels (size picks which to start with; a world swapped in later may be
+// another), shown a whole number of screen pixels to each so they all come out the same size: the most that fits, up
+// to MAX_SCALE css px to a world pixel and HEIGHT_SHARE of the window's height (leaving room for the panel). A bigger
 // tank shows more, not smaller: never narrower than a smaller one would be, even if that means pixels a touch uneven.
 // In full screen it fills the screen, pixels a touch uneven or not.
 const MAX_SCALE = 2;
@@ -74,7 +73,7 @@ export default function Terrarium({ worldRef: ref, size = 'small' }) {
       const dpr = window.devicePixelRatio || 1;
       const across = document.documentElement.clientWidth - GUTTER;
       // How a tank W by H is shown on its own: css px wide, and whether beside the panel. Small: whole screen pixels
-      // to a world pixel, as many as fit. Bigger: as big as fits, under the panel or beside it.
+      // to a world pixel, as many as fit. Bigger: as big as fits, with the panel under it or beside it.
       const [sw, sh] = TANK_SIZES.small;
       const own = (W, H) => {
         const room = Math.min(W * MAX_SCALE, across, (innerHeight * HEIGHT_SHARE * W) / H);

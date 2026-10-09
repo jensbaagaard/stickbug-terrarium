@@ -1,5 +1,5 @@
 // Random sticks for the shop: eight styles (a crooked branch, a fork, an arch, driftwood, manzanita, bamboo, spiderwood
-// roots and cholla), in a dozen woods, with their own foliage; stood in the tank like a stick leaning on the glass.
+// roots and cholla), in ten woods, with their own foliage; stood in the tank like a stick leaning on the glass.
 // Pure generators: objects.js turns their pieces into surfaces.
 import { add, dirOf, pick, range } from './geom.js';
 

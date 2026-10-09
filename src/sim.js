@@ -1,6 +1,6 @@
 // The stickbug terrarium simulation: the world made (createWorld) and stepped a tick at a time (step), and what the
 // panel sees of it (snapshot). Its parts live in their own modules (see ARCHITECTURE.md); everything they offer the
-// app is exported from here. Pure data + functions: the drawing lives in render.js.
+// app is exported from here. Pure data + functions: the drawing lives in render.js and draw/.
 import { GENES, params } from './tuning.js';
 import { mulberry32, project } from './geom.js';
 import { DEFAULT_FOLIAGE } from './sticks.js';
@@ -56,7 +56,7 @@ export const createWorld = (W, H, { seed = Date.now(), scene = true } = {}) => {
     H,
     ground: { x0: 0, y0: H - 6, x1: W - 1, y1: H - 6, kind: 'ground', leaves: [] },
     branches: [], // every surface but the ground: sticks and the terrain's outline
-    objects: [], // sticks (owning some of those surfaces) and plants
+    objects: [], // sticks (owning some of those surfaces), plants, grass and vines
     bugs: [],
     fish: [],
     flakes: [], // fish food
@@ -71,7 +71,7 @@ export const createWorld = (W, H, { seed = Date.now(), scene = true } = {}) => {
     press: null,
     pointer: { x: 0, y: 0 },
     hover: false, // the pointer is over the tank, so what's under it can be marked
-    touch: null, // where a press on empty space started, to tell taps from drags, and any plant there
+    touch: null, // where a press that caught no creature started, to tell taps from drags, and any plant there
     pull: null, // the plant, vine or grass being pulled about, and where it was grabbed
     cut: null,
     shop: null, // the showcased offers, by kind
@@ -89,9 +89,9 @@ export const createWorld = (W, H, { seed = Date.now(), scene = true } = {}) => {
     ripples: [],
     popups: [],
     coins: START_COINS,
-    placing: null, // the shop item waiting to be put down: {kind, seed}
-    tool: 'hand', // or 'paint', 'prune' or 'move'
-    moving: null, // the plant or stick being dragged somewhere else, and where it was grabbed: {obj, x, y}
+    placing: null, // the shop item waiting to be put down: {kind, offer, price, seed, at}
+    tool: 'hand', // or 'paint', 'prune', 'move' or 'propagate'
+    moving: null, // what's being relocated, or the plant picked to propagate, and where it was grabbed: {obj, x, y}
     demo: null, // the how-to animation for the tool just picked: {kind, at}
     selected: null,
     wallpaper: null, // the back of the tank: null for plain black

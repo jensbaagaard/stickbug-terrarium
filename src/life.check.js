@@ -1,6 +1,6 @@
 // Run with `node src/life.check.js`: old leaves yellow, drop and grow back, fallen leaves lie on the ground or float
-// and sink in the water, flowers wilt, drop their petals and flower again, fireflies keep over the plants and fall into step, bubbles rise only in the water, dust
-// stays in the air, and gusts come along.
+// and sink in the water, flowers wilt, drop their petals and flower again, fireflies come to the plants, keep to the
+// air and fall into step, bubbles rise only in the water, dust stays in the air, and gusts come along.
 import assert from 'node:assert/strict';
 import { createWorld, propagatable, step } from './sim.js';
 import { cellAt, EMPTY, paintTerrain, WATER } from './terrain.js';

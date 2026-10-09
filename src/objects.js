@@ -83,7 +83,7 @@ export const checkFooting = (world) => {
   }
 };
 
-// Take an object out. Knocked-down sticks and plants tumble to the floor as debris.
+// Take an object out. Knocked-down sticks, plants and vines tumble to the floor as debris.
 export const removeObject = (world, obj, knocked = false) => {
   world.objects = world.objects.filter((o) => o !== obj);
   if (knocked && obj.kind === 'stick') {

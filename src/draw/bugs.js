@@ -47,7 +47,7 @@ const painter = (t, seed) => {
           return (patch + Math.floor(seed)) % 2 ? mark() : base;
         }
         case 'rainbow':
-          // The hue goes right round the wheel from head to tail.
+          // The hue goes most of the way round the wheel from head to tail.
           return hslHex(t.hue + along * 300, Math.max(t.sat, 55), clamp(t.light, 40, 70) - dark);
         case 'starry':
           // A night sky: dark all over, scattered with little stars.

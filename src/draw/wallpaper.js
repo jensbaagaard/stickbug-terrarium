@@ -108,7 +108,7 @@ const mushroomAt = (wp, row, x, y, ground, sp, lo, hi, bare) => {
 // The ringed planet in space: where it is and how big.
 const planetOf = (floor) => [floor * 0.25, floor * 0.3, floor * 0.1];
 
-// Is (x, y) in one of a row of pines standing on ground (y), spaced about sp apart and heights lo..hi tall? Each
+// Is (x, y) in one of a row of pines standing on ground (its y at x), spaced about sp apart and lo..hi tall? Each
 // is a stack of tiers, narrowing to the top, on a stub of trunk.
 const inPines = (wp, row, x, y, ground, sp, lo, hi) => {
   const j0 = Math.floor(x / sp);
@@ -128,8 +128,8 @@ const inPines = (wp, row, x, y, ground, sp, lo, hi) => {
   return false;
 };
 
-// Is (x, y) in a building of a skyline standing on floor, in px from the left: widths 6..18, heights lo..hi.
-// Returns the building's left edge and width, or null.
+// The building of a skyline standing on floor (widths 6..18 px, heights lo..hi) that (x, y) is in: its left edge,
+// width and top, or null.
 const buildingAt = (wp, row, x, y, floor, lo, hi) => {
   for (let left = -Math.floor(hash(wp.seed, row, 0) * 10), i = 1; left < x + 1; i++) {
     const w = 6 + Math.floor(hash(wp.seed, row, i) * 13);
@@ -831,8 +831,8 @@ const plane = {
   },
 };
 
-// A little moon going round the ringed planet in the plane of its rings, behind it and then in front by turns: drawn
-// behind the planet for the far half of its way round, in front for the near half.
+// A little moon going round the ringed planet in the plane of its rings: drawn behind the planet for the far half
+// of its way round, in front for the near half.
 const moon = (front) => ({
   depth: front ? FAR : 0,
   draw: (ctx, world, wp, p) => {

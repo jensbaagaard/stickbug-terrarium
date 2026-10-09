@@ -1,12 +1,7 @@
-// Fliers: the small flying bugs, three kinds of them sharing one way of life, and the aphids. Ladybugs (domed, red
-// and spotted, mostly) hunt the aphids that now and then settle on the plants, and with none about eat pollen at the
-// open flowers; soldier beetles (long, orange with dark tips, mostly) live on the flowers' pollen, and eat aphids when
-// there's none; shield bugs (flat, green or brown, mostly) sip sap from the stems. They all clamber about the plants
-// and sticks and fly between them, finding their way through the air, bask at the tips, groom, huddle up with their
-// own kind to rest, stop to touch antennae when they meet on a stem (then one turns back and the other goes round),
-// and climb to the top of whatever they're on before they take off. Startled, the bold ones fly off; the rest drop
-// and play dead on their backs, or a shield bug lets off a stink where it is. Dropping toward water, or with water
-// rising round them, they fly off. Pure data + functions, like the rest of the simulation.
+// Fliers: the small flying bugs, three kinds of them sharing one way of life, and the aphids. Ladybugs hunt aphids,
+// soldier beetles eat pollen, and shield bugs sip sap. They clamber about the plants and sticks and fly between them,
+// rest, groom, huddle up and meet; startled, the bold ones fly off and the rest play dead (or a shield bug lets off a
+// stink). Pure data + functions, like the rest of the simulation.
 import { stickWidth } from './sticks.js';
 import { clamp, dist, lerp, pick, range } from './geom.js';
 import { CELL, cellAt, EMPTY, WATER } from './terrain.js';
@@ -27,7 +22,7 @@ const REACH = 2; // cells of air a flier's body takes up from its feet: either s
 const MAX_APHIDS = 60;
 const COLONY = 12; // aphids a plant holds at most
 const APHID_EVERY = 1200; // ticks between chances of aphids arriving on a plant
-const APHID_GROW = 1 / 3000; // a newborn aphid grows up in this many ticks, and can breed
+const APHID_GROW = 1 / 3000; // size a tick: a newborn (0.3) is grown, and can breed, in 2100 ticks
 const BREED = 1 / 2500; // chance a tick a grown aphid has a young one
 const APHID_LIFE = 20000; // ticks, give or take half
 
@@ -314,7 +309,7 @@ const newAphid = (rand, obj, part, u) => ({
 
 // Now and then a few aphids settle on a plant out of the water, and they breed, up to a colony a plant. They live a
 // few minutes, and go with the stem they're on, or under the water. A plant with aphids on it drops its old leaves
-// sooner (sim.js reads `pests`). Their own random numbers, like the rest of the tank's life.
+// sooner (plants.js reads `pests`). Their own random numbers, like the rest of the tank's life.
 const stepAphids = (world) => {
   const r = world.lifeRand;
   if (world.time % APHID_EVERY === 0 && world.aphids.length < MAX_APHIDS && r() < 0.35 * params.aphids) {
@@ -364,7 +359,7 @@ export const newFlier = (world, x, y, genome, name = flierName(world.rand)) => (
   replan: 0, // ticks till it works its way out again
   flown: 0, // ticks it's been flying
   lost: 0, // times this flight it's found no way to where it was going
-  then: null, // and what it'll do there: {kind: 'eat', aphid} | {kind: 'pollen'} | {kind: 'rest', ticks}
+  then: null, // what it'll do there: {kind: 'eat', aphid} | {kind: 'pollen'} | {kind: 'sap'} | {kind: 'rest', ticks}
   // What it's doing where it is, and for how long ({kind, ticks}): eating an aphid, at pollen, sipping sap, resting,
   // grooming, meeting another, stretching its wings, letting off a stink or lifting off.
   act: null,
@@ -575,8 +570,7 @@ const head = (world, b) => {
   lift();
 };
 
-// Something to eat: the nearest aphid (nearer still if it's on the plant it's on), or with none about, the nearest
-// open flower's pollen.
+// Where to go for each food, and what to do there; null if there's none about.
 const FOODS = {
   aphids: (world, b) => {
     const here = b.perch?.obj;
@@ -697,11 +691,9 @@ const live = (world, b) => {
   }
 };
 
-// In the air. Flying, it makes for where it's going the way it's worked out through the air, round any terrain in
-// between, bobbing as it goes and pushed about by the breeze, and lands there; if there's no way there, or it's taking
-// too long, it makes for somewhere else, and with nowhere to go it flutters down. Falling, it drops, on its back if
-// it's playing dead, but about to drop in water it gets its wings out and flies off. Either way it lands on whatever
-// floor it comes to. In the water (risen round it, say), it flies straight up out of it, and keeps out of it after.
+// In the air. Flying, it follows its way through the air to where it's going, bobbing and pushed about by the breeze,
+// and lands there; with nowhere to go it flutters down. Falling, it drops (on its back if it's playing dead), but about
+// to drop in water it flies off instead. In the water (risen round it, say), it flies straight up out of it.
 const air = (world, b) => {
   const g = b.genome;
   if (inTerrain(world, b, b.x, b.y)) {

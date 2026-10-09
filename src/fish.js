@@ -1,15 +1,12 @@
-// Guppies: their genome, and how they live in the tank's water. They cruise the upper water in a loose shoal, now and
-// then forming up into a school that swims and turns as one, race for food and graze the plants and the surface
-// between meals, beg at the pointer when they're hungry, play tag, dart off when startled (the fright spreading
-// through the shoal) and the shy ones hide in the plants after, rest by the plants, and the males square up to each
-// other with fins flared and court the females with a quivering S-shaped display. Out of the water they flop about,
-// hopping toward the nearest water, until they're back in. Pure data + functions, like the rest of the simulation.
+// Guppies: their genome, and how they live in the tank's water: shoaling and schooling, feeding and grazing, begging,
+// play, sparring and courting, fright, and flopping back toward the water when they're out of it. Pure data +
+// functions, like the rest of the simulation.
 import { CELL, cellAt, EMPTY, WATER } from './terrain.js';
 import { clamp, dist, pick, range } from './geom.js';
 import { ripple } from './life.js';
 
 const HUNGER = 1 / 15000; // per tick, for an average appetite
-const BITE = 0.12; // hunger a flake takes away
+const BITE = 0.12; // hunger a bite of food takes away
 const TURN_TICKS = 8; // to turn round
 const SETTLE_TICKS = 45; // after turning round, before it'll turn again (unless it's fleeing)
 const DRAG = 0.985;
@@ -19,7 +16,7 @@ const MAX_FLAKES = 80;
 
 // ---------- genome ----------
 
-// Tail shapes, the rarer ones listed fewer times, and what each adds to a fish's price.
+// Tail shapes, the rarer ones listed fewer times, and how rare (0..3) each is, for a fish's price.
 const TAILS = ['delta', 'delta', 'fan', 'fan', 'fan', 'round', 'spade', 'veil', 'sword', 'double', 'lyre'];
 const TAIL_RARITY = { delta: 0, fan: 0, round: 1, spade: 1, veil: 2, sword: 2, double: 3, lyre: 3 };
 const TAIL_PATTERNS = ['solid', 'solid', 'mosaic', 'leopard', 'grass', 'edge', 'half'];
@@ -138,12 +135,12 @@ export const newFish = (world, x, y, genome, name = guppyName(world.rand)) => ({
   dir: world.rand() < 0.5 ? -1 : 1, // which way it's cruising
   wander: 0,
   hunger: 0.3,
-  goal: null, // {kind: 'food' | 'graze' | 'rest' | 'court', ...}
+  goal: null, // {kind: 'food' | 'graze' | 'rest' | 'lead' | 'school' | 'tag' | 'spar' | 'court', ...}
   think: 0, // ticks until it next decides what to do
   fear: 0, // ticks left of fleeing from `from`, once `fearDelay` has run out
   fearDelay: 0,
   from: null,
-  cooldown: 0, // before a male courts again
+  cooldown: 0, // ticks before a male spars or courts again
   display: 0, // ticks left of a male's display
   flare: 0, // eases to 1 while its fins are flared, sparring or on display
   peck: 0, // ticks left of a bite
@@ -173,7 +170,7 @@ export const startle = (world, x, y, reach = 40) => {
   }
 };
 
-// Sprinkle food on the water above one of the fish. The flakes float a while, then sink.
+// Sprinkle food on the water above one of the fish.
 export const feedFish = (world) => {
   const swimming = world.fish.filter((f) => !f.dry);
   const f = swimming.length ? pick(world.rand, swimming) : world.fish[0];
@@ -574,9 +571,9 @@ const swim = (world, f) => {
   else if (wet(world, f.x, ny)) [f.y, f.vx] = [ny, -f.vx * 0.3];
   else [f.vx, f.vy] = [-f.vx * 0.3, -f.vy * 0.3];
 
-  // Face the way it swims, or when it's barely moving, the way it's looking; but having just turned round, it
-  // doesn't turn straight back. It noses up or down as it swims up or down, but barely at all when it's going
-  // slowly, so it doesn't bob about as it hovers. In a school it turns, tilts and beats its tail with the leader.
+  // Face the way it swims, or when it's barely moving, the way it's looking, but not straight back after just
+  // turning round. It noses up or down as it swims, but not when it's going slowly, so it doesn't bob about as it
+  // hovers. In a school it turns, tilts and beats its tail with the leader.
   const turnTo = sync ? sync.facing : Math.abs(f.vx) > 0.1 ? Math.sign(f.vx) : look;
   const settled = world.time - f.turnedAt > SETTLE_TICKS || f.fear > 0 || sync;
   if (f.turn > 0) f.turn--;
