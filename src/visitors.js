@@ -245,7 +245,7 @@ const stepBee = (world, v) => {
 const newGnats = (world, at) => {
   const r = world.lifeRand;
   const v = { kind: 'gnats', x: at.x, y: at.y, n: 5 + Math.floor(r() * 5), seed: r() * 100 };
-  return Object.assign(v, { age: 0, life: 1800 + r() * 2400, spread: 1 });
+  return Object.assign(v, { age: 0, life: 5400 + r() * 7200, spread: 1 });
 };
 
 // The cloud drifts a little on the breeze, and comes back together after it's been scattered; the gnats in it dance
@@ -277,7 +277,7 @@ const arrive = (world) => {
   }
   if (flowersOf(world).length >= 2 && count('bee') < room(world, 1) && chance(0.03)) world.visitors.push(newBee(world));
   const plants = world.objects.filter((o) => o.kind === 'plant' && o.stems.length);
-  if (plants.length && count('gnats') < room(world, 2) && chance(0.1)) {
+  if (plants.length && count('gnats') < room(world, 2) && chance(0.1 / 3)) {
     const top = pick(r, plants).stems.reduce((a, st) => (st.tip.y < a.y ? st.tip : a), { y: Infinity });
     const at = { x: top.x, y: top.y - 12 - r() * 12 };
     const cell = world.terrain.cells[cellAt(world.terrain, at.x, at.y)];
