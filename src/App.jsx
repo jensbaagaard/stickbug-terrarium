@@ -76,6 +76,7 @@ const GARDEN_TOOLS = [
 // Shop rows: four of each, rerolled on demand.
 const SHOWCASE = [
   ['bug', 'Bugs'],
+  ['ladybug', 'Ladybugs'],
   ['fish', 'Fish'],
   ['plant', 'Plants'],
   ['stick', 'Sticks'],
@@ -230,9 +231,19 @@ function Save({ save, flash, onLoad, onOverwrite, onExport, onDelete }) {
 const share = (key, v) => clamp((v - SLIDER[key].min) / (SLIDER[key].max - SLIDER[key].min), 0, 1);
 const speedOf = (t) => (t.stride * t.size) / t.stepTicks;
 
-// A few of a bug's or fish's traits as bars. A bug's speed is a step's length over its time, so it's halfway at the
-// default and full at four times that; a fish's genes already run 0..1.
+// A few of a bug's, fish's or ladybug's traits as bars. A bug's speed is a step's length over its time, so it's halfway
+// at the default and full at four times that; a fish's or ladybug's genes already run 0..1.
 const statsOf = (who) => {
+  if (who.kind === 'ladybug') {
+    const g = who.genome;
+    return [
+      ['Hunger', who.hunger],
+      ['Speed', g.speed],
+      ['Size', g.size],
+      ['Boldness', g.boldness],
+      ['Wanderlust', g.wanderlust],
+    ];
+  }
   if (who.kind === 'fish') {
     const g = who.genome;
     return [
@@ -253,7 +264,7 @@ const statsOf = (who) => {
   ];
 };
 
-// The selected bug or fish: its picture and a few of its traits as bars, plus what you can do with it.
+// The selected bug, fish or ladybug: its picture and a few of its traits as bars, plus what you can do with it.
 function Inspector({ who, onRelease, onClose }) {
   const canvas = useRef(null);
   const genes = who.genes ?? who.genome;
@@ -637,7 +648,7 @@ export default function App() {
                     offer={offer}
                     active={snap.placingOffer === offer.id}
                     short={coins < offer.price}
-                    blocked={offer.sold || (kind === 'bug' && snap.full)}
+                    blocked={offer.sold || (kind === 'bug' && snap.full) || (kind === 'ladybug' && snap.ladybugsFull)}
                     onPick={act((w) => (kind === 'wallpaper' ? buyWallpaper(w, offer) : startPlacing(w, kind, offer)))}
                   />
                 ))}

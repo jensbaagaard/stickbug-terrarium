@@ -31,7 +31,7 @@ const GAP = 14;
 const TICK_MS = 1000 / 60;
 
 // The cursor says what a press would do there.
-const AIM_CURSORS = { bug: 'grab', fish: 'grab', cut: SCISSORS_CURSOR, lift: 'grab', pick: 'pointer', drop: 'copy' };
+const AIM_CURSORS = { bug: 'grab', fish: 'grab', ladybug: 'grab', cut: SCISSORS_CURSOR, lift: 'grab', pick: 'pointer', drop: 'copy' };
 const cursorOf = (world) => {
   if (world.held || world.pull || (world.moving && world.tool === 'move')) return 'grabbing';
   if (world.tool === 'paint') return 'crosshair';

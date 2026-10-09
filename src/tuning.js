@@ -142,6 +142,14 @@ export const GROUPS = [
     ],
   },
   {
+    title: 'Ladybugs',
+    genes: false,
+    sliders: [
+      ['maxLadybugs', 'Max ladybugs', 8, 7, 1],
+      ['aphids', 'Aphids', 1, 1, 0.1], // multiplier on how often aphids settle on the plants, and breed
+    ],
+  },
+  {
     title: 'Bubbles',
     genes: false,
     sliders: [

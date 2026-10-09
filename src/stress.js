@@ -6,7 +6,7 @@ import { params } from './tuning.js';
 
 // A dirt bank on the left with grass, plants, clump plants, sticks and bugs on it; a pond walled in stone on the
 // right, topped up by a fountain forever (so the terrain never rests), with plants, grass and fish in it; vines
-// hanging over it all. The tank's life turned all the way up: the most fireflies, and leaves and flowers dropping as
+// hanging over it all, and ladybugs about it. The tank's life turned all the way up: the most fireflies, and leaves and flowers dropping as
 // fast as they can. crowd puts in that many of every plant, clump plant, grass and vine, side by side.
 export const stressWorld = (crowd = 1, W = 256, H = 341) => {
   Object.assign(params, { fireflies: 12, leafLife: 0.1, bloomLife: 0.1 });
@@ -41,6 +41,7 @@ export const stressWorld = (crowd = 1, W = 256, H = 341) => {
   }
   for (let i = 0; i < 8; i++) place('fish', 'fish', 135 + i * 13, floor - 30);
   for (let i = 0; i < 8; i++) place('bug', 'bug', 10 + i * 12, floor - 120);
+  for (let i = 0; i < 8; i++) place('ladybug', 'ladybug', 20 + i * 28, floor - 100);
   startPlacing(world, 'fountain');
   pointerDown(world, 200, floor - 100);
   pointerUp(world, 200, floor - 100);
@@ -74,7 +75,7 @@ export const census = (world) => ({
   bugs: world.bugs.length,
   fish: world.fish.length,
   ...Object.fromEntries(
-    ['crumbs', 'debris', 'litter', 'fireflies', 'bubbles', 'motes', 'ripples']
+    ['crumbs', 'debris', 'litter', 'ladybugs', 'aphids', 'fireflies', 'bubbles', 'motes', 'ripples']
       .filter((k) => world[k])
       .map((k) => [k, world[k].length]),
   ),
