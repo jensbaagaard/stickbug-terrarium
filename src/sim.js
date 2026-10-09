@@ -2595,6 +2595,7 @@ export const snapshot = (world) => {
     bugs: world.bugs.length,
     full: world.bugs.length >= params.maxBugs,
     fish: world.fish.length,
+    fliers: world.fliers.length,
     fliersFull: world.fliers.length >= params.maxFliers,
     biome: biomeNow(world),
     selected:

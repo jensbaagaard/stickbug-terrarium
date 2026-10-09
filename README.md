@@ -143,19 +143,20 @@ Shop, Garden (Prune, Relocate, Propagate and Feed), Saves and Settings. The game
   and visitors) goes with how green the tank is (the starting tank's one plant gets one firefly; eight or more plants,
   grass patches and vines get them all) and how much of it is air rather than water: a tank full of water gets none.
   Tapped near, visitors make off.
-- Biomes: the tank takes its character from what it's made of, shown in its top corner (tap it for what that's like).
-  Mostly sand and sandstone is a desert, and with a pond an oasis; snow and ice a tundra; basalt volcanic; brownstone a
-  canyon; rock rocky crags; a tank thick with plants and with water a rainforest; dirt and water a wetland; wood, or
-  sticks among the plants, a woodland; grass, or dirt and plants, a meadow; water all over a sea; otherwise a garden, or
-  a bare tank. Each has its own goings-on: tumbleweeds roll by and dust devils whirl in the dry ones, a flurry blows in
-  and it snows in the tundra, embers rise off basalt and steam where water meets it, water drips from the crags'
-  overhangs, will-o'-the-wisps hang over the wetland's water, rain showers ripple the ponds, mushrooms come up (now and
-  then in a ring) in woods and meadows, seed fluff drifts over a meadow, and jellyfish drift in the sea. And very rarely
-  each biome's own wild flower seeds itself, one of a kind: a white lotus on the desert sand, a blue lotus in an oasis's
-  shallows, a pink lotus in a wetland's, a snow lotus, a fire lily on basalt, edelweiss on rock, paintbrush in a canyon,
-  a ghost orchid in a woodland, a golden poppy in a meadow, a corpse lily in a rainforest. Its name stays ??? until one
-  has turned up, which is kept with the save, and its clippings sell for four times as much. The Biome events and Wild
-  flowers sliders (under Life) set how often.
+- Biomes: the tank takes its character from what it's made of (debug mode's tank stats, in Settings, say which biome it
+  is and what that's like). Mostly sand and sandstone is a desert, and with a pond an oasis; snow and ice a tundra;
+  basalt volcanic; brownstone a canyon; rock rocky crags; a tank thick with plants and with water a rainforest; dirt and
+  water a wetland; wood, or sticks among the plants, a woodland; grass, or dirt and plants, a meadow; water all over a
+  sea; otherwise a garden, or a bare tank. Each has its own goings-on: tumbleweeds roll by and dust devils whirl in the
+  dry ones, a flurry blows in and it snows in the tundra, embers rise off basalt and steam where water meets it, water
+  drips from the crags' overhangs, will-o'-the-wisps hang over the wetland's water, rain showers ripple the ponds,
+  mushrooms come up (now and then in a ring) in woods and meadows, seed fluff drifts over a meadow, and jellyfish drift
+  in the sea. And very rarely each biome's own wild flower seeds itself, one of a kind: a white lotus on the desert
+  sand, a blue lotus in an oasis's shallows, a pink lotus in a wetland's, a snow lotus, a fire lily on basalt, edelweiss
+  on rock, paintbrush in a canyon, a ghost orchid in a woodland, a golden poppy in a meadow, a corpse lily in a
+  rainforest. One coming up is told over the tank. Its name stays ??? until one has turned up, which is kept with the
+  save, and its clippings sell for four times as much. The Biome events and Wild flowers sliders (under Life) set how
+  often.
 - Saves: save the tank (terrain, plants, sticks, bugs, coins and the shop) into a new slot, each shown with a little
   photo of the tank; load one (its Load button, or tap its photo), or save over, export or delete it (delete asks
   twice). Autosave, on unless you switch it off, saves into its own slot every 10 seconds and when you leave (its

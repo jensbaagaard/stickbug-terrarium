@@ -31,6 +31,7 @@ const WILD_TICKS = 600; // how often a wild flower might seed itself
 const WILD_CHANCE = 0.02; // then, with the slider in the middle: about once in eight minutes, where it can
 const WILD_WORTH = 4; // a wild flower's clippings sell for this many times a common plant's
 const NEWS_TICKS = 480; // how long news shows
+const RAIN_SPEED = 1.5; // px a tick the slowest raindrops fall
 
 // ---------- looking the tank over ----------
 
@@ -484,8 +485,9 @@ const GOINGS = {
     step: (world, h) => {
       const r = world.biomeRand;
       const heavy = fade(h, 300, 300); // it comes on, and eases off
-      for (let k = 0; k < 3; k++) {
-        if (r() < heavy) h.drops.push({ x: r() * (world.W + 40) - 20, y: -2 - r() * 4, vy: 2.5 + r() });
+      for (let k = 0; k < 2; k++) {
+        if (r() >= heavy) continue;
+        h.drops.push({ x: r() * (world.W + 40) - 20, y: -2 - r() * 4, vy: RAIN_SPEED * (1 + 0.4 * r()) });
       }
       h.drops = h.drops.filter((d) => {
         d.x += wind(world, d.x) * 0.5;
@@ -584,11 +586,16 @@ export const strength = fade;
 // ---------- each tick ----------
 
 // What kind of place the tank is now: its biome's key, name, what it's like, and its wild flower's name (??? until
-// it's turned up), plus any news to show.
+// it's turned up); every wild flower that has, how much of the open space is water (%) and how green it is; and
+// any news to show.
 export const biomeNow = (world) => {
-  const b = surveyOf(world).biome;
+  const s = surveyOf(world);
+  const b = s.biome;
   const news = world.news && world.time - world.news.at < NEWS_TICKS ? world.news.text : null;
-  return { key: b.key, name: b.name, about: b.about, wild: b.wild && wildName(world, b), news };
+  const found = world.found.map((key) => WILD[key]?.name).filter(Boolean);
+  const wild = b.wild && wildName(world, b);
+  const water = Math.round(s.wet * 100);
+  return { key: b.key, name: b.name, about: b.about, wild, found, water, green: s.green, news };
 };
 
 // Look the tank over, start and run its goings-on, and now and then seed its wild flower: returns that, for the

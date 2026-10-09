@@ -60,31 +60,21 @@ body {
 }
 .tank .fullscreen:hover,
 .tank .fullscreen:focus-visible { opacity: 1; }
-/* The tank's biome, top left over the tank: tapped, what it's like. News shows in its place a while, in coin yellow. */
-.tank .biome {
+/* News, a wild flower coming up say: top left over the tank a few seconds, in coin yellow, hopping in. */
+.tank .news {
   position: absolute;
   top: 4px;
   left: 4px;
   max-width: calc(100% - 42px);
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
+  margin: 0;
   padding: 4px 7px;
   background: rgb(0 0 0 / 0.35);
-  color: var(--bright);
+  color: var(--coin);
   font-size: 10px;
   letter-spacing: 0.04em;
-  text-align: left;
-  opacity: 0.6;
+  pointer-events: none;
+  animation: bump 0.35s ease-out;
 }
-.tank .biome:hover,
-.tank .biome:focus-visible,
-.tank .biome[aria-expanded='true'],
-.tank .biome.news { opacity: 1; }
-.tank .biome.news { color: var(--coin); }
-.tank .biome .bump { display: inline-block; animation: bump 0.35s ease-out; }
-.tank .biome .about { margin-top: 4px; font-size: 9px; line-height: 1.5; opacity: 0.85; }
 /* Something bought is waiting to go in: the frame glows in coin yellow. */
 .tank.placing { animation: glow 1.2s ease-in-out infinite alternate; }
 @keyframes glow { to { border-color: var(--coin); } }
@@ -196,6 +186,9 @@ button.stack { flex-direction: column; gap: 5px; min-width: 0; padding: 6px 2px;
 .card .about > button { min-height: 32px; }
 .stats { display: grid; gap: 5px; margin: 0; font-size: 9px; letter-spacing: 0.04em; }
 .stats div { display: grid; grid-template-columns: 6em 1fr; align-items: center; gap: 8px; }
+/* Debug mode's tank stats: words, not bars. */
+.tankstats div { grid-template-columns: 8em 1fr; align-items: baseline; }
+.tankstats dd { margin: 0; line-height: 1.6; color: var(--bright); }
 .meter { margin: 0; height: 6px; background: var(--frame); }
 .meter span { display: block; height: 100%; background: var(--tan); transition: width 0.3s; }
 button {
