@@ -1,9 +1,10 @@
 // Run with `node src/biomes.check.js`: a tank takes its biome from what it's made of (sand, with a pond or not, or
-// brownstone a desert; snow a tundra; basalt volcanic; stone, dirt and water, wood or grass the wilds; water all over
-// a sea; anything else a garden). A biome's wild flowers come up at random, one of each kind at most: in a desert a
-// white lotus on the sand (which flowers) and a paintbrush, and by a pond a blue lotus out of the shallows; in the
-// wilds a pink lotus out of a pond's shallows. Which have turned up is saved. Each biome's goings-on come and go, the
-// tumbleweeds rolling over the ground (never into it) and the jellyfish keeping to the water.
+// brownstone a desert; snow a tundra; basalt volcanic; stone, dirt and water, wood, or dirt and plants (grass doesn't
+// count) the wilds; water all over a sea; anything else a garden). A biome's wild flowers come up at random, one of
+// each kind at most: in a desert a white lotus on the sand (which flowers) and a paintbrush, and by a pond a blue lotus
+// out of the shallows; in the wilds a pink lotus out of a pond's shallows. Which have turned up is saved. Each biome's
+// goings-on come and go, the tumbleweeds rolling over the ground (never into it) and the jellyfish keeping to the
+// water.
 import assert from 'node:assert/strict';
 import { createWorld, exportWorld, importWorld, step } from './sim.js';
 import { surveyOf } from './biomes.js';
@@ -46,8 +47,11 @@ const steps = (world, n, each = () => {}) => {
   assert.equal(biome(tank(pond(DIRT, 14))), 'wilds', 'a wetland');
   assert.equal(biome(tank(of(WOOD))), 'wilds', 'a wood');
   const meadow = tank(of(DIRT));
-  meadow.objects.push({ kind: 'grass', base: { x: 0, y: 0 } }, { kind: 'grass', base: { x: 0, y: 0 } });
-  assert.equal(biome(meadow), 'wilds', 'a meadow');
+  for (let i = 0; i < 4; i++) meadow.objects.push({ kind: 'grass', base: { x: 0, y: 0 } });
+  assert.equal(biome(meadow), 'garden', "grass doesn't count");
+  for (let i = 0; i < 3; i++) meadow.objects.push({ kind: 'plant', base: { x: 0, y: 0 } });
+  meadow.time += 1000; // looked over again
+  assert.equal(biome(meadow), 'wilds', 'dirt and plants: a meadow');
   assert.equal(biome(tank((r, c, cols) => (c === 0 || c === cols - 1 ? STONE : WATER), 160)), 'sea');
 
   // Thick with plants, with water, a rainforest: 12 plants in a small tank, 20 in a large one.

@@ -789,7 +789,7 @@ export default function App() {
                   ['Wild flowers', snap.biome.wild.join(', ') || 'none here'],
                   ['Found', snap.biome.found.join(', ') || 'none yet'],
                   ['Water', `${snap.biome.water}% of the open space`],
-                  ['Greenery', snap.biome.green], // plants, grass patches and vines
+                  ['Greenery', snap.biome.green], // plants and vines: grass doesn't count
                   ['Bugs', snap.bugs],
                   ['Fish', snap.fish],
                   ['Flying bugs', snap.fliers],

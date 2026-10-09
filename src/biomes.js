@@ -1,5 +1,5 @@
 // Biomes: what kind of place the tank is, read from what it's made of. Mostly sand, sandstone and brownstone is a
-// desert; snow and ice a tundra; basalt volcanic; rock, dirt and water, wood or grass the wilds; and so on. Each biome
+// desert; snow and ice a tundra; basalt volcanic; rock, dirt and water, or wood the wilds; and so on. Each biome
 // has its own goings-on (tumbleweeds and dust devils, snow flurries, embers and steam, dripping overhangs,
 // will-o'-the-wisps, rain, mushrooms, seed fluff, jellyfish), and very rarely one of its wild flowers seeds itself, one
 // of each kind at most: a white lotus on the desert sand, say. The goings-on draw on their own random numbers, so they
@@ -41,9 +41,9 @@ const RAIN_SPEED = 1.5; // px a tick the slowest raindrops fall
 const ROCK = (m) => m === STONE || m === BASALT || m === SANDSTONE || m === BROWNSTONE;
 
 // What the tank is made of: how many cells of each material (count), the ground (every cell but air, water and
-// fountains), the share of its open space that's water (wet), its plants, grass and vines (green, grass) and sticks;
-// and where things can happen: along the top of every column, the first water or ground going down (surface), the
-// ground under any water (y), how deep the water there is (depth) and what the ground is (m, null for the tank
+// fountains), the share of its open space that's water (wet), its plants and vines (green: grass doesn't count) and
+// sticks; and where things can happen: along the top of every column, the first water or ground going down (surface),
+// the ground under any water (y), how deep the water there is (depth) and what the ground is (m, null for the tank
 // floor); basalt open to the air (embers), water lapping at basalt (steam), and the undersides of overhanging rock
 // (drips). Worked out afresh every couple of seconds.
 const surveys = new WeakMap();
@@ -87,8 +87,7 @@ export const surveyOf = (world) => {
     ground,
     land: ground >= cells.length * LAND,
     wet: count[WATER] / (count[WATER] + count[EMPTY] || 1),
-    green: kinds.plant + kinds.grass + kinds.vine,
-    grass: kinds.grass,
+    green: kinds.plant + kinds.vine,
     sticks: kinds.stick,
     tops,
     embers,
@@ -102,7 +101,7 @@ export const surveyOf = (world) => {
 
 // The share of the ground that's any of these materials.
 const share = (s, ...ms) => ms.reduce((a, m) => a + s.count[m], 0) / (s.ground || 1);
-// At least n (for a small tank) plants, patches of grass or vines, scaled to this tank's size.
+// At least n (for a small tank) plants or vines, scaled to this tank's size.
 const plants = (s, n) => Math.round(n * s.room);
 
 // The first water or ground going down at x, the y of it.
@@ -162,13 +161,12 @@ const BIOMES = [
       (s.land && s.wet >= 0.08 && share(s, DIRT) >= 0.3) || // a wetland
       (s.land && share(s, WOOD) >= 0.2) || // a wood
       (s.sticks >= 2 && s.green >= plants(s, 4)) ||
-      s.grass >= plants(s, 2) || // a meadow
-      (s.land && share(s, DIRT) >= 0.35 && s.green >= plants(s, 3)),
+      (s.land && share(s, DIRT) >= 0.35 && s.green >= plants(s, 3)), // a meadow
     goings: ['drips', 'wisps', 'rain', 'mushrooms', 'fluff'],
     wild: ['edelweiss', 'pinkLotus', 'ghostOrchid', 'goldenPoppy'],
     about:
-      'Rock, dirt and water, wood or grass. Water drips from overhangs, will-o-the-wisps hang over the water, it ' +
-      'rains now and then, mushrooms come up and seed fluff drifts by.',
+      'Rock, dirt and water, wood, or dirt and plants. Water drips from overhangs, will-o-the-wisps hang over the ' +
+      'water, it rains now and then, mushrooms come up and seed fluff drifts by.',
   },
   { key: 'garden', name: 'Garden', test: () => true, goings: [], wild: [], about: 'Nothing special yet.' },
 ];
@@ -457,12 +455,12 @@ const GOINGS = {
   // A shower of rain: drops slanting down on the breeze, splashing where they land and rippling the water.
   rain: {
     every: 600,
-    chance: 0.08,
+    chance: 0.025,
     most: 1,
-    start: (world) => ({ life: 1800 + world.biomeRand() * 1800, drops: [], splashes: [] }),
+    start: (world) => ({ life: 5400 + world.biomeRand() * 3600, drops: [], splashes: [] }),
     step: (world, h) => {
       const r = world.biomeRand;
-      const heavy = fade(h, 300, 300); // it comes on, and eases off
+      const heavy = fade(h, 600, 600); // it comes on, and eases off
       for (let k = 0; k < 2; k++) {
         if (r() >= heavy) continue;
         h.drops.push({ x: r() * (world.W + 40) - 20, y: -2 - r() * 4, vy: RAIN_SPEED * (1 + 0.4 * r()) });
@@ -484,7 +482,7 @@ const GOINGS = {
   // minute or two, and wither away. One whose ground goes is gone.
   mushrooms: {
     every: 600,
-    chance: 0.15,
+    chance: 0.05,
     most: 2,
     start: (world, s) => {
       const r = world.biomeRand;
@@ -500,7 +498,7 @@ const GOINGS = {
         if (!t || t.depth || Math.abs(t.y - at.y) > 4) continue;
         caps.push({ x, y: t.y, size: 1.5 + r() * 2, delay: r() * 200 });
       }
-      return caps.length ? { caps, look, life: 3600 + r() * 3600 } : null;
+      return caps.length ? { caps, look, life: 10800 + r() * 7200 } : null;
     },
     step: (world, h, s) => {
       const standing = (c) => Math.abs(s.tops[Math.floor(c.x / CELL)].surface - c.y) < 2;
