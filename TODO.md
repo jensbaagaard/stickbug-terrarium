@@ -21,8 +21,15 @@
         - come up with some more biomes and random events 
 
 ## shop
-    - lets add the textures to our editor tab
-    - lets also add some variant of darker stone og darker sandstone
+    - [x] lets add the textures to our editor tab
+    - [x] lets also add some variant of darker stone og darker sandstone
+
+## animated backrounds
+    - lets go though our backgrounds and add some rare random animations and general vibes
+        - shooting stars to backgrounds that have stars
+        - mist for backrounds with trees
+        - clounds where it makes sense
+        - etc. 
 
 ## full code review
 - lets go though our code and optimize for further development. the most important part is to make our architecture optimized to use less context so we can better scope our new features.

@@ -1,9 +1,10 @@
-// Falling-sand terrain, a little like Powder Game: a grid of cells of stone, sandstone, wood, ice, dirt, sand, snow
-// or water sitting on the tank floor. Stone, sandstone, wood and ice stay where they're drawn, sand pours and
-// slides into slopes, dirt falls straight down and stacks up, snow drifts down slowly and piles up softly, and
-// water runs, levels out and spills out of the sides of the tank. Sand and dirt sink through water; snow melts into
-// it, and ice freezes the top of any water touching it, so a pond ices over from the surface. Fountains (bought,
-// not drawn) sit still like stone and keep pouring out water, like Powder Game's clone. Pure data + functions.
+// Falling-sand terrain, a little like Powder Game: a grid of cells of stone, basalt, sandstone, brownstone, wood, ice,
+// dirt, sand, snow or water sitting on the tank floor. Stone, basalt (a dark stone), sandstone, brownstone (a dark
+// sandstone), wood and ice stay where they're drawn, sand pours and slides into slopes, dirt falls straight down and
+// stacks up, snow drifts down slowly and piles up softly, and water runs, levels out and spills out of the sides of the
+// tank. Sand and dirt sink through water; snow melts into it, and ice freezes the top of any water touching it, so a
+// pond ices over from the surface. Fountains (bought, not drawn) sit still like stone and keep pouring out water, like
+// Powder Game's clone. Pure data + functions.
 
 export const CELL = 2; // world px per cell
 export const EMPTY = 0;
@@ -16,11 +17,15 @@ export const WOOD = 6;
 export const SANDSTONE = 7;
 export const SNOW = 8;
 export const ICE = 9;
+export const BASALT = 10;
+export const BROWNSTONE = 11;
 
 // [key, label, cell value] for the editor palette.
 export const MATERIALS = [
   ['stone', 'Stone', STONE],
+  ['basalt', 'Basalt', BASALT],
   ['sandstone', 'Sandstone', SANDSTONE],
+  ['brownstone', 'Brownstone', BROWNSTONE],
   ['wood', 'Wood', WOOD],
   ['ice', 'Ice', ICE],
   ['dirt', 'Dirt', DIRT],
@@ -40,7 +45,9 @@ const SNOW_SLIDE = 0.3; // chance it slips sideways off a pile (sand always does
 const SNOW_MELT = 0.02; // chance a tick that snow touching water melts into it
 const FREEZE = 0.004; // chance a tick that the top of water touching ice freezes
 const ICE_DEPTH = 2; // cells: how thick a pond's ice gets; the water under it stays water
-const SOLID = (m) => m === STONE || m === SANDSTONE || m === WOOD || m === ICE || m === FOUNTAIN; // never moves
+// Never moves.
+const SOLID = (m) =>
+  m === STONE || m === BASALT || m === SANDSTONE || m === BROWNSTONE || m === WOOD || m === ICE || m === FOUNTAIN;
 
 // The grid is bottom-aligned to the floor: row r's top edge is at top + r * CELL.
 export const makeTerrain = (W, floor) => {

@@ -25,7 +25,7 @@ import {
 } from './sim.js';
 import { drawThumb } from './thumbs.js';
 import { MATERIALS } from './terrain.js';
-import { MATERIAL_COLORS } from './render.js';
+import { MATERIAL_COLORS, drawSwatch } from './render.js';
 import { ICONS, pixelPath } from './icons.js';
 import {
   AUTO,
@@ -95,6 +95,16 @@ function Icon({ name, scale = 2 }) {
       <path d={pixelPath(rows)} fill="currentColor" shapeRendering="crispEdges" />
     </svg>
   );
+}
+
+// A patch of a material as the tank shows it, drawn once; erase has none, and shows the chip's hatching.
+function Swatch({ material }) {
+  const canvas = useRef(null);
+  const value = MATERIALS.find(([key]) => key === material)[2];
+  useEffect(() => {
+    if (value) drawSwatch(canvas.current, value);
+  }, [value]);
+  return <canvas ref={canvas} className="chip" aria-hidden="true" />;
 }
 
 // A price in coins, red when there aren't enough.
@@ -596,7 +606,7 @@ export default function App() {
                   aria-pressed={brush.material === key}
                   onClick={act((w) => setBrush(w, { material: key }))}
                 >
-                  <span className="chip" style={{ background: color(key) }} aria-hidden="true" />
+                  <Swatch material={key} />
                   {label}
                 </button>
               ))}

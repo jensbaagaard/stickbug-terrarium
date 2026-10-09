@@ -131,7 +131,7 @@ button.stack { flex-direction: column; gap: 5px; min-width: 0; padding: 6px 2px;
 .editor { display: flex; flex-direction: column; gap: 6px; }
 .palette { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
 .palette button { padding: 6px; }
-.palette .chip { width: 100%; height: 20px; border: 1px solid var(--soil); }
+.palette .chip { display: block; width: 100%; height: 20px; border: 1px solid var(--soil); object-fit: cover; image-rendering: pixelated; }
 .chip, .dot { background: repeating-linear-gradient(45deg, #000 0 3px, #3b2d21 3px 6px); }
 .sizes { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
 .sizes .dot { width: calc(2px + var(--size) * 4px); aspect-ratio: 1; border: 1px solid var(--soil); }

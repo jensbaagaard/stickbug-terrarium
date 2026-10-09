@@ -1,8 +1,8 @@
 # Stickbug Terrarium
 
 A tiny pixel-art terrarium of stick insects that walk, climb, eat leaves, dance and do odd stick insect things, and
-guppies that shoal in its water, each with its own genome. Paint the landscape in stone, sandstone, wood, ice, dirt,
-sand, snow and water, decorate it from the shop, and tune everything.
+guppies that shoal in its water, each with its own genome. Paint the landscape in stone, basalt, sandstone,
+brownstone, wood, ice, dirt, sand, snow and water, decorate it from the shop, and tune everything.
 
 ## Run
 
@@ -31,14 +31,15 @@ Shop, Garden (Prune, Relocate, Propagate and Feed), Saves and Settings. The game
   been saved, loaded or imported, and the reroll button fills up until rerolling is free again. Only errors are
   written out.
 
-- Editor: pick stone, sandstone, wood, ice, dirt, sand, snow or water (or erase) and a brush size, and draw in the
-  tank; hold still to keep pouring. Stone, sandstone (in soft layers), wood (with its grain running along it) and ice
-  stay where they're drawn, sand slides into slopes, dirt falls straight down and stacks up, snow drifts down slowly
-  and piles up, and water runs, fills hollows and spills out of the sides of the tank (wall them with stone to keep
-  it in). Snow that touches water melts into it, and ice freezes the top of any water touching it, so a pond slowly
-  ices over (bugs can walk across) while the water under the ice stays water. Bugs walk over the terrain and climb its
-  walls, along ledges and through caves (never through it, or on air), and wade through shallow water; in deeper
-  water they float, paddling for the nearest bank, and climb out. Anything you plant can stand on the terrain.
+- Editor: pick stone, basalt (a dark stone), sandstone, brownstone (a dark sandstone), wood, ice, dirt, sand, snow or
+  water (or erase), each shown as it looks in the tank, and a brush size, and draw in the tank; hold still to keep
+  pouring. Stone, basalt, sandstone and brownstone (in soft layers), wood (with its grain running along it) and ice stay
+  where they're drawn, sand slides into slopes, dirt falls straight down and stacks up, snow drifts down slowly and
+  piles up, and water runs, fills hollows and spills out of the sides of the tank (wall them with stone to keep it in).
+  Snow that touches water melts into it, and ice freezes the top of any water touching it, so a pond slowly ices over
+  (bugs can walk across) while the water under the ice stays water. Bugs walk over the terrain and climb its walls,
+  along ledges and through caves (never through it, or on air), and wade through shallow water; in deeper water they
+  float, paddling for the nearest bank, and climb out. Anything you plant can stand on the terrain.
 - The button in the tank's top corner shows it full screen, alone and as big as it'll go; the button again (or Esc)
   brings it back.
 - Drag a bug to pick it up; tap it to inspect it (its picture, name, and bars for hunger, speed, size, laziness
@@ -171,8 +172,8 @@ Shop, Garden (Prune, Relocate, Propagate and Feed), Saves and Settings. The game
   they live: clambering about the plants and sticks, flying between them (a breadth-first search of the air for the way
   round the terrain), hunting aphids, eating pollen or sipping sap, resting, huddling, meeting, playing dead or
   stinking, and keeping out of the water; and the aphids. Pure logic, no DOM.
-- `src/terrain.js` – the falling-sand grid (stone, sandstone, wood, ice, dirt, sand, snow, water, fountains):
-  painting and stepping. `sim.js` traces its outline (and the open floor's) into the surfaces bugs walk on.
+- `src/terrain.js` – the falling-sand grid (stone, basalt, sandstone, brownstone, wood, ice, dirt, sand, snow, water,
+  fountains): painting and stepping. `sim.js` traces its outline (and the open floor's) into the surfaces bugs walk on.
 - `src/decor.js` – random sticks (eight styles, with their own foliage), wallpapers (patterns and themed scenes, now
   and then vivid), and the plant genomes: flowering species with a flower genome (form, petals, colours, size), clump
   plants (four forms and fifteen house plants), grasses and hanging vines, the plants now and then with rare leaves.

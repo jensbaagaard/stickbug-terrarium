@@ -27,7 +27,23 @@ import {
 } from './geom.js';
 import { FAR_SHADE, bodyHex, patternHex, patternOf, traitsOf } from './genome.js';
 import { stickWidth } from './decor.js';
-import { CELL, DIRT, EMPTY, FOUNTAIN, ICE, MATERIALS, SAND, SANDSTONE, SNOW, STONE, WATER, WOOD } from './terrain.js';
+import {
+  BASALT,
+  BROWNSTONE,
+  CELL,
+  DIRT,
+  EMPTY,
+  FOUNTAIN,
+  ICE,
+  makeTerrain,
+  MATERIALS,
+  SAND,
+  SANDSTONE,
+  SNOW,
+  STONE,
+  WATER,
+  WOOD,
+} from './terrain.js';
 import { aimAt, floorBelow, previewAt, propagatable, relocationAt } from './sim.js';
 import { facingNow, fishShape } from './fish.js';
 import { flierShape } from './fliers.js';
@@ -1369,11 +1385,12 @@ const drawBug = (ctx, world, bug) => {
 // ---------- terrain ----------
 
 // Each material is one colour with just a hint of grain: three shades a couple of percent apart, and each
-// grain keeps its own shade as it moves. Wood and sandstone never move, so their shade comes from where they
-// are instead: wavy grain lines in wood, soft layers in sandstone.
+// grain keeps its own shade as it moves. Wood and sandstone (and brownstone, a darker sandstone) never move, so their
+// shade comes from where they are instead: wavy grain lines in wood, soft layers in sandstone.
 const shades = (h, s, l, [a, b] = [-2, 2]) => [l, l + a, l + b].map((v) => hslHex(h, s, v));
 export const MATERIAL_COLORS = {
   [STONE]: shades(240, 3, 44),
+  [BASALT]: shades(225, 8, 24, [-3, 3]),
   [DIRT]: shades(28, 40, 25),
   [SAND]: shades(44, 52, 70),
   [WATER]: shades(212, 60, 47),
@@ -1381,6 +1398,7 @@ export const MATERIAL_COLORS = {
   // Plain, grain line, light streak, dim streak: all within a few percent, so the grain is felt more than seen.
   [WOOD]: [0, -3, 1, -1].map((d) => hslHex(28, 26, 36 + d)),
   [SANDSTONE]: shades(33, 48, 56, [-4, 3]),
+  [BROWNSTONE]: shades(18, 40, 34, [-4, 3]),
   [SNOW]: shades(205, 30, 91, [-3, 3]),
   [ICE]: shades(195, 50, 68, [-4, 12]), // plain, shadowed, glinting
 };
@@ -1461,7 +1479,7 @@ const dotColor = (ter, water, scale, x, y, grain) => {
   if (m === EMPTY || (m === WATER) !== water) return null;
   if (water && (r === 0 || ter.cells[i - ter.cols] !== WATER)) return WATER_TOP;
   if (m === WOOD) return MATERIAL_COLORS[WOOD][grain[(i * CELL + (y % CELL)) * CELL + (x % CELL)]];
-  if (m === SANDSTONE) return MATERIAL_COLORS[SANDSTONE][sandstoneShade(r, c)];
+  if (m === SANDSTONE || m === BROWNSTONE) return MATERIAL_COLORS[m][sandstoneShade(r, c)];
   if (m === ICE) return MATERIAL_COLORS[ICE][iceShade(r, c, ter.tint[i])];
   return MATERIAL_COLORS[m][ter.tint[i]];
 };
@@ -1531,6 +1549,22 @@ const terrainLayer = (ter, water) => {
     layer.version = version;
   }
   return layer.canvas;
+};
+
+// A patch of material m as the tank shows it, filling canvas: its grains, wood's grain, sandstone's layers, ice's
+// glints, water's bright top over the dark. For the editor's palette.
+export const drawSwatch = (canvas, m) => {
+  const ter = makeTerrain(40, 10);
+  ter.cells.fill(m);
+  ter.tint.forEach((_, i) => (ter.tint[i] = Math.floor(hash(i, m, 7) * 3)));
+  Object.assign(canvas, { width: ter.cols * CELL, height: ter.rows * CELL });
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.globalAlpha = m === WATER ? WATER_ALPHA : 1;
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(terrainLayer(ter, m === WATER), 0, 0, canvas.width, canvas.height);
+  ctx.globalAlpha = 1;
 };
 
 const drawTerrain = (ctx, world, water) => {
