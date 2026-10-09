@@ -50,6 +50,8 @@ const ICE_DEPTH = 2; // cells: how thick a pond's ice gets; the water under it s
 // Never moves.
 const SOLID = (m) =>
   m === STONE || m === BASALT || m === SANDSTONE || m === BROWNSTONE || m === WOOD || m === ICE || m === FOUNTAIN;
+// Can a grain of m go into a cell holding n? Into empty space, and sand and dirt sink through water (snow floats).
+const into = (m, n) => n === EMPTY || (m !== WATER && m !== SNOW && n === WATER);
 
 // The grid is bottom-aligned to the floor: row r's top edge is at top + r * CELL.
 export const makeTerrain = (W, floor) => {
@@ -172,6 +174,7 @@ export const stepTerrain = (ter, rand, tick) => {
       const c = flip ? k : cols - 1 - k;
       const i = r * cols + c;
       const m = cells[i];
+      if (m === EMPTY) continue;
       if (m === FOUNTAIN) {
         for (const j of [i - cols, i + cols, c > 0 ? i - 1 : -1, c < cols - 1 ? i + 1 : -1]) {
           if (j < 0 || j >= cells.length || cells[j] !== EMPTY) continue;
@@ -184,8 +187,8 @@ export const stepTerrain = (ter, rand, tick) => {
         }
         continue;
       }
-      const near = [r > 0 ? i - cols : -1, r + 1 < rows ? i + cols : -1, c > 0 ? i - 1 : -1, c < cols - 1 ? i + 1 : -1];
       if (m === ICE) {
+        const near = [r > 0 ? i - cols : -1, r + 1 < rows ? i + cols : -1, c > 0 ? i - 1 : -1, c < cols - 1 ? i + 1 : -1];
         // Freeze the top of the water it touches: water with open air over it, or at most ICE_DEPTH - 1 cells of
         // ice and then air.
         const surface = (j) => {
@@ -204,11 +207,14 @@ export const stepTerrain = (ter, rand, tick) => {
         }
         continue;
       }
-      if (m === EMPTY || SOLID(m) || done[i]) continue;
-      // Can m go into cell j? Into empty space, and sand and dirt sink through water (snow floats, and melts).
-      const into = (j) => cells[j] === EMPTY || (m !== WATER && m !== SNOW && cells[j] === WATER);
+      if (SOLID(m) || done[i]) continue;
       if (m === SNOW) {
-        if (near.some((j) => j >= 0 && cells[j] === WATER)) {
+        const wet =
+          (r > 0 && cells[i - cols] === WATER) ||
+          (r + 1 < rows && cells[i + cols] === WATER) ||
+          (c > 0 && cells[i - 1] === WATER) ||
+          (c < cols - 1 && cells[i + 1] === WATER);
+        if (wet) {
           pouring = true; // keep going till it's melted
           if (rand() < SNOW_MELT) {
             cells[i] = WATER;
@@ -220,17 +226,19 @@ export const stepTerrain = (ter, rand, tick) => {
       if (rand() >= PACE[m]) {
         // Waiting its turn to move: keep going if it has somewhere to go, down or (water) sideways.
         const below = i + cols;
-        const fall = r + 1 < rows && [0, -1, 1].some((dx) => c + dx >= 0 && c + dx < cols && into(below + dx));
-        const run = m === WATER && [-1, 1].some((dx) => c + dx < 0 || c + dx >= cols || cells[i + dx] === EMPTY);
+        const fall =
+          r + 1 < rows &&
+          (into(m, cells[below]) || (c > 0 && into(m, cells[below - 1])) || (c < cols - 1 && into(m, cells[below + 1])));
+        const run = m === WATER && (c === 0 || c === cols - 1 || cells[i - 1] === EMPTY || cells[i + 1] === EMPTY);
         if (fall || run) pouring = true;
         continue;
       }
       if (r + 1 < rows) {
         const below = i + cols;
-        if (into(below)) {
+        if (into(m, cells[below])) {
           // Snow drifts a little to one side as it falls, where there's room.
           const dx = m === SNOW && rand() < SNOW_DRIFT ? (rand() < 0.5 ? -1 : 1) : 0;
-          const ok = dx && c + dx >= 0 && c + dx < cols && into(below + dx) && !SOLID(cells[i + dx]);
+          const ok = dx && c + dx >= 0 && c + dx < cols && into(m, cells[below + dx]) && !SOLID(cells[i + dx]);
           move(i, ok ? below + dx : below);
           continue;
         }
@@ -238,12 +246,12 @@ export const stepTerrain = (ter, rand, tick) => {
         if (m !== DIRT && (m !== SNOW || rand() < SNOW_SLIDE)) {
           const side = rand() < 0.5 ? -1 : 1;
           let slid = false;
-          for (const dx of [side, -side]) {
+          for (let k = 0; k < 2 && !slid; k++) {
+            const dx = k ? -side : side;
             const cc = c + dx;
-            if (cc < 0 || cc >= cols || !into(below + dx) || SOLID(cells[i + dx])) continue;
+            if (cc < 0 || cc >= cols || !into(m, cells[below + dx]) || SOLID(cells[i + dx])) continue;
             move(i, below + dx);
             slid = true;
-            break;
           }
           if (slid) continue;
         }

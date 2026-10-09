@@ -85,7 +85,6 @@ const LOOKS = {
     { weight: 10, rare: 2, look: (rand) => ({ shell: red(rand), tip: SOOT, collar: red(rand), head: SOOT }) },
   ],
 };
-export const KINDS = Object.keys(LOOKS);
 
 // A flier's genome: its kind, its looks, and its nature, the genes running 0..1: size, speed, appetite, boldness
 // (whether it flies off when startled, or plays dead or stinks), sociability (how much it likes to huddle up with its

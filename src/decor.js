@@ -251,7 +251,7 @@ const STICK_STYLES = {
   },
 };
 
-export const STICK_KINDS = Object.keys(STICK_STYLES);
+const STICK_KINDS = Object.keys(STICK_STYLES);
 
 // How wide a stick of this style is at this depth (main limb 0, twigs 1, twigs off twigs 2).
 export const stickWidth = (style, depth) => STICK_STYLES[style ?? 'branch'].widths[depth] ?? 1;
@@ -794,7 +794,7 @@ const CLUMP_FORMS = {
   }),
 };
 
-export const CLUMP_KINDS = Object.keys(CLUMP_FORMS);
+const CLUMP_KINDS = Object.keys(CLUMP_FORMS);
 
 // What a clump plant has unless its form says otherwise.
 const CLUMP_DEFAULTS = {

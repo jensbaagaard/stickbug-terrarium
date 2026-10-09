@@ -20,7 +20,6 @@ import {
   lerp,
   normalize,
   pointAt,
-  rgb,
   segDir,
   segLength,
   segNormal,
@@ -51,6 +50,7 @@ import { flierShape } from './fliers.js';
 import { RIPPLE_TICKS, snowing, wind } from './life.js';
 import { params } from './tuning.js';
 import { drawWallpaper } from './wallpaper.js';
+import { imageLayer, pixel, pixelLayer } from './pixels.js';
 import { drawGoingsOnGround, drawGoingsInAir } from './biomeDraw.js';
 
 const NOTE = ['..#.', '..##', '..#.', '..#.', '###.', '##..'];
@@ -1522,27 +1522,6 @@ const dotColor = (ter, water, scale, x, y, grain) => {
   return MATERIAL_COLORS[m][ter.tint[i]];
 };
 
-// Colours as whole opaque pixels, to write straight into image data.
-const LITTLE_ENDIAN = new Uint8Array(new Uint32Array([1]).buffer)[0] === 1;
-const pixelCache = new Map();
-const pixel = (hex) => {
-  let v = pixelCache.get(hex);
-  if (v === undefined) {
-    const [r, g, b] = rgb(hex);
-    v = (LITTLE_ENDIAN ? (255 << 24) | (b << 16) | (g << 8) | r : (r << 24) | (g << 16) | (b << 8) | 255) >>> 0;
-    pixelCache.set(hex, v);
-  }
-  return v;
-};
-
-// An image to write pixels into (whole colours from pixel), then draw onto the tank.
-const imageLayer = (w, h) => {
-  const canvas = Object.assign(document.createElement('canvas'), { width: w, height: h });
-  const ctx = canvas.getContext('2d');
-  const image = ctx.createImageData(w, h);
-  return { canvas, ctx, image, pixels: new Uint32Array(image.data.buffer) };
-};
-
 // Each terrain's drawing caches: its layers and its wood grain.
 const layers = new WeakMap();
 const layersOf = (ter) => {
@@ -2289,16 +2268,21 @@ export const drawWorld = (ctx, world) => {
   ctx.fillStyle = '#9c7448';
   ctx.fillRect(0, floor, world.W, 1);
 
-  for (const obj of world.objects) if (obj.kind === 'plant') drawPlant(ctx, obj);
-  drawAphids(ctx, world);
+  // The plants, sticks, vines and bugs are only opaque fills of whole px, so they're drawn into px, a pass at a time,
+  // and each pass put onto the tank in one go.
+  const px = pixelLayer(world.W, world.H);
+  for (const obj of world.objects) if (obj.kind === 'plant') drawPlant(px, obj);
+  drawAphids(px, world);
   const sticks = world.branches.filter((g) => g.kind === 'stick');
   for (const g of sticks) {
-    drawBranch(ctx, g, woodColors(g.obj.wood), stickWidth(g.obj.style, g.depth), g.obj.foliage, g.obj.style);
+    drawBranch(px, g, woodColors(g.obj.wood), stickWidth(g.obj.style, g.depth), g.obj.foliage, g.obj.style);
   }
-  for (const g of sticks) for (const leaf of g.leaves) drawLeaf(ctx, g, leaf, g.obj.foliage);
+  for (const g of sticks) for (const leaf of g.leaves) drawLeaf(px, g, leaf, g.obj.foliage);
+  px.flush(ctx);
   drawTerrain(ctx, world, false);
   drawGrass(ctx, world, world.objects.filter((obj) => obj.kind === 'grass'));
-  for (const obj of world.objects) if (obj.kind === 'vine') drawVine(ctx, obj);
+  for (const obj of world.objects) if (obj.kind === 'vine') drawVine(px, obj);
+  px.flush(ctx);
   drawGoingsOnGround(ctx, world);
   if (world.tool === 'propagate') drawReady(ctx, world);
 
@@ -2308,8 +2292,9 @@ export const drawWorld = (ctx, world) => {
   const preview = world.hover && previewAt(world);
   if (preview) drawPreview(ctx, world, preview);
 
-  for (const bug of world.bugs) drawBug(ctx, world, bug);
-  drawLitter(ctx, world);
+  for (const bug of world.bugs) drawBug(px, world, bug);
+  drawLitter(px, world);
+  px.flush(ctx);
   drawTerrain(ctx, world, true); // water over the bugs and fallen leaves, so they wade and sink
   drawWater(ctx, world);
   // Fish and their food go over the water, just tinted by it: under the full wash of it their colours would be lost.

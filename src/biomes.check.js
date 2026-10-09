@@ -9,7 +9,7 @@ import assert from 'node:assert/strict';
 import { createWorld, exportWorld, importWorld, step } from './sim.js';
 import { surveyOf } from './biomes.js';
 import { snowing } from './life.js';
-import { BASALT, BROWNSTONE, CELL, cellAt, DIRT, EMPTY, SAND, SNOW, STONE, WATER, WOOD } from './terrain.js';
+import { BASALT, BROWNSTONE, cellAt, DIRT, EMPTY, SAND, SNOW, STONE, WATER, WOOD } from './terrain.js';
 import { params } from './tuning.js';
 
 // An empty tank (no plants, no bug), its bottom `deep` rows filled in by fill(r, c), r counted down from the top of
