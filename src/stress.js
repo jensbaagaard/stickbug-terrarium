@@ -6,10 +6,10 @@ import { params } from './tuning.js';
 
 // A dirt bank on the left with grass, plants, clump plants, sticks and bugs on it; a pond walled in stone on the
 // right, topped up by a fountain forever (so the terrain never rests), with plants, grass and fish in it; vines
-// hanging over it all. The tank's life turned all the way up: the most fireflies, and leaves dropping as fast as they
-// can. crowd puts in that many of every plant, clump plant, grass and vine, side by side.
+// hanging over it all. The tank's life turned all the way up: the most fireflies, and leaves and flowers dropping as
+// fast as they can. crowd puts in that many of every plant, clump plant, grass and vine, side by side.
 export const stressWorld = (crowd = 1, W = 256, H = 341) => {
-  Object.assign(params, { fireflies: 12, leafLife: 0.1 });
+  Object.assign(params, { fireflies: 12, leafLife: 0.1, bloomLife: 0.1 });
   const world = createWorld(W, H, { seed: 7, scene: false });
   world.coins = 1e9;
   const floor = world.ground.y0;

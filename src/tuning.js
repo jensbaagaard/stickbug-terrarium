@@ -127,6 +127,7 @@ export const GROUPS = [
     sliders: [
       ['breeze', 'Breeze', 1, 1, 0.1], // how hard the breeze blows, swells and gusts alike
       ['leafLife', 'Leaf life', 1, 0.9, 0.1], // multiplier on how long a leaf lasts before it yellows and drops
+      ['bloomLife', 'Bloom life', 1, 0.9, 0.1], // multiplier on how long a flower stays open before it wilts
     ],
   },
   {

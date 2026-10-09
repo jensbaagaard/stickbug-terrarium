@@ -55,6 +55,7 @@ const GLYPHS = {
 };
 
 const dirOf = (a) => ({ x: Math.cos(a), y: Math.sin(a) });
+const BUD = 0.4; // a flower is a closed bud till it's this far open
 
 // Fill a pixel-snapped square of width w centred on (x, y).
 const plot = (ctx, x, y, w) => {
@@ -194,17 +195,53 @@ const drawLeaf = (ctx, g, leaf, fol) => {
   leafShape(ctx, base, axis, len, form, leaf.size * fol.size, hslHex(h, s, l), hslHex(h, s, l - 9));
 };
 
-// A flower at c, in its species' form, opening as bloom goes 0 -> 1. Petals shade from base to tip.
-const drawFlower = (ctx, f, c, bloom, turn, scale = 1) => {
+// A #rrggbb colour a share k of the way to the dull brown a flower goes as it wilts. Mixed as light, not round the
+// colour wheel, so a blue flower dulls to slate rather than passing through green.
+const BROWN = [110, 84, 58];
+const wither = (hex, k) => {
+  const n = parseInt(hex.slice(1), 16);
+  const [r, g, b] = [n >> 16, (n >> 8) & 255, n & 255].map((v, i) => Math.round(v + (BROWN[i] - v) * k));
+  return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, '0')}`;
+};
+
+// Draws onto ctx with every colour withered a share k of the way: for a wilting flower, whatever its form.
+const withering = (ctx, k) => ({
+  set fillStyle(c) {
+    ctx.fillStyle = wither(c, k);
+  },
+  fillRect: (x, y, w, h) => ctx.fillRect(x, y, w, h),
+});
+
+// A closed bud at the end of a stem (c, the stem heading along d), swelling as grow goes 0 -> 1: green, the colour of
+// its petals showing at its tip as it gets ready to open.
+const drawBud = (ctx, sp, c, d, grow, scale) => {
+  const f = sp.flower;
+  const len = (1 + 2.5 * grow) * f.size * scale;
+  const wide = (0.8 + f.petalWidth * grow) * f.size * scale * 0.6;
+  const green = hslHex(sp.stem.h, sp.stem.s, sp.stem.l + 8);
+  const petal = hslHex(f.petal.h, f.petal.s, f.petal.l - 8);
+  for (let k = 0; k <= len; k += 0.5) {
+    const u = k / len;
+    ctx.fillStyle = u > 1 - 0.6 * grow ? petal : green;
+    plot(ctx, c.x + d.x * k, c.y + d.y * k, Math.max(1, wide * Math.sin(Math.PI * (0.25 + 0.75 * u))));
+  }
+};
+
+// A flower at c, in its species' form, opening as bloom goes 0 -> 1, then wilting as wilt goes 0 -> 1: browning, its
+// petals drooping and dropping one by one. Petals shade from base to tip.
+const drawFlower = (ctx, f, c, bloom, turn, scale = 1, wilt = 0) => {
+  if (wilt > 0) ctx = withering(ctx, wilt * 0.8);
   const s = f.size * scale * (0.3 + 0.7 * bloom);
   const len = f.petalLen * s;
   const wide = f.petalWidth * s;
+  const left = 1 - wilt; // the share of its petals still on
   const petalAt = (u) => hslHex(f.petal.h + (f.tip.h - f.petal.h) * u, f.petal.s, f.petal.l + f.tip.l * u);
   const centre = hslHex(f.centre.h, f.centre.s, f.centre.l);
   const row = (x, y, w) => ctx.fillRect(Math.round(x - w / 2), Math.round(y), Math.max(1, Math.round(w)), 1);
   const radial = (n, reach, width, color, offset) => {
-    for (let i = 0; i < n; i++) {
-      const a = offset + (i / n) * Math.PI * 2;
+    for (let i = Math.floor(wilt * n); i < n; i++) {
+      const a0 = offset + (i / n) * Math.PI * 2;
+      const a = a0 + Math.atan2(Math.cos(a0), Math.sin(a0)) * wilt * 0.6; // drooping toward straight down
       for (let k = 0; k <= reach; k += 0.5) {
         ctx.fillStyle = color(k / reach);
         plot(ctx, c.x + Math.cos(a) * k, c.y + Math.sin(a) * k, Math.max(1, width(k / reach)));
@@ -217,7 +254,7 @@ const drawFlower = (ctx, f, c, bloom, turn, scale = 1) => {
       const h = (1.5 + f.petalLen) * s;
       for (let k = 0; k <= h; k += 0.5) {
         ctx.fillStyle = petalAt(k / h);
-        row(c.x, c.y + k, 1 + wide * 1.4 * (k / h) ** 0.8);
+        row(c.x, c.y + k, 1 + wide * 1.4 * (k / h) ** 0.8 * (0.4 + 0.6 * left));
       }
       ctx.fillStyle = centre;
       plot(ctx, c.x, c.y + h + 1, Math.max(1, f.centreSize * s * 0.5));
@@ -228,14 +265,14 @@ const drawFlower = (ctx, f, c, bloom, turn, scale = 1) => {
       const h = (1.5 + f.petalLen) * s;
       for (let k = 0; k <= h; k += 0.5) {
         ctx.fillStyle = petalAt(k / h);
-        row(c.x, c.y - k, 1 + wide * 1.6 * Math.sin(Math.PI * (0.25 + 0.6 * (k / h))));
+        row(c.x, c.y - k, 1 + wide * 1.6 * Math.sin(Math.PI * (0.25 + 0.6 * (k / h))) * (0.4 + 0.6 * left));
       }
       return;
     }
     case 'cluster': {
       // A dome of little florets.
       const r = (1 + f.petalLen * 0.7) * s;
-      for (let i = 0; i < f.petals + 3; i++) {
+      for (let i = 0; i < (f.petals + 3) * left; i++) {
         const a = -Math.PI * (0.05 + 0.9 * hash(turn * 97, i, 1));
         const d = r * Math.sqrt(hash(turn * 97, i, 2));
         ctx.fillStyle = petalAt(hash(turn * 97, i, 3));
@@ -245,7 +282,7 @@ const drawFlower = (ctx, f, c, bloom, turn, scale = 1) => {
     }
     case 'spike': {
       // Florets stacked up the stem tip, smaller toward the top.
-      for (let i = 0; i < f.petals; i++) {
+      for (let i = 0; i < f.petals * left; i++) {
         const u = i / f.petals;
         const w = Math.max(1, wide * 1.2 * (1 - u * 0.7));
         ctx.fillStyle = petalAt(u);
@@ -259,7 +296,7 @@ const drawFlower = (ctx, f, c, bloom, turn, scale = 1) => {
       const r = (1 + f.petalLen * 0.6) * s;
       for (let y = -Math.ceil(r); y <= r; y++) {
         for (let x = -Math.ceil(r); x <= r; x++) {
-          if (x * x + y * y > r * r) continue;
+          if (x * x + y * y > r * r || hash(turn * 97 + x, y, 6) < wilt) continue;
           ctx.fillStyle = petalAt(0.5 * hash(turn * 97 + x, y, 5) + (0.5 * Math.hypot(x, y)) / r);
           ctx.fillRect(Math.round(c.x + x), Math.round(c.y + y), 1, 1);
         }
@@ -288,7 +325,7 @@ const agedLeaf = ({ h, s, l }, fade, rot = 0) => {
   return yellow.map((v, i) => v + ([28, 38, 30][i] - v) * rot);
 };
 
-// A plant as the breeze has bent it, its old leaves yellowing and drooping.
+// A plant as the breeze has bent it, its old leaves yellowing and drooping, its flowers in bud, open or wilting.
 const drawPlant = (ctx, plant) => {
   const sp = plant.species;
   if (sp.form) return drawClump(ctx, plant);
@@ -308,8 +345,13 @@ const drawPlant = (ctx, plant) => {
   }
   for (const st of plant.stems) {
     if (st.flower <= 0) continue;
+    const scale = st.sideBloom ? 0.55 : 1;
+    if (st.flower < BUD) {
+      drawBud(ctx, sp, st.tip, normalize({ x: st.tip.x - st.root.x, y: st.tip.y - st.root.y }), st.flower / BUD, scale);
+      continue;
+    }
     const turn = (st.angle * 1000) % 6.28; // not its position, which moves as it bends
-    drawFlower(ctx, sp.flower, st.tip, st.flower, turn, st.sideBloom ? 0.55 : 1);
+    drawFlower(ctx, sp.flower, st.tip, (st.flower - BUD) / (1 - BUD), turn, scale, st.wilt ?? 0);
   }
 };
 
@@ -843,43 +885,52 @@ const drawClump = (ctx, plant) => {
     const end = chain[chain.length - 1];
     for (const st of chain) {
       if (!st.bud || st.flower <= 0) continue;
+      // Wilting, it browns and closes up again.
+      const fx = st.wilt > 0 ? withering(ctx, st.wilt * 0.8) : ctx;
+      const bloom = st.flower * (1 - 0.7 * (st.wilt ?? 0));
+      const f = sp.flower;
       if (st.sideBloom) {
         // A little white flower along a runner.
-        if (st.flower < 0.3) continue;
-        const { h, s, l } = sp.flower.color;
-        ctx.fillStyle = hslHex(h, s, l);
+        if (bloom < 0.3) continue;
+        const { h, s, l } = f.color;
+        fx.fillStyle = hslHex(h, s, l);
         const [x, y] = [Math.round(st.tip.x), Math.round(st.tip.y)];
-        for (const [dx, dy] of [[0, -1], [-1, 0], [1, 0]]) ctx.fillRect(x + dx, y + dy, 1, 1);
-        if (st.flower > 0.6) {
-          ctx.fillStyle = COIN;
-          ctx.fillRect(x, y, 1, 1);
+        for (const [dx, dy] of [[0, -1], [-1, 0], [1, 0]]) fx.fillRect(x + dx, y + dy, 1, 1);
+        if (bloom > 0.6) {
+          fx.fillStyle = COIN;
+          fx.fillRect(x, y, 1, 1);
         }
       } else if (st === end) {
         const d = normalize({ x: end.tip.x - end.root.x, y: end.tip.y - end.root.y });
-        const f = sp.flower;
-        if (f.kind === 'bird') drawBird(ctx, f, end.tip, d, st.flower, root.side);
-        else if (f.kind === 'plume') drawPlume(ctx, f, pts, st.flower, root.seed);
-        else if (f.kind === 'spathe') drawSpathe(ctx, f, end.tip, d, st.flower, root.side);
-        else if (f.kind === 'orchid') drawOrchid(ctx, f, pts, st.flower);
-        else if (f.kind === 'bells') drawBells(ctx, f, pts, st.flower);
-        else if (f.kind === 'bract') drawBract(ctx, f, end.tip, d, st.flower);
-        else drawPlantlet(ctx, sp, end.tip, st.flower);
+        if (f.kind === 'bird') drawBird(fx, f, end.tip, d, bloom, root.side);
+        else if (f.kind === 'plume') drawPlume(fx, f, pts, bloom, root.seed);
+        else if (f.kind === 'spathe') drawSpathe(fx, f, end.tip, d, bloom, root.side);
+        else if (f.kind === 'orchid') drawOrchid(fx, f, pts, bloom);
+        else if (f.kind === 'bells') drawBells(fx, f, pts, bloom);
+        else if (f.kind === 'bract') drawBract(fx, f, end.tip, d, bloom);
+        else drawPlantlet(ctx, sp, end.tip, bloom);
       }
     }
   }
 };
 
-// Fallen leaves: rocking as they flutter down or sink, flat on the water or the ground, shrinking as fish bite them
-// and curling up at the end.
+// Fallen leaves and petals: rocking as they flutter down or sink, flat on the water or the ground, shrinking as fish
+// bite them and curling up at the end. A petal is a speck or two, already wilting.
 const LITTER_TILT = { fall: 0.9, sink: 0.4 };
 const drawLitter = (ctx, world) => {
   for (const it of world.litter) {
-    const { shape, color, grown, scale, flip } = it.look;
-    const form = LEAF_FORMS[shape];
+    const { shape, color, grown, scale, flip = 1 } = it.look;
     const k = it.size * Math.min(1, (1 - it.rot) / 0.3);
-    const len = (1.5 + 4 * grown) * scale * form.len * k;
     const tilt = Math.sin(it.phase) * (LITTER_TILT[it.state] ?? 0);
     const axis = { x: Math.cos(tilt) * flip, y: Math.sin(tilt) };
+    if (it.look.petal) {
+      ctx.fillStyle = wither(hslHex(color.h, color.s, color.l), 0.4 + 0.6 * it.rot);
+      plot(ctx, it.x, it.y, 1);
+      if (k > 0.5) plot(ctx, it.x + axis.x, it.y + axis.y, 1);
+      continue;
+    }
+    const form = LEAF_FORMS[shape];
+    const len = (1.5 + 4 * grown) * scale * form.len * k;
     const [h, s, l] = agedLeaf(color, 1, it.rot);
     leafShape(ctx, add(it, axis, -len / 2), axis, len, form, grown * scale * k, hslHex(h, s, l), hslHex(h, s, l - 9));
   }

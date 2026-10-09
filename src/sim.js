@@ -71,11 +71,15 @@ const LEAF_SPAWN_CHANCE = 1 / 360;
 const LEAF_SPACING = 16;
 const MAX_CRUMBS = 200;
 const MAX_DEBRIS = 80;
-const MAX_LITTER = 60; // fallen leaves
+const MAX_LITTER = 60; // fallen leaves and petals
 const LEAF_LIFE = 180000; // ticks a plant leaf lasts, for species from before leaves aged
 const LEAF_FADE = 1200; // ticks an old leaf takes to yellow before it drops
 const LITTER_ROT = 1 / 3600; // how fast a fallen leaf lying on the ground browns and curls up, per tick
+const PETAL_ROT = 4; // times as fast as a leaf, a fallen petal shrivels
 const FLOAT_TICKS = 600; // a leaf fallen on the water floats this long before it sinks
+const BLOOM_LIFE = 12000; // ticks a flower stays open, give or take half
+const WILT_TICKS = 1800; // ticks a flower takes to wilt, dropping its petals as it goes
+const REST_TICKS = 3600; // ticks a bare tip rests, give or take half, before it buds again
 const SPROUT_TICKS = 120; // a pruned stem waits this long before sprouting new shoots
 const CHAIN_SEG = 5; // px per segment of a clump plant's leaf, flower stalk or runner
 const CROWN_CHANCE = 1 / 200; // chance a tick that a clump plant with room for it starts a new leaf, stalk or runner
@@ -1021,8 +1025,7 @@ const growPlant = (world, plant, rate) => {
   if (sp.form) return growClump(world, plant, rate);
   for (const stem of [...plant.stems]) {
     for (const leaf of stem.leaves) leaf.size = Math.min(1, leaf.size + LEAF_GROWTH * 2 * rate);
-    // Flowers only open in the air: under water they close up again, until it's gone.
-    if (stem.bud) stem.flower = clamp(stem.flower + (wetAt(world.terrain, stem.tip) ? -0.01 : 0.002 * rate), 0, 1);
+    openFlower(world, stem, rate);
     if (stem.sprout > 0) {
       stem.sprout -= rate;
       if (stem.sprout <= 0) {
@@ -1046,6 +1049,27 @@ const growPlant = (world, plant, rate) => {
   bendPlant(world, plant);
 };
 
+// A bud swells and opens into a flower, but only in the air: under water it closes up again, until the water's gone.
+// A bare tip doesn't bud while it rests after its last flower.
+const openFlower = (world, stem, rate) => {
+  if (!stem.bud || stem.rest > 0) return;
+  stem.flower = clamp(stem.flower + (wetAt(world.terrain, stem.tip) ? -0.01 : 0.002 * rate), 0, 1);
+};
+
+// Something a plant drops, to flutter down: a leaf or a petal.
+const shed = (world, at, look) => {
+  if (world.litter.length >= MAX_LITTER) world.litter.shift();
+  world.litter.push({
+    ...at,
+    look,
+    state: 'fall',
+    phase: world.lifeRand() * 6, // of its flutter
+    rot: 0, // lying on the ground it browns and curls up as this goes to 1, and is gone
+    size: 1, // fish bite it smaller
+    life: 1, // eaten, like crumbs and flakes, when a fish takes it to 0
+  });
+};
+
 // Leaves get old. One past its time yellows and drops, and its node buds a new one in its place: one leaf at a
 // time, so a plant never looks poorly.
 const ageLeaves = (world, plant) => {
@@ -1066,18 +1090,35 @@ const ageLeaves = (world, plant) => {
   const { stem, leaf } = fading;
   leaf.fade += 1 / LEAF_FADE;
   if (leaf.fade < 1) return;
-  if (world.litter.length >= MAX_LITTER) world.litter.shift();
   const sp = plant.species;
-  world.litter.push({
-    ...lerp(stem.root, stem.tip, leaf.at),
-    look: { shape: sp.shape, color: sp.leaf, grown: leaf.size, scale: sp.leafSize, flip: leaf.side },
-    state: 'fall',
-    phase: world.lifeRand() * 6, // of its flutter
-    rot: 0, // lying on the ground it browns and curls up as this goes to 1, and is gone
-    size: 1, // fish bite it smaller
-    life: 1, // eaten, like crumbs and flakes, when a fish takes it to 0
-  });
+  const look = { shape: sp.shape, color: sp.leaf, grown: leaf.size, scale: sp.leafSize, flip: leaf.side };
+  shed(world, lerp(stem.root, stem.tip, leaf.at), look);
   Object.assign(leaf, { size: 0, age: 0, fade: 0 });
+};
+
+// Flowers come and go. An open flower lasts a while (its age counts up to the bloom life from somewhere either side
+// of 0, so no two last quite as long), then wilts, dropping its petals one by one, and the bare tip rests before it
+// buds and opens again. Not the baby plants at the ends of runners.
+const ageFlowers = (world, plant) => {
+  const r = world.lifeRand;
+  const life = BLOOM_LIFE * params.bloomLife;
+  const f = plant.species.flower;
+  for (const stem of plant.stems) {
+    if (stem.rest > 0) stem.rest--;
+    if (!stem.bud || stem.flower < 1 || (stem.role === 'runner' && !stem.sideBloom)) continue;
+    stem.age ??= Math.floor((r() - 0.5) * life);
+    if (++stem.age < life) continue;
+    const petals = f.petals ?? 4;
+    const fallen = Math.floor((stem.wilt ?? 0) * petals);
+    stem.wilt = (stem.wilt ?? 0) + 1 / WILT_TICKS;
+    if (Math.floor(stem.wilt * petals) > fallen) {
+      const at = { x: stem.tip.x + (r() - 0.5) * 4, y: stem.tip.y + (r() - 0.5) * 2 };
+      shed(world, at, { petal: true, color: f.petal ?? f.crest ?? f.spathe ?? f.color });
+    }
+    if (stem.wilt >= 1) {
+      Object.assign(stem, { flower: 0, wilt: 0, age: Math.floor((r() - 0.5) * life), rest: REST_TICKS * (0.5 + r()) });
+    }
+  }
 };
 
 const wrapAngle = (a) => Math.atan2(Math.sin(a), Math.cos(a));
@@ -1233,7 +1274,7 @@ const growClump = (world, plant, rate) => {
   const sp = plant.species;
   const ter = world.terrain;
   for (const stem of [...plant.stems]) {
-    if (stem.bud) stem.flower = clamp(stem.flower + (wetAt(ter, stem.tip) ? -0.01 : 0.002 * rate), 0, 1);
+    openFlower(world, stem, rate);
     if (!stem.growing) continue;
     stem.len += sp.speed * rate;
     const { x, y } = stem.tip;
@@ -1790,13 +1831,14 @@ const relocate = (world, obj, to) => {
   Object.assign(obj, { base: to.base, on: to.on, hold: to.hold });
 };
 
-// A flowering plant that has finished growing: nothing still growing or about to sprout, and its flowers open. A
-// clump plant once its crown is full, flowers (or baby plants) and all.
+// A flowering plant that has finished growing: nothing still growing or about to sprout, and its flowers out (or
+// come and gone, to come again). A clump plant once its crown is full, flowers (or baby plants) and all.
 export const propagatable = (obj) => {
   if (obj.kind !== 'plant') return false;
-  const settled = obj.stems.every((st) => !st.growing && st.sprout <= 0 && (!st.bud || st.flower >= 1));
+  const flowered = (st) => st.bud && (st.flower >= 1 || st.age !== undefined);
+  const settled = obj.stems.every((st) => !st.growing && st.sprout <= 0 && (!st.bud || flowered(st)));
   if (obj.species.form) return settled && crownFull(obj);
-  return settled && obj.stems.some((st) => st.flower >= 1);
+  return settled && obj.stems.some(flowered);
 };
 
 // Take a cutting: a seedling of the same species goes in at to, and the parent is cut right back to a seedling
@@ -1829,6 +1871,7 @@ export const step = (world) => {
     if (obj.kind === 'plant') {
       growPlant(world, obj, params.plantGrowth);
       ageLeaves(world, obj);
+      ageFlowers(world, obj);
     } else if (obj.kind === 'grass') growGrass(world, obj, params.plantGrowth);
     else if (obj.kind === 'vine') growVine(world, obj, params.plantGrowth);
   }
@@ -2335,8 +2378,9 @@ const stepDebris = (world) => {
   });
 };
 
-// Fallen leaves flutter down, rocking side to side and blown along by the breeze. On the ground they lie, brown,
-// curl up and are gone in a minute; on the water they float a while, then sink, and fish nibble at them.
+// Fallen leaves and petals flutter down, rocking side to side and blown along by the breeze. On the ground they lie,
+// brown, curl up and are gone in a minute (a petal in 15 s); on the water they float a while, then sink, and fish
+// nibble at them.
 const stepLitter = (world) => {
   const ter = world.terrain;
   world.litter = world.litter.filter((it) => {
@@ -2361,7 +2405,7 @@ const stepLitter = (world) => {
       it.x = clamp(it.x + Math.cos(it.phase) * 0.08, 1, world.W - 2);
       it.y += 0.05;
     } else {
-      it.rot += LITTER_ROT;
+      it.rot += LITTER_ROT * (it.look.petal ? PETAL_ROT : 1);
     }
     // Falling or sinking it lands on the floor; lying, it falls again if the floor goes from under it.
     if (it.state !== 'float' && (it.state !== 'lie' || world.time % 10 === 0)) {

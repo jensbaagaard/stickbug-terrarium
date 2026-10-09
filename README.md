@@ -106,7 +106,9 @@ Shop, Garden (Prune, Relocate, Propagate and Feed), Saves and Settings. The game
 - The tank lives on its own. A breeze sways the plants, grass and vines in the air, and now and then a gust rolls
   across the tank, leaning everything over as it passes. Old plant leaves yellow, droop and drop, one at a time, and
   the node grows a new one: fallen leaves flutter down and lie browning on the ground until they're gone, or float on
-  the water a while and sink, and the fish nibble them. Fireflies hang about over the plants, blinking, and over a
+  the water a while and sink, and the fish nibble them. Flowers come and go, each on its own clock: a bud swells and
+  opens, and a few minutes later the flower wilts, browning and drooping as its petals drop one by one, and the bare
+  tip rests a while before it buds again. Fireflies hang about over the plants, blinking, and over a
   minute or two fall into step until they flash together. Whatever grows under water gives off bubbles that pop at
   the surface, light glints along the water, rings spread where something lands on it, and dust drifts in the air.
 - Saves: save the tank (terrain, plants, sticks, bugs, coins and the shop) into a new slot, each shown with a little
@@ -133,8 +135,8 @@ Shop, Garden (Prune, Relocate, Propagate and Feed), Saves and Settings. The game
   traits, colours, names.
 - `src/anatomy.js` – body and leg geometry shared by the simulation and the renderer.
 - `src/sim.js` – world, surfaces and junctions, bugs (kicked tripod steps with feet planted in the world, crawling
-  round corners at junctions, quirks), decorations, plants growing node by node (their leaves ageing and dropping),
-  fallen leaves, spreading grass, vines as swaying ropes, pruning, the shop and coins. Pure logic, no DOM.
+  round corners at junctions, quirks), decorations, plants growing node by node (their leaves ageing and dropping,
+  their flowers wilting and budding again), fallen leaves and petals, spreading grass, vines as swaying ropes, pruning, the shop and coins. Pure logic, no DOM.
 - `src/life.js` – the tank's ambient life: the breeze (a function of time alone, read by the sim and the drawing),
   fireflies, bubbles, dust (snow, under a snowy sky) and ripples. It draws from its own random numbers, so it never
   changes what else happens. Pure logic, no DOM.

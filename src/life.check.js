@@ -1,8 +1,8 @@
 // Run with `node src/life.check.js`: old leaves yellow, drop and grow back, fallen leaves lie on the ground or float
-// and sink in the water, fireflies keep over the plants and fall into step, bubbles rise only in the water, dust
+// and sink in the water, flowers wilt, drop their petals and flower again, fireflies keep over the plants and fall into step, bubbles rise only in the water, dust
 // stays in the air, and gusts come along.
 import assert from 'node:assert/strict';
-import { createWorld, step } from './sim.js';
+import { createWorld, propagatable, step } from './sim.js';
 import { cellAt, EMPTY, paintTerrain, WATER } from './terrain.js';
 import { wind } from './life.js';
 import { params } from './tuning.js';
@@ -23,8 +23,8 @@ const pool = (world, x0, x1, depth) => {
 };
 
 {
-  // The starting plant, its leaves living a tenth as long as usual.
-  params.leafLife = 0.1;
+  // The starting plant, its leaves living a tenth as long as usual, and its flowers out of the way: they never wilt.
+  Object.assign(params, { leafLife: 0.1, bloomLife: 1000 });
   const world = createWorld(256, 341, { seed: 2 });
   const plant = world.objects.find((o) => o.kind === 'plant');
   const leaves = () => plant.stems.flatMap((st) => st.leaves);
@@ -65,7 +65,30 @@ const pool = (world, x0, x1, depth) => {
   assert.ok(floated && rippled, 'it floats on the water, rippling it');
   assert.equal(leaf.state, 'lie', 'then sinks to the bottom');
   assert.ok(leaf.y > floor - 3);
-  params.leafLife = 1;
+  Object.assign(params, { leafLife: 1, bloomLife: 1 });
+}
+
+{
+  // The starting plant's flowers, each open a tenth as long as usual: in time one wilts and drops its petals, and its
+  // bare tip buds and flowers again. All the while, the plant can be propagated.
+  params.bloomLife = 0.1;
+  const world = createWorld(256, 341, { seed: 2 });
+  const plant = world.objects.find((o) => o.kind === 'plant');
+  steps(world, 15000); // fully grown
+  const flower = plant.stems.find((st) => st.bud);
+  let [wilted, bare, again, petals, alwaysPropagatable] = [false, false, false, 0, true];
+  steps(world, 30000, () => {
+    wilted ||= flower.wilt > 0;
+    bare ||= wilted && flower.flower === 0;
+    again ||= bare && flower.flower === 1;
+    petals = Math.max(petals, world.litter.filter((it) => it.look.petal).length);
+    alwaysPropagatable &&= propagatable(plant);
+  });
+  assert.ok(wilted, 'an open flower wilts');
+  assert.ok(petals > 0, 'dropping its petals');
+  assert.ok(bare && again, 'and its bare tip flowers again');
+  assert.ok(alwaysPropagatable, 'the plant can be propagated all along');
+  params.bloomLife = 1;
 }
 
 {
