@@ -1,6 +1,6 @@
-// Visitors: small bugs that come and go on their own when the tank has what they're after. Dragonflies patrol over
-// still water, darting from one spot to hover at the next, now and then dipping to touch the surface or resting on a
-// stem tip nearby; water striders skate about on it in jerky glides; now and then a bee comes in to work the open
+// Visitors: small bugs that come and go on their own when the tank has what they're after. Dragonflies keep to still
+// water for as long as it's there, like fireflies to their plants, darting from one spot over it to hover at the next,
+// now and then dipping to touch the surface or resting on a stem tip nearby; water striders skate about on it in jerky glides; now and then a bee comes in to work the open
 // flowers, landing on one after another, and goes off again with its legs laden with pollen; and gnats dance in
 // little clouds over the plants. How many come goes with how green the tank is and how much of it is air (see
 // life.js's room). Tapped near, they make off. They draw on the tank's life's own random numbers, and none of them is
@@ -17,6 +17,7 @@ const MIN_POND = 16; // px across a still pond must be for water striders
 const DRAGON_POND = 30; // and for dragonflies
 const STILL = 0.85; // share of a pond's surface that mustn't have moved since the last look, for it to be still
 const REPLAN_TICKS = 60;
+const LOST_TICKS = 300; // no pond for a dragonfly this long (not just a level bobbing a moment), it leaves
 
 const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 
@@ -58,7 +59,7 @@ const pondsOf = (world) => {
 const pondNow = (world, v) => {
   const was = v.pond;
   const near = (p) => Math.max(p.x0 - v.x, v.x - p.x1, 0);
-  const same = (p) => Math.abs(p.y - was.y) <= CELL && p.x0 < was.x1 + 20 && was.x0 - 20 < p.x1;
+  const same = (p) => Math.abs(p.y - was.y) <= 2 * CELL && p.x0 < was.x1 + 20 && was.x0 - 20 < p.x1;
   const pieces = pondsOf(world).filter(same);
   return pieces.reduce((a, p) => (!a || near(p) < near(a) ? p : a), null);
 };
@@ -115,7 +116,7 @@ const DRAGON_COLORS = [
 // Somewhere to hover over the pond: over the water, a little way up.
 const overPond = (world, pond) => ({
   x: pond.x0 + 4 + world.lifeRand() * (pond.x1 - pond.x0 - 8),
-  y: pond.y - 6 - world.lifeRand() * 30,
+  y: pond.y - 6 - world.lifeRand() * 20,
 });
 
 // A stem tip by the pond to rest on, out of the water, if there is one.
@@ -130,16 +131,19 @@ const perchBy = (world, pond) => {
 const newDragonfly = (world, pond) => {
   const r = world.lifeRand;
   const v = { kind: 'dragonfly', x: pond.x0 + r() * (pond.x1 - pond.x0), y: -6, vx: 0, vy: 0, dir: 1, pond };
-  Object.assign(v, { age: 0, life: 3000 + r() * 4000, color: pick(r, DRAGON_COLORS), seed: r() * 100, ticks: 0 });
+  Object.assign(v, { color: pick(r, DRAGON_COLORS), seed: r() * 100, ticks: 0, gone: 0 });
   return head(v, 'dart', overPond(world, pond));
 };
 
 const stepDragonfly = (world, v) => {
   const r = world.lifeRand;
-  const pond = pondNow(world, v);
-  if (!pond || ++v.age > v.life || v.state === 'leave') return leave(world, v, 1.4);
-  v.pond = pond;
-  if (v.state === 'dart' && flyTo(world, v, v.to, 1.6, 0.25)) {
+  const big = (p) => p.x1 - p.x0 >= DRAGON_POND;
+  const near = (p) => Math.abs((p.x0 + p.x1) / 2 - v.x) + Math.abs(p.y - v.y);
+  const now = pondNow(world, v) ?? pondsOf(world).filter(big).reduce((a, p) => (!a || near(p) < near(a) ? p : a), null);
+  v.gone = now ? 0 : v.gone + 1;
+  if (v.gone > LOST_TICKS || v.state === 'leave') return leave(world, v, 0.8); // its pond's gone for good
+  const pond = (v.pond = now ?? v.pond);
+  if (v.state === 'dart' && flyTo(world, v, v.to, 0.8, 0.15)) {
     Object.assign(v, { state: 'hover', ticks: 40 + r() * 120 });
   } else if (v.state === 'hover') {
     // Hanging in the air, just about still; then off to another spot, down to dip the water, or to a stem to rest.
@@ -151,14 +155,14 @@ const stepDragonfly = (world, v) => {
     if (perch) head(v, 'toPerch', perch);
     else if (roll < 0.2) head(v, 'dip', { x: v.x + (r() - 0.5) * 20, y: pond.y - 1 });
     else head(v, 'dart', overPond(world, pond));
-  } else if (v.state === 'dip' && flyTo(world, v, v.to, 1.2, 0.3)) {
+  } else if (v.state === 'dip' && flyTo(world, v, v.to, 0.6, 0.15)) {
     ripple(world, v.x, pond.y + 1); // touches the water
     head(v, 'dart', overPond(world, pond));
   } else if (v.state === 'toPerch' || v.state === 'perch') {
     const stem = v.to.part;
     if (!v.to.obj.stems.includes(stem)) return !!head(v, 'dart', overPond(world, pond)); // the stem's gone
     const at = { x: stem.tip.x, y: stem.tip.y - 1 };
-    if (v.state === 'toPerch' && flyTo(world, v, at, 1.2, 0.3)) {
+    if (v.state === 'toPerch' && flyTo(world, v, at, 0.6, 0.15)) {
       Object.assign(v, { state: 'perch', ticks: 300 + r() * 600 });
     }
     if (v.state === 'perch') {
@@ -215,15 +219,15 @@ const newBee = (world) => {
 // pollen, then off out of the tank.
 const stepBee = (world, v) => {
   const r = world.lifeRand;
-  if (v.state === 'leave') return leave(world, v, 1);
+  if (v.state === 'leave') return leave(world, v, 0.5);
   const open = (f) => f.part.flower >= 1 && !(f.part.wilt > 0.2) && f.obj.stems.includes(f.part);
   if (!v.to || !open(v.to)) {
     const flowers = flowersOf(world).filter((f) => f.part !== v.last);
-    if (!flowers.length || v.visits <= 0) return leave(world, v, 1);
+    if (!flowers.length || v.visits <= 0) return leave(world, v, 0.5);
     head(v, 'fly', pick(r, flowers));
   }
   const at = { x: v.to.part.tip.x, y: v.to.part.tip.y - 1 };
-  if (v.state === 'fly' && flyTo(world, v, at, 0.9, 0.2)) Object.assign(v, { state: 'sit', ticks: 90 + r() * 90 });
+  if (v.state === 'fly' && flyTo(world, v, at, 0.45, 0.12)) Object.assign(v, { state: 'sit', ticks: 90 + r() * 90 });
   if (v.state === 'sit') {
     Object.assign(v, at, { vx: 0, vy: 0 });
     v.pollen = Math.min(1, v.pollen + 1 / 250);
