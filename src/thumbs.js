@@ -21,8 +21,9 @@ export const drawThumb = (canvas, offer) => {
   const y0 = Math.max(0, Math.floor(box.y0));
   const w = Math.min(world.W, Math.ceil(box.x1)) - x0;
   const h = Math.min(H, Math.ceil(box.y1)) - y0;
-  // Square it up so every card shows its item at a sensible size.
-  const side = Math.max(w, h, offer.kind === 'fish' ? 60 : 40); // fish in a bigger square, so they look small
+  // Square it up so every card shows its item at a sensible size: fish in a bigger square, so they look small, and
+  // fliers in a smaller one, so they don't look lost.
+  const side = Math.max(w, h, { fish: 60, flier: 28 }[offer.type ?? offer.kind] ?? 40);
   canvas.width = side;
   canvas.height = side;
   const ctx = canvas.getContext('2d');
