@@ -45,8 +45,17 @@ body {
 .tank:fullscreen { display: flex; align-items: center; justify-content: center; border: 0; }
 /* Zoomed in, the canvas is magnified and moved by a transform, and only what's in view shows. */
 .tank .view { overflow: hidden; }
-/* The tank's corner: zoom out (when zoomed in), zoom mode, full screen. */
-.tank .corner { position: absolute; top: 4px; right: 4px; display: flex; gap: 4px; }
+/* The tank's corner: the zoom and full screen, and under them while zoomed in, the minimap. */
+.tank .corner {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+.tank .corner .buttons { display: flex; gap: 4px; }
 .tank .corner button {
   flex: none;
   min-height: 0;
@@ -61,13 +70,20 @@ body {
 }
 .tank .corner button:hover,
 .tank .corner button:focus-visible { opacity: 1; }
-.tank .corner button[aria-pressed='true'] { background: var(--tan); color: var(--soil); opacity: 1; }
+/* The zoom, like Dust 2's SCALE: out, how far, in; lit up while zoomed in. */
+.tank .zoom { display: flex; align-items: center; background: rgb(0 0 0 / 0.35); opacity: 0.6; }
+.tank .zoom.zoomed, .tank .zoom:hover, .tank .zoom:focus-within { opacity: 1; }
+.tank .zoom button { background: transparent; opacity: 1; }
+.tank .zoom button:disabled { opacity: 0.3; }
+.tank .zoom .level { min-width: 3em; text-align: center; font-size: 10px; letter-spacing: 0.04em; color: var(--bright); }
+/* The whole tank, small, with the view framed: press or drag it to move the view. */
+.tank .minimap { display: block; border: 1px solid var(--frame); background: #000; touch-action: none; cursor: move; }
 /* News, a wild flower coming up say: top left over the tank a few seconds, in coin yellow, hopping in. */
 .tank .news {
   position: absolute;
   top: 4px;
   left: 4px;
-  max-width: calc(100% - 98px); /* clear of the corner's buttons */
+  max-width: calc(100% - 128px); /* clear of the corner's buttons */
   margin: 0;
   padding: 4px 7px;
   background: rgb(0 0 0 / 0.35);
