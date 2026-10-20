@@ -76,8 +76,9 @@ panel's pixel icons.
 
 `main.jsx` mounts `App.jsx`: the tank, the inspector and the tabs (Editor, Shop, Garden, Saves, Settings), with
 debug mode's tank stats and sliders under Settings. `Terrarium.jsx` is the canvas: fitting it to the screen, pointer
-input, the tick loop. `ui/` holds the panel's smaller pieces (`parts.jsx`, `Save.jsx`, `Inspector.jsx`), and
-`saves.js` the save slots, autosave and settings in localStorage.
+input, the tick loop, and the zoom (zoom mode, its buttons in the tank's corner, the wheel), shown as a CSS transform
+on the canvas; the zoom's maths is pure, in `view.js`. `ui/` holds the panel's smaller pieces (`parts.jsx`,
+`Save.jsx`, `Inspector.jsx`), and `saves.js` the save slots, autosave and settings in localStorage.
 
 ## A tick
 

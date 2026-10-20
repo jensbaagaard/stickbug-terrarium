@@ -315,23 +315,23 @@ export default function App() {
   return (
     <>
       <div className={snap?.placing ? 'tank placing' : 'tank'} ref={tankBox}>
-        <Terrarium worldRef={world} size={size} />
+        <Terrarium worldRef={world} size={size}>
+          {document.fullscreenEnabled && (
+            <button
+              type="button"
+              aria-label={full ? 'Leave full screen' : 'Full screen'}
+              title={full ? 'Leave full screen' : 'Full screen'}
+              onClick={toggleFull}
+            >
+              <Icon name={full ? 'shrink' : 'expand'} />
+            </button>
+          )}
+        </Terrarium>
         {/* Something to tell, a wild flower coming up say: over the tank a few seconds. */}
         {snap?.biome.news && (
           <p className="news" role="status" key={snap.biome.news}>
             {snap.biome.news}
           </p>
-        )}
-        {document.fullscreenEnabled && (
-          <button
-            type="button"
-            className="fullscreen"
-            aria-label={full ? 'Leave full screen' : 'Full screen'}
-            title={full ? 'Leave full screen' : 'Full screen'}
-            onClick={toggleFull}
-          >
-            <Icon name={full ? 'shrink' : 'expand'} />
-          </button>
         )}
       </div>
 

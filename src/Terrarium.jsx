@@ -1,6 +1,7 @@
 // The tank's canvas: sized to a whole number of screen px per tank px (the most that fits), turning pointer events
-// into tank coordinates for the tools, and running the world a fixed 60 ticks a second, drawn every frame.
-import { useLayoutEffect, useRef } from 'react';
+// into tank coordinates for the tools, and running the world a fixed 60 ticks a second, drawn every frame. And the zoom
+// (view.js): its buttons in the tank's corner, and zoom mode, where a press zooms or moves the view.
+import { useLayoutEffect, useRef, useState } from 'react';
 import {
   TANK_SIZES,
   aimAt,
@@ -14,6 +15,8 @@ import {
 } from './sim.js';
 import { drawWorld } from './render.js';
 import { SCISSORS_CURSOR } from './icons.js';
+import { Icon } from './ui/parts.jsx';
+import { UNZOOMED, ZOOMS, clampView, nextZoom, panBy, zoomAbout, zoomMiddle } from './view.js';
 
 // The tank is one of TANK_SIZES in world pixels (size picks which to start with; a world swapped in later may be
 // another), shown a whole number of screen pixels to each so they all come out the same size: the most that fits, up
@@ -30,6 +33,9 @@ const BIG_SCALE = 3;
 const PANEL_WIDTH = 380; // styles.css --panel-width
 const GAP = 14;
 const TICK_MS = 1000 / 60;
+const DRAG_SLOP = 4; // css px a press in zoom mode can move and still be a tap, which zooms, not a drag
+const WHEEL_STEP = 50; // px of wheel, or of pinch, to a step of zoom
+const LINE_PX = 16; // px to a line, for a wheel that scrolls in lines
 
 // The cursor says what a press would do there.
 const AIM_CURSORS = {
@@ -51,9 +57,46 @@ const cursorOf = (world) => {
 };
 
 // The world lives in worldRef, and everything here reads it from there, so the parent can swap in another world,
-// a loaded save say, at any time.
-export default function Terrarium({ worldRef: ref, size = 'small' }) {
+// a loaded save say, at any time. children are more buttons for the tank's corner, after the zoom's.
+export default function Terrarium({ worldRef: ref, size = 'small', children }) {
   const canvasRef = useRef(null);
+  // The view (view.js), and zoom mode, like a tool of its own: while it's on, a tap zooms in about where it lands (out
+  // with the right button, Alt or Shift), a drag moves the view, and the wheel zooms. entered is what was going on when
+  // it came on: picking a tool, something to put in or another tank leaves it, so the next press is theirs.
+  const view = useRef(UNZOOMED);
+  const [zoom, setZoom] = useState(1);
+  const [zooming, setZoomingState] = useState(false);
+  const zoomingRef = useRef(false);
+  const entered = useRef(null);
+  const setZooming = (on) => {
+    const world = ref.current;
+    if (!world) return;
+    if (on) {
+      world.hover = false; // no marks or brush under the pointer while it zooms
+      entered.current = { world, tool: world.tool, placing: world.placing };
+    }
+    zoomingRef.current = on;
+    setZoomingState(on);
+    canvasRef.current.style.cursor = on ? 'zoom-in' : cursorOf(world);
+  };
+
+  // css px to a world px, magnified z times.
+  const cssPx = (z) => (parseFloat(canvasRef.current.style.width) / ref.current.W) * z;
+  // Show view v, kept inside the tank: the canvas magnified v.z times and moved, by whole screen px.
+  const show = (v) => {
+    const canvas = canvasRef.current;
+    const { W, H } = ref.current;
+    v = view.current = clampView(v, W, H);
+    const k = cssPx(v.z);
+    const dpr = window.devicePixelRatio || 1;
+    const at = (n) => Math.round(-n * k * dpr) / dpr;
+    canvas.style.transform = v.z === 1 ? '' : `translate(${at(v.x)}px, ${at(v.y)}px) scale(${v.z})`;
+    setZoom(v.z);
+  };
+  const zoomOut = () => {
+    const { W, H } = ref.current;
+    show(zoomMiddle(view.current, nextZoom(view.current.z, -1), W, H));
+  };
 
   useLayoutEffect(() => {
     const canvas = canvasRef.current;
@@ -68,6 +111,7 @@ export default function Terrarium({ worldRef: ref, size = 'small' }) {
       if (document.fullscreenElement?.contains(canvas)) {
         const w = Math.min(innerWidth, (innerHeight * W) / H);
         Object.assign(canvas.style, { width: `${w}px`, height: `${(w * H) / W}px` });
+        show(view.current);
         return;
       }
       const dpr = window.devicePixelRatio || 1;
@@ -93,6 +137,7 @@ export default function Terrarium({ worldRef: ref, size = 'small' }) {
       Object.assign(canvas.style, { width: `${w}px`, height: `${h}px` });
       document.documentElement.style.setProperty('--tank-width', `${w}px`);
       document.documentElement.classList.toggle('side', side);
+      show(view.current);
     };
     fit();
 
@@ -101,12 +146,50 @@ export default function Terrarium({ worldRef: ref, size = 'small' }) {
       return [((e.clientX - r.left) / r.width) * world.W, ((e.clientY - r.top) / r.height) * world.H];
     };
     const abort = new AbortController();
+
+    // Zoom mode's press: where it went down (client px), the view then, whether it zooms out, and whether it's moved
+    // far enough to be a drag.
+    let press = null;
+    const zoomOutKey = (e) => e.button === 2 || e.altKey || e.shiftKey;
+    const zoomCursor = (e) => {
+      if (press?.moved) return 'grabbing';
+      if (zoomOutKey(e)) return 'zoom-out';
+      return view.current.z < ZOOMS.at(-1) ? 'zoom-in' : 'grab';
+    };
+    const zoomPress = {
+      pointerdown: (world, e) => {
+        press = { x: e.clientX, y: e.clientY, from: view.current, out: zoomOutKey(e), moved: false };
+        canvas.setPointerCapture(e.pointerId);
+      },
+      pointermove: (world, e) => {
+        if (!press) return;
+        const [dx, dy] = [e.clientX - press.x, e.clientY - press.y];
+        press.moved ||= Math.hypot(dx, dy) > DRAG_SLOP;
+        const k = cssPx(press.from.z);
+        if (press.moved) show(panBy(press.from, -dx / k, -dy / k, world.W, world.H));
+      },
+      pointerup: (world, e) => {
+        if (press && !press.moved) {
+          const z = nextZoom(view.current.z, press.out ? -1 : 1);
+          show(zoomAbout(view.current, z, ...toWorld(world, e), world.W, world.H));
+        }
+        press = null;
+      },
+      pointercancel: () => (press = null),
+    };
+
+    // In zoom mode a press is the zoom's (zoomPress), not the tools', to the end, even if zoom mode ends first.
     const on = (type, fn) =>
       canvas.addEventListener(
         type,
         (e) => {
           const world = ref.current;
           if (!world) return;
+          if (zoomingRef.current || press) {
+            zoomPress[type]?.(world, e);
+            canvas.style.cursor = zoomCursor(e);
+            return;
+          }
           fn(world, e);
           canvas.style.cursor = cursorOf(world);
         },
@@ -124,7 +207,39 @@ export default function Terrarium({ worldRef: ref, size = 'small' }) {
     on('pointerup', (world, e) => pointerUp(world, ...toWorld(world, e)));
     on('pointercancel', (world) => pointerCancel(world));
     on('pointerleave', (world) => (world.hover = false));
-    window.addEventListener('resize', fit, { signal: abort.signal }); // also fires when the zoom or screen changes
+    canvas.addEventListener('contextmenu', (e) => zoomingRef.current && e.preventDefault(), { signal: abort.signal });
+
+    // The wheel: in zoom mode, or pinched (or with Ctrl), it zooms about the pointer, a step for every WHEEL_STEP px of
+    // it; otherwise, zoomed in, it moves the view, and at 1:1 it scrolls the page as ever.
+    let wheel = 0;
+    let wheelAt = 0;
+    canvas.addEventListener(
+      'wheel',
+      (e) => {
+        const world = ref.current;
+        if (!world) return;
+        const v = view.current;
+        const px = e.deltaMode === 1 ? LINE_PX : e.deltaMode === 2 ? canvas.clientHeight : 1;
+        if (zoomingRef.current || e.ctrlKey) {
+          e.preventDefault();
+          if (e.timeStamp - wheelAt > 300 || Math.sign(e.deltaY) !== Math.sign(wheel)) wheel = 0; // a fresh turn
+          wheelAt = e.timeStamp;
+          wheel += e.deltaY * px;
+          if (Math.abs(wheel) < WHEEL_STEP) return;
+          show(zoomAbout(v, nextZoom(v.z, wheel < 0 ? 1 : -1), ...toWorld(world, e), world.W, world.H));
+          wheel = 0;
+        } else if (v.z > 1) {
+          e.preventDefault();
+          const k = cssPx(v.z);
+          show(panBy(v, (e.deltaX * px) / k, (e.deltaY * px) / k, world.W, world.H));
+        }
+      },
+      { passive: false, signal: abort.signal },
+    );
+    window.addEventListener('keydown', (e) => e.key === 'Escape' && zoomingRef.current && setZooming(false), {
+      signal: abort.signal,
+    });
+    window.addEventListener('resize', fit, { signal: abort.signal }); // also fires when the page zoom or screen changes
     document.addEventListener('fullscreenchange', fit, { signal: abort.signal });
 
     // Fixed-timestep loop, capped so a backgrounded tab doesn't fast-forward.
@@ -136,6 +251,10 @@ export default function Terrarium({ worldRef: ref, size = 'small' }) {
       last = now;
       const world = ref.current;
       if (world.W !== canvas.width || world.H !== canvas.height) fit(); // a tank of another size swapped in
+      const was = entered.current;
+      if (zoomingRef.current && (world !== was.world || world.tool !== was.tool || world.placing !== was.placing)) {
+        setZooming(false);
+      }
       while (acc >= TICK_MS) {
         step(world);
         acc -= TICK_MS;
@@ -153,13 +272,36 @@ export default function Terrarium({ worldRef: ref, size = 'small' }) {
   }, []);
 
   return (
-    <canvas
-      ref={canvasRef}
-      style={{
-        display: 'block',
-        touchAction: 'none',
-        imageRendering: 'pixelated',
-      }}
-    />
+    <>
+      {/* The canvas is magnified and moved by a transform; the box round it shows only what's in view. */}
+      <div className="view">
+        <canvas
+          ref={canvasRef}
+          style={{
+            display: 'block',
+            touchAction: 'none',
+            imageRendering: 'pixelated',
+            transformOrigin: '0 0',
+          }}
+        />
+      </div>
+      <div className="corner">
+        {zoom > 1 && (
+          <button type="button" aria-label="Zoom out" title="Zoom out" onClick={zoomOut}>
+            <Icon name="unzoom" />
+          </button>
+        )}
+        <button
+          type="button"
+          aria-label="Zoom"
+          aria-pressed={zooming}
+          title="Zoom: click to zoom in, right-click to zoom out, drag to move"
+          onClick={() => setZooming(!zooming)}
+        >
+          <Icon name="zoom" />
+        </button>
+        {children}
+      </div>
+    </>
   );
 }

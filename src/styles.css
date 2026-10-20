@@ -43,10 +43,11 @@ body {
 .tank { position: relative; border: 3px solid var(--frame); background: #000; }
 /* Full screen: the tank alone, in the middle of a black screen. */
 .tank:fullscreen { display: flex; align-items: center; justify-content: center; border: 0; }
-.tank .fullscreen {
-  position: absolute;
-  top: 4px;
-  right: 4px;
+/* Zoomed in, the canvas is magnified and moved by a transform, and only what's in view shows. */
+.tank .view { overflow: hidden; }
+/* The tank's corner: zoom out (when zoomed in), zoom mode, full screen. */
+.tank .corner { position: absolute; top: 4px; right: 4px; display: flex; gap: 4px; }
+.tank .corner button {
   flex: none;
   min-height: 0;
   width: 26px;
@@ -58,14 +59,15 @@ body {
   color: var(--bright);
   opacity: 0.5;
 }
-.tank .fullscreen:hover,
-.tank .fullscreen:focus-visible { opacity: 1; }
+.tank .corner button:hover,
+.tank .corner button:focus-visible { opacity: 1; }
+.tank .corner button[aria-pressed='true'] { background: var(--tan); color: var(--soil); opacity: 1; }
 /* News, a wild flower coming up say: top left over the tank a few seconds, in coin yellow, hopping in. */
 .tank .news {
   position: absolute;
   top: 4px;
   left: 4px;
-  max-width: calc(100% - 42px);
+  max-width: calc(100% - 98px); /* clear of the corner's buttons */
   margin: 0;
   padding: 4px 7px;
   background: rgb(0 0 0 / 0.35);

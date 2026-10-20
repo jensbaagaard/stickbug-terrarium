@@ -42,6 +42,10 @@ Shop, Garden (Prune, Relocate, Propagate and Feed), Saves and Settings. The game
   float, paddling for the nearest bank, and climb out. Anything you plant can stand on the terrain.
 - The button in the tank's top corner shows it full screen, alone and as big as it'll go; the button again (or Esc)
   brings it back.
+- The magnifying glass beside it zooms, like Dust 2's SCALE: while it's on, click in the tank to zoom in there (2x, 4x,
+  8x), right-click (or Alt- or Shift-click) to zoom back out, drag to look around, or use the wheel. The zoom stays
+  when you go back to a tool, so you can paint or prune up close; scroll (or drag with the glass on) to move about,
+  and pinch or Ctrl-scroll to zoom anywhere. The minus glass zooms back out a step.
 - Drag a bug to pick it up; tap it to inspect it (its picture, name, and bars for hunger, speed, size, laziness
   and groove). From the card you can release the bug.
 - Bugs climb anything that touches the ground or each other: the starting stick and whatever you buy.
